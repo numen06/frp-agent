@@ -1968,42 +1968,6 @@ function updateApiUrlInHelp() {
     updateApiInfo();
 }
 
-// 复制 curl 命令
-function copyCurlCommand() {
-    const curlExample = document.getElementById('curlExample');
-    if (!curlExample) {
-        showNotification('无法找到命令内容', 'error');
-        return;
-    }
-    
-    // 获取命令文本（去除 HTML 标签）
-    const commandText = curlExample.textContent || curlExample.innerText;
-    
-    // 复制到剪贴板
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(commandText).then(() => {
-            showNotification('curl 命令已复制到剪贴板', 'success');
-        }).catch(() => {
-            showNotification('复制失败，请手动复制', 'error');
-        });
-    } else {
-        // 备用方法
-        const textarea = document.createElement('textarea');
-        textarea.value = commandText;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            showNotification('curl 命令已复制到剪贴板', 'success');
-        } catch (err) {
-            showNotification('复制失败，请手动复制', 'error');
-        }
-        document.body.removeChild(textarea);
-    }
-}
-
 // 处理文件上传
 async function handleFileUpload(event) {
     const file = event.target.files[0];
@@ -2141,8 +2105,8 @@ function updateCurlCommand() {
     }
 }
 
-// 复制 curl 命令到剪贴板
-function copyCurlCommand() {
+// 复制 curl 导入命令到剪贴板
+function copyCurlImportCommand() {
     const currentServer = servers.find(s => s.id == currentServerId);
     const serverName = currentServer ? currentServer.name : '服务器名';
     const apiUrl = window.location.origin;
@@ -2167,6 +2131,38 @@ function copyCurlCommand() {
         try {
             document.execCommand('copy');
             showNotification('命令已复制到剪贴板', 'success');
+        } catch (err) {
+            showNotification('复制失败，请手动复制', 'error');
+        }
+        document.body.removeChild(textarea);
+    });
+}
+
+// 复制 INI 转换 curl 命令（用于 INI 转换功能）
+function copyCurlCommand() {
+    const curlExample = document.getElementById('curlExample');
+    if (!curlExample) {
+        showNotification('无法找到命令内容', 'error');
+        return;
+    }
+    
+    // 获取命令文本（去除 HTML 标签）
+    const commandText = curlExample.textContent || curlExample.innerText;
+    
+    // 复制到剪贴板
+    navigator.clipboard.writeText(commandText).then(() => {
+        showNotification('curl 命令已复制到剪贴板', 'success');
+    }).catch(err => {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = commandText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showNotification('curl 命令已复制到剪贴板', 'success');
         } catch (err) {
             showNotification('复制失败，请手动复制', 'error');
         }
