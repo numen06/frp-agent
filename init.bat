@@ -72,7 +72,7 @@ echo   API 文档: http://localhost:8000/docs
 echo.
 echo 默认账号：
 echo   用户名: admin
-echo   密码: admin@123
+echo   密码: admin
 echo ==============================
 
 pause

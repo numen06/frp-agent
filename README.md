@@ -8,6 +8,7 @@
 - **端口管理**：自动跟踪端口分配，检测端口冲突
 - **状态同步**：定时从 frps API 同步代理状态
 - **配置生成**：生成标准的 frpc.toml 配置文件和启动脚本
+- **配置导入**：支持导入现有的 frpc 配置文件（INI/TOML），支持 curl 和脚本提交
 - **历史记录**：记录代理上下线、端口分配等历史事件
 - **Web 界面**：提供简洁的管理界面和 REST API
 
@@ -79,7 +80,7 @@ python app.py
 ```bash
 # 认证配置
 AUTH_USERNAME=admin
-AUTH_PASSWORD=admin@123
+AUTH_PASSWORD=admin
 
 # 数据库配置
 DATABASE_URL=sqlite:///./data/frp_agent.db
@@ -100,6 +101,7 @@ APP_DEBUG=false
 - **端口管理** - 自动分配和检测端口冲突
 - **状态监测** - 实时监测服务器连接状态
 - **配置生成** - 一键生成 frpc 配置文件
+- **配置导入** - 导入现有 frpc.ini 或 frpc.toml 配置文件（支持 Web 上传和 API 调用）
 - **用户设置** - 修改登录密码
 
 ## 主要 API 端点
@@ -122,16 +124,77 @@ APP_DEBUG=false
 - `POST /api/ports/allocate` - 分配端口
 - `POST /api/ports/release` - 释放端口
 
-### 配置生成
+### 配置生成与导入
 - `POST /api/config/generate` - 生成 frpc 配置文件
+- `POST /api/config/import` - 导入 frpc 配置文件（文件上传）
+- `POST /api/config/import/text` - 导入 frpc 配置文件（JSON 提交，**适合 curl**）
 
 ### 同步
 - `POST /api/sync` - 手动触发同步
 
+## 配置导入功能
+
+系统支持导入现有的 frpc 配置文件，支持 INI 和 TOML 两种格式。
+
+### 使用 Web 界面导入
+在管理界面选择"导入配置"功能，上传配置文件即可。
+
+### 使用 curl 导入（推荐用于自动化）
+
+#### 快速示例
+
+```bash
+# 使用 Python 脚本导入（最简单）
+./import_frpc_config.py frpc.ini --token YOUR_TOKEN
+
+# 使用 Shell 脚本导入
+./import_frpc_config.sh frpc.ini YOUR_TOKEN
+
+# 使用原生 curl 命令
+curl -X POST "http://localhost:8000/api/config/import/text" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "[ssh]\ntype = tcp\nlocal_ip = 127.0.0.1\nlocal_port = 22\nremote_port = 6000",
+    "format": "ini",
+    "frps_server_id": 1
+  }'
+```
+
+#### 工具脚本说明
+
+项目提供了两个便捷的导入工具：
+
+1. **Python 版本** (`import_frpc_config.py`):
+   - 功能完善，支持登录和 token 认证
+   - 自动检测配置格式
+   - 美化输出结果
+   
+   ```bash
+   # 使用 token
+   ./import_frpc_config.py frpc.ini --token YOUR_TOKEN
+   
+   # 使用用户名密码登录
+   ./import_frpc_config.py frpc.ini --username admin --password secret
+   
+   # 指定服务器和分组
+   ./import_frpc_config.py frpc.toml --token YOUR_TOKEN --server-id 2 --group production
+   ```
+
+2. **Shell 版本** (`import_frpc_config.sh`):
+   - 纯 Shell 实现，只需要 curl 和 jq
+   - 适合在 CI/CD 中使用
+   
+   ```bash
+   ./import_frpc_config.sh frpc.ini YOUR_TOKEN 1 ini default
+   ```
+
+📚 完整的 curl 导入指南请查看 [CURL_IMPORT_GUIDE.md](CURL_IMPORT_GUIDE.md)
+
 ## 默认账号
 
 - 用户名：`admin`
-- 密码：`admin@123`
+- 密码：`admin`
 
 ## 许可证
 

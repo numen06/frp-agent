@@ -18,15 +18,15 @@ class Settings(BaseSettings):
     
     # 认证配置
     auth_username: str = "admin"
-    auth_password: str = "admin123"
+    auth_password: str = "admin"
     
     # frps 默认配置
     default_frps_name: str = "默认服务器"
-    default_frps_server_addr: str = "frp.51jbm.cn"
+    default_frps_server_addr: str = "127.0.0.1"
     default_frps_server_port: int = 7000
-    default_frps_api_base_url: str = "http://frp.51jbm.cn/api"
+    default_frps_api_base_url: str = "http://127.0.0.1/api"
     default_frps_auth_username: str = "admin"
-    default_frps_auth_password: str = "admin@123"
+    default_frps_auth_password: str = "admin"
     
     # 同步任务配置
     sync_interval_seconds: int = 30

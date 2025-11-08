@@ -345,10 +345,10 @@ def get_config_direct(
     使用方法：
     ```bash
     # 方法1：使用 token（推荐，更简单）
-    curl -f "http://your-api/api/frpc/config/direct/51jbm/dlyy/frpc.ini?token=YOUR_TOKEN" -o frpc.ini
+    curl -f "http://your-api/api/frpc/config/direct/test/dlyy/frpc.ini?token=YOUR_TOKEN" -o frpc.ini
     
     # 方法2：使用 Basic Auth
-    curl -f -u username:password "http://your-api/api/frpc/config/direct/51jbm/dlyy/frpc.ini" -o frpc.ini
+    curl -f -u username:password "http://your-api/api/frpc/config/direct/test/dlyy/frpc.ini" -o frpc.ini
     ```
     """
     # 从文件名判断格式

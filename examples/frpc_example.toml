@@ -1,0 +1,70 @@
+# frpc 配置文件示例 (TOML 格式)
+# 这是一个示例配置文件，展示如何配置不同类型的代理
+
+serverAddr = "frps.example.com"
+serverPort = 7000
+auth.token = "your_token_here"
+
+# SSH 代理 - TCP 类型
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 22
+remotePort = 6000
+
+# Web 服务器代理 - TCP 类型
+[[proxies]]
+name = "web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 80
+remotePort = 8080
+
+# MySQL 数据库代理 - TCP 类型
+[[proxies]]
+name = "mysql"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3306
+remotePort = 3307
+
+# HTTPS 代理 - HTTPS 类型
+[[proxies]]
+name = "https"
+type = "https"
+customDomains = ["www.example.com"]
+localIP = "127.0.0.1"
+localPort = 443
+
+# HTTP 代理 - HTTP 类型，使用子域名
+[[proxies]]
+name = "web_http"
+type = "http"
+subdomain = "myapp"
+localIP = "127.0.0.1"
+localPort = 8000
+
+# RDP 远程桌面 - TCP 类型
+[[proxies]]
+name = "rdp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3389
+remotePort = 3389
+
+# 分组示例 - 使用分组名称前缀
+[[proxies]]
+name = "prod_api"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 5000
+remotePort = 5000
+
+[[proxies]]
+name = "prod_database"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 5432
+remotePort = 5433
+
