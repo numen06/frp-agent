@@ -49,9 +49,9 @@ ENV APP_HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# 健康检查
+# 健康检查（使用环境变量中的端口）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+    CMD curl -f http://localhost:${APP_PORT}/api/health || exit 1
 
 # 启动命令
 CMD ["python", "app.py"]
