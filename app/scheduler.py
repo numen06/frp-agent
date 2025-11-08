@@ -161,6 +161,30 @@ async def sync_server(db: Session, server: FrpsServer):
     db.commit()
 
 
+async def cleanup_expired_temp_configs():
+    """清理过期的临时配置"""
+    db: Session = SessionLocal()
+    
+    try:
+        from app.models.temp_config import TempConfig
+        
+        # 删除所有过期的临时配置
+        expired_count = db.query(TempConfig).filter(
+            TempConfig.expires_at < datetime.utcnow()
+        ).delete()
+        
+        db.commit()
+        
+        if expired_count > 0:
+            logger.info(f"已清理 {expired_count} 个过期的临时配置")
+        
+    except Exception as e:
+        logger.error(f"清理过期临时配置失败: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 async def start_scheduler():
     """启动调度器"""
     global scheduler
@@ -176,8 +200,18 @@ async def start_scheduler():
         replace_existing=True
     )
     
+    # 添加清理过期临时配置任务（每小时一次）
+    scheduler.add_job(
+        cleanup_expired_temp_configs,
+        trigger=IntervalTrigger(hours=1),
+        id="cleanup_temp_configs",
+        name="清理过期的临时配置",
+        replace_existing=True
+    )
+    
     scheduler.start()
     logger.info(f"定时同步任务已启动，间隔: {settings.sync_interval_seconds} 秒")
+    logger.info("临时配置清理任务已启动，间隔: 1 小时")
     
     # 立即执行一次同步
     await sync_all_servers()

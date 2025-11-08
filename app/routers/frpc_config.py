@@ -9,8 +9,10 @@ from app.database import get_db
 from app.auth import get_current_user, get_auth_from_header, authenticate_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
+from app.models.temp_config import TempConfig
 from app.services.frpc_config_service import FrpcConfigService
 from app.config import get_settings
+from datetime import datetime
 
 router = APIRouter(prefix="/api/frpc", tags=["frpc配置生成"])
 settings = get_settings()
@@ -61,23 +63,71 @@ def generate_config_by_group(
         raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
 
 
-@router.post("/config/by-proxies", response_class=PlainTextResponse)
+@router.post("/config/by-proxies")
 def generate_config_by_proxies(
     request: GenerateConfigByProxiesRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """根据代理ID列表生成 frpc 配置文件
+    """根据代理ID列表生成 frpc 配置文件（临时配置，24小时有效）
     
-    根据指定的代理ID列表生成 frpc 配置文件。
+    根据指定的代理ID列表生成临时配置文件。
+    此配置会保存24小时，之后自动删除。
+    
+    返回：
+    {
+        "config": "配置内容",
+        "temp_id": "临时配置ID",
+        "temp_group": "临时分组名",
+        "expires_at": "过期时间"
+    }
     """
     try:
+        import secrets
+        from app.models.proxy import Proxy
+        
         service = FrpcConfigService(db)
         config = service.generate_config_for_proxies(
             proxy_ids=request.proxy_ids,
             format=request.format
         )
-        return config
+        
+        # 获取代理信息以确定服务器
+        proxies = db.query(Proxy).filter(Proxy.id.in_(request.proxy_ids)).first()
+        if not proxies:
+            raise ValueError("未找到代理")
+        
+        # 获取服务器信息
+        server = db.query(FrpsServer).filter(FrpsServer.id == proxies.frps_server_id).first()
+        if not server:
+            raise ValueError("服务器不存在")
+        
+        # 生成临时分组名（带随机ID）
+        random_id = secrets.token_urlsafe(8)
+        temp_group = f"temp_sel_{random_id}"
+        
+        # 创建临时配置
+        temp_config = TempConfig.create_temp_config(
+            server_name=server.name,
+            group_name=temp_group,
+            config_content=config,
+            format=request.format,
+            hours=24
+        )
+        
+        db.add(temp_config)
+        db.commit()
+        db.refresh(temp_config)
+        
+        return {
+            "config": config,
+            "temp_id": temp_config.config_id,
+            "temp_group": temp_group,
+            "server_name": server.name,
+            "format": request.format,
+            "expires_at": temp_config.expires_at.isoformat(),
+            "note": "此为临时配置，24小时后自动删除。推荐使用分组配置作为长期使用。"
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -236,6 +286,32 @@ def get_my_token(
         "token": token,
         "username": username
     }
+
+
+@router.get("/config/temp/{config_id}", response_class=PlainTextResponse)
+def get_temp_config(
+    config_id: str,
+    db: Session = Depends(get_db)
+):
+    """获取临时配置（无需认证，24小时有效）
+    
+    用于访问选择代理生成的临时配置。
+    临时配置24小时后自动失效。
+    """
+    # 查找临时配置
+    temp_config = db.query(TempConfig).filter(TempConfig.config_id == config_id).first()
+    
+    if not temp_config:
+        raise HTTPException(status_code=404, detail="临时配置不存在或已过期")
+    
+    # 检查是否过期
+    if temp_config.is_expired:
+        # 删除过期配置
+        db.delete(temp_config)
+        db.commit()
+        raise HTTPException(status_code=410, detail="临时配置已过期（24小时有效期）")
+    
+    return temp_config.config_content
 
 
 @router.get("/config/direct/{server_name}/{group_name}/{filename}", response_class=PlainTextResponse)

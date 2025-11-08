@@ -669,60 +669,46 @@ async function generateConfigFromSelected() {
             throw new Error(error.detail || 'Request failed');
         }
         
-        const config = await response.text();
+        // 注意：这里返回的是JSON格式，包含临时配置信息
+        const result = await response.json();
+        const config = result.config;
         
         // 检查是否所有代理都在同一分组
         const selectedProxies = allProxies.filter(p => proxyIds.includes(p.id));
         const groups = new Set(selectedProxies.map(p => p.group_name));
         
         let urlSection = '';
-        if (groups.size === 1 && Array.from(groups)[0] && currentServerId) {
-            const groupName = Array.from(groups)[0];
-            const username = localStorage.getItem('username') || 'admin';
+        if (result.temp_id) {
+            // 这是临时配置（选择代理生成）
             const baseUrl = window.location.origin;
+            const filename = result.format === 'toml' ? 'frpc.toml' : 'frpc.ini';
+            const tempConfigUrl = `${baseUrl}/api/frpc/config/temp/${result.temp_id}`;
             
-            // 获取当前服务器信息
-            const currentServer = servers.find(s => s.id == currentServerId);
-            const serverName = currentServer ? currentServer.name : currentServerId;
-            
-            // 根据格式生成文件名
-            const filename = format === 'toml' ? 'frpc.toml' : 'frpc.ini';
-            
-            // 自动获取当前用户的 token
-            let token;
-            try {
-                const tokenResponse = await apiRequest('/api/frpc/get-my-token');
-                token = tokenResponse.token;
-            } catch (error) {
-                showNotification('获取访问令牌失败: ' + error.message, 'error');
-                // 仍然显示配置内容，只是不显示URL
-                document.getElementById('configOutput').innerHTML = `
-                    <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #d1d5db;">${config}</pre>
-                `;
-                return;
-            }
-            
-            // 生成配置文件下载 URL（带 token）
-            const configUrlWithToken = `${baseUrl}/api/frpc/config/direct/${serverName}/${groupName}/${filename}?token=${token}`;
+            const expiresDate = new Date(result.expires_at);
+            const expiresStr = expiresDate.toLocaleString('zh-CN');
             
             urlSection = `
-                <div style="margin-bottom: 1rem; padding: 1rem; background: #fef3c7; border-radius: 0.375rem; border: 1px solid #fcd34d;">
-                    <h4 style="margin: 0 0 0.75rem 0; color: #92400e;">🔗 配置文件直接访问地址</h4>
+                <div style="margin-bottom: 1rem; padding: 1rem; background: #dbeafe; border-radius: 0.375rem; border: 1px solid #60a5fa;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e40af;">🕐 临时配置访问地址（24小时有效）</h4>
                     
                     <div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" readonly value="${configUrlWithToken}" 
+                            <input type="text" readonly value="${tempConfigUrl}" 
                                 id="configDirectUrl" 
-                                style="flex: 1; padding: 0.5rem; border: 1px solid #fcd34d; border-radius: 0.375rem; background: white; font-family: monospace; font-size: 0.875rem;">
+                                style="flex: 1; padding: 0.5rem; border: 1px solid #60a5fa; border-radius: 0.375rem; background: white; font-family: monospace; font-size: 0.875rem;">
                             <button onclick="copyToClipboard('configDirectUrl', '配置URL已复制')" 
-                                style="padding: 0.5rem 1rem; background: #f59e0b; color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 600;">
+                                style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 600;">
                                 📋 复制
                             </button>
                         </div>
-                        <small style="color: #92400e; display: block; margin-top: 0.5rem;">
-                            💡 使用方法（无需输入密码）: <code style="background: white; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">curl -f "${configUrlWithToken}" -o ${filename}</code>
+                        <small style="color: #1e40af; display: block; margin-top: 0.5rem;">
+                            💡 使用方法（无需认证）: <code style="background: white; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">curl -f "${tempConfigUrl}" -o ${filename}</code>
                             <br>
-                            <span style="color: #78350f; font-size: 0.8em;">⚠️ 此URL包含访问令牌，请妥善保管，不要分享给他人</span>
+                            <span style="color: #1e3a8a; font-size: 0.8em;">⏰ 过期时间: ${expiresStr}</span>
+                            <br>
+                            <span style="color: #dc2626; font-size: 0.8em; font-weight: 600;">⚠️ 此为临时配置，24小时后自动删除，仅用于测试</span>
+                            <br>
+                            <span style="color: #059669; font-size: 0.8em; font-weight: 600;">💡 推荐：日常使用请使用分组配置（长期有效）</span>
                         </small>
                     </div>
                 </div>
