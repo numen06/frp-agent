@@ -81,7 +81,10 @@
                         </select>
                     </div>
                     
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-success" onclick="showImportConfigModal()">📤 导入配置</button>
                     <button class="btn btn-primary" onclick="refreshProxies()">🔄 刷新</button>
+                    </div>
                 </div>
                 
                 <!-- 分析信息展示 -->
@@ -110,6 +113,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
                     <p style="color: #6b7280; margin: 0;">管理所有代理分组，支持重命名和快速生成配置</p>
                     <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-primary" onclick="openCreateGroupModal()">➕ 新增分组</button>
                         <button class="btn btn-success" onclick="autoAnalyzeGroups()">🔍 自动分析分组</button>
                     </div>
                 </div>
@@ -272,6 +276,188 @@
             </div>
             
             <div id="configOutput" style="max-height: 500px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- 编辑代理 Modal -->
+    <div id="editProxyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✏️ 编辑代理</h2>
+                <span class="close-btn" onclick="closeModal('editProxyModal')">&times;</span>
+            </div>
+            <form id="editProxyForm" onsubmit="submitEditProxy(event)">
+                <input type="hidden" id="edit_proxy_id" name="proxy_id">
+                
+                <div class="form-group">
+                    <label>代理名称 *</label>
+                    <input type="text" id="edit_proxy_name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>分组名称</label>
+                    <input type="text" id="edit_group_name" name="group_name" placeholder="留空则自动从名称解析">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        如留空，系统将从代理名称自动解析分组（例如: dlyy_rdp → dlyy）
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>代理类型 *</label>
+                    <select id="edit_proxy_type" name="proxy_type" required>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                        <option value="stcp">STCP</option>
+                        <option value="xtcp">XTCP</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>本地 IP *</label>
+                    <input type="text" id="edit_local_ip" name="local_ip" value="127.0.0.1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>本地端口 *</label>
+                    <input type="number" id="edit_local_port" name="local_port" min="1" max="65535" required>
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        本地服务的端口号（1-65535）
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>远程端口</label>
+                    <input type="number" id="edit_remote_port" name="remote_port" min="1" max="65535" placeholder="TCP/UDP 类型需要">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        frps 服务器上的端口号（TCP/UDP 类型必填）
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editProxyModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新增分组 Modal -->
+    <div id="createGroupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ 新增分组</h2>
+                <span class="close-btn" onclick="closeModal('createGroupModal')">&times;</span>
+            </div>
+            <form id="createGroupForm" onsubmit="submitCreateGroup(event)">
+                <div class="form-group">
+                    <label>分组名称 *</label>
+                    <input type="text" id="new_group_name" name="group_name" required placeholder="例如: dlyy">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        输入新分组的名称，之后可以将代理分配到此分组
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary">创建分组</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createGroupModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 删除分组 Modal -->
+    <div id="deleteGroupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🗑️ 删除分组</h2>
+                <span class="close-btn" onclick="closeModal('deleteGroupModal')">&times;</span>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <p style="color: #374151; margin-bottom: 0.5rem;">
+                    确定要删除分组 <strong id="delete_group_name_display" style="color: #ef4444;"></strong> 吗？
+                </p>
+                <p style="color: #6b7280; font-size: 0.875rem;">
+                    该分组下有 <strong id="delete_group_proxy_count"></strong> 个代理。
+                </p>
+            </div>
+            
+            <form id="deleteGroupForm" onsubmit="submitDeleteGroup(event)">
+                <input type="hidden" id="delete_group_name" name="group_name">
+                
+                <div class="form-group">
+                    <label>处理方式 *</label>
+                    <select id="delete_reassign_group" name="reassign_group" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                        <option value="">移动到"其他"分组</option>
+                    </select>
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        选择将这些代理移动到哪个分组
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-danger">确认删除</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('deleteGroupModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 导入配置文件 Modal -->
+    <div id="importConfigModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📤 导入 frpc 配置文件</h2>
+                <span class="close-btn" onclick="closeModal('importConfigModal')">&times;</span>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <p style="color: #6b7280; margin-bottom: 1rem;">
+                    上传 frpc 配置文件（INI 或 TOML 格式），系统将自动解析并导入代理信息。
+                    <br>对于已存在的代理，将完全覆盖更新；对于新的代理，将创建新记录。
+                </p>
+            </div>
+            
+            <form id="importConfigForm" onsubmit="importConfig(event)">
+                <div class="form-group">
+                    <label>当前服务器</label>
+                    <input type="text" id="importServerDisplay" readonly style="background: #f3f4f6; width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                </div>
+                
+                <div class="form-group">
+                    <label>选择分组 *</label>
+                    <select id="importGroupSelect" name="group_name" required style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                        <option value="">请选择分组...</option>
+                    </select>
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        导入的代理将被分配到此分组
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>选择配置文件 *</label>
+                    <input type="file" id="configFile" name="file" accept=".ini,.toml" required 
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        支持 .ini 和 .toml 格式的 frpc 配置文件
+                    </small>
+                </div>
+                
+                <div id="importProgress" style="display: none; margin: 1rem 0;">
+                    <div style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem;">
+                        <p style="margin: 0; color: #374151;">正在导入配置文件...</p>
+                    </div>
+                </div>
+                
+                <div id="importResult" style="display: none; margin: 1rem 0;"></div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" id="importSubmitBtn">开始导入</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('importConfigModal')">取消</button>
+                </div>
+            </form>
         </div>
     </div>
 

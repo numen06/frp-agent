@@ -42,6 +42,7 @@ async function loadGroupsManagement() {
                                 <button class="btn btn-secondary btn-small" onclick="viewGroupProxies('${group.group_name}')">查看代理</button>
                                 <button class="btn btn-secondary btn-small" onclick="openRenameGroupModal('${group.group_name}')">重命名</button>
                                 <button class="btn btn-success btn-small" onclick="generateGroupConfig('${group.group_name}')">生成配置</button>
+                                <button class="btn btn-danger btn-small" onclick="openDeleteGroupModal('${group.group_name}', ${group.total_count})">删除</button>
                             </td>
                         </tr>
                     `).join('')}
@@ -69,15 +70,104 @@ function viewGroupProxies(groupName) {
     }, 100);
 }
 
-// 打开创建分组Modal（实际上是通过选择代理来创建）
+// 打开创建分组Modal
 function openCreateGroupModal() {
-    // 切换到代理列表标签页
-    const proxiesTabBtn = document.querySelector('.tabs .tab-btn:first-child');
-    proxiesTabBtn.click();
+    // 重置表单
+    document.getElementById('createGroupForm').reset();
+    openModal('createGroupModal');
+}
+
+// 提交创建分组表单
+async function submitCreateGroup(event) {
+    event.preventDefault();
     
-    setTimeout(() => {
-        showNotification('💡 提示：在代理列表中勾选代理，然后选择"分配到分组"即可创建新分组', 'success');
-    }, 100);
+    if (!currentServerId) {
+        showNotification('请先选择服务器', 'error');
+        return;
+    }
+    
+    const groupName = document.getElementById('new_group_name').value.trim();
+    
+    if (!groupName) {
+        showNotification('请输入分组名称', 'error');
+        return;
+    }
+    
+    try {
+        const result = await apiRequest('/api/groups/create', {
+            method: 'POST',
+            body: JSON.stringify({
+                group_name: groupName,
+                frps_server_id: currentServerId
+            })
+        });
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            closeModal('createGroupModal');
+            
+            // 刷新分组管理表格
+            await loadGroupsManagement();
+        }
+    } catch (error) {
+        showNotification('创建失败: ' + error.message, 'error');
+    }
+}
+
+// 打开删除分组Modal
+function openDeleteGroupModal(groupName, proxyCount) {
+    document.getElementById('delete_group_name').value = groupName;
+    document.getElementById('delete_group_name_display').textContent = groupName;
+    document.getElementById('delete_group_proxy_count').textContent = proxyCount;
+    
+    // 填充重新分配的分组选项
+    const reassignSelect = document.getElementById('delete_reassign_group');
+    const groups = new Set();
+    allProxies.forEach(proxy => {
+        if (proxy.group_name && proxy.group_name !== groupName && proxy.group_name !== '其他') {
+            groups.add(proxy.group_name);
+        }
+    });
+    
+    reassignSelect.innerHTML = '<option value="">移动到"其他"分组</option>' +
+        Array.from(groups).sort().map(g => `<option value="${g}">${g}</option>`).join('');
+    
+    openModal('deleteGroupModal');
+}
+
+// 提交删除分组表单
+async function submitDeleteGroup(event) {
+    event.preventDefault();
+    
+    if (!currentServerId) {
+        showNotification('请先选择服务器', 'error');
+        return;
+    }
+    
+    const groupName = document.getElementById('delete_group_name').value;
+    const reassignGroup = document.getElementById('delete_reassign_group').value;
+    
+    try {
+        let url = `/api/groups/${encodeURIComponent(groupName)}?frps_server_id=${currentServerId}`;
+        if (reassignGroup) {
+            url += `&reassign_group=${encodeURIComponent(reassignGroup)}`;
+        }
+        
+        const result = await apiRequest(url, {
+            method: 'DELETE'
+        });
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            closeModal('deleteGroupModal');
+            
+            // 刷新分组管理表格和代理列表
+            await loadGroupsManagement();
+            await refreshProxies();
+        }
+    } catch (error) {
+        showNotification('删除失败: ' + error.message, 'error');
+    }
 }
 
 // 打开重命名分组Modal
@@ -183,7 +273,7 @@ async function autoAnalyzeGroups() {
     
     console.log('✓ currentServerId 存在:', currentServerId);
     
-    if (!confirm('将从所有代理名称中自动分析分组，并更新分组归属。\n\n这将重新解析所有代理的分组名称。\n\n是否继续？')) {
+    if (!confirm('将从代理名称中自动分析分组。\n\n注意：仅对分组为"其他"或空的代理进行分析，不会覆盖已有的分组。\n\n是否继续？')) {
         return;
     }
     
@@ -222,6 +312,7 @@ async function autoAnalyzeGroups() {
             let message = `✓ 分析完成！\n\n`;
             message += `总代理数: ${analysis.total}\n`;
             message += `更新数量: ${analysis.updated}\n`;
+            message += `跳过数量: ${analysis.skipped} (已有分组)\n`;
             message += `未变化: ${analysis.unchanged}\n\n`;
             
             message += `发现的分组:\n`;

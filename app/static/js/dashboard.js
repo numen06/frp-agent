@@ -461,6 +461,7 @@ function renderProxiesTable() {
                     <th>本地地址</th>
                     <th>状态</th>
                     <th>更新时间</th>
+                    <th style="width: 120px;">操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -484,6 +485,12 @@ function renderProxiesTable() {
                         <td style="font-family: monospace; font-size: 0.875rem;">${proxy.local_ip}:${proxy.local_port}</td>
                         <td>${statusBadge(proxy.status)}</td>
                         <td>${formatDateTime(proxy.updated_at)}</td>
+                        <td>
+                            <div style="display: flex; gap: 0.25rem; justify-content: center;">
+                                <button class="btn-icon" onclick="showEditProxyModal(${proxy.id})" title="编辑">✏️</button>
+                                <button class="btn-icon" onclick="deleteProxy(${proxy.id})" title="删除" style="color: #ef4444;">🗑️</button>
+                            </div>
+                        </td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -1279,6 +1286,244 @@ async function testEditServerConnection() {
         }
     } catch (error) {
         showNotification('测试失败: ' + error.message, 'error');
+    }
+}
+
+// 显示导入配置弹窗
+function showImportConfigModal() {
+    if (!currentServerId) {
+        showNotification('请先选择一个服务器', 'error');
+        return;
+    }
+    
+    // 显示当前服务器
+    const currentServer = servers.find(s => s.id == currentServerId);
+    const serverDisplay = document.getElementById('importServerDisplay');
+    if (currentServer) {
+        serverDisplay.value = currentServer.name;
+    }
+    
+    // 填充分组选择器
+    const groupSelect = document.getElementById('importGroupSelect');
+    const groups = new Set();
+    allProxies.forEach(proxy => {
+        if (proxy.group_name && proxy.group_name !== '其他') {
+            groups.add(proxy.group_name);
+        }
+    });
+    
+    groupSelect.innerHTML = '<option value="">请选择分组...</option>' +
+        '<option value="_new_">+ 创建新分组</option>' +
+        Array.from(groups).sort().map(g => `<option value="${g}">${g}</option>`).join('');
+    
+    // 重置表单
+    document.getElementById('importConfigForm').reset();
+    document.getElementById('importProgress').style.display = 'none';
+    document.getElementById('importResult').style.display = 'none';
+    document.getElementById('importSubmitBtn').disabled = false;
+    
+    // 重新设置服务器显示（因为 reset 会清空）
+    if (currentServer) {
+        serverDisplay.value = currentServer.name;
+    }
+    
+    openModal('importConfigModal');
+}
+
+// 导入配置文件
+async function importConfig(event) {
+    event.preventDefault();
+    
+    if (!currentServerId) {
+        showNotification('请先选择一个服务器', 'error');
+        return;
+    }
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const fileInput = document.getElementById('configFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showNotification('请选择配置文件', 'error');
+        return;
+    }
+    
+    // 验证文件扩展名
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.ini') && !fileName.endsWith('.toml')) {
+        showNotification('仅支持 .ini 和 .toml 格式的配置文件', 'error');
+        return;
+    }
+    
+    // 获取分组名称
+    let groupName = formData.get('group_name');
+    if (!groupName) {
+        showNotification('请选择分组', 'error');
+        return;
+    }
+    
+    // 如果选择创建新分组
+    if (groupName === '_new_') {
+        groupName = prompt('请输入新分组名称：');
+        if (!groupName) return;
+    }
+    
+    // 重新构建 FormData，添加服务器 ID
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+    uploadFormData.append('frps_server_id', currentServerId);
+    uploadFormData.append('group_name', groupName);
+    
+    // 显示进度
+    document.getElementById('importProgress').style.display = 'block';
+    document.getElementById('importResult').style.display = 'none';
+    document.getElementById('importSubmitBtn').disabled = true;
+    
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            throw new Error('未登录，请重新登录');
+        }
+        
+        // 使用 fetch 直接上传文件
+        const response = await fetch('/api/config/import', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: uploadFormData
+        });
+        
+        const result = await response.json();
+        
+        // 隐藏进度
+        document.getElementById('importProgress').style.display = 'none';
+        
+        if (response.ok && result.success) {
+            // 显示成功结果
+            let resultHtml = `
+                <div style="background: #d1fae5; border: 1px solid #10b981; padding: 1rem; border-radius: 0.375rem;">
+                    <p style="margin: 0 0 0.5rem 0; color: #065f46; font-weight: 600;">✓ ${result.message}</p>
+                    <div style="color: #047857; font-size: 0.875rem;">
+                        <p style="margin: 0.25rem 0;">• 新增: ${result.stats.created} 个</p>
+                        <p style="margin: 0.25rem 0;">• 更新: ${result.stats.updated} 个</p>
+                        <p style="margin: 0.25rem 0;">• 失败: ${result.stats.failed} 个</p>
+                    </div>
+            `;
+            
+            // 显示错误详情
+            if (result.stats.errors && result.stats.errors.length > 0) {
+                resultHtml += `
+                    <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #10b981;">
+                        <p style="margin: 0.25rem 0; color: #dc2626; font-weight: 600;">错误详情:</p>
+                        <ul style="margin: 0.25rem 0; padding-left: 1.5rem; color: #dc2626; font-size: 0.875rem;">
+                `;
+                result.stats.errors.forEach(err => {
+                    resultHtml += `<li>${err.proxy_name}: ${err.error}</li>`;
+                });
+                resultHtml += `</ul></div>`;
+            }
+            
+            resultHtml += `</div>`;
+            
+            document.getElementById('importResult').innerHTML = resultHtml;
+            document.getElementById('importResult').style.display = 'block';
+            
+            showNotification(result.message, 'success');
+            
+            // 刷新代理列表
+            setTimeout(() => {
+                loadProxiesForCurrentServer();
+                closeModal('importConfigModal');
+            }, 2000);
+            
+        } else {
+            // 显示错误
+            const errorMsg = result.detail || result.message || '导入失败';
+            document.getElementById('importResult').innerHTML = `
+                <div style="background: #fee2e2; border: 1px solid #ef4444; padding: 1rem; border-radius: 0.375rem;">
+                    <p style="margin: 0; color: #991b1b;">✗ ${errorMsg}</p>
+                </div>
+            `;
+            document.getElementById('importResult').style.display = 'block';
+            showNotification(errorMsg, 'error');
+        }
+    } catch (error) {
+        document.getElementById('importProgress').style.display = 'none';
+        document.getElementById('importResult').innerHTML = `
+            <div style="background: #fee2e2; border: 1px solid #ef4444; padding: 1rem; border-radius: 0.375rem;">
+                <p style="margin: 0; color: #991b1b;">✗ 导入失败: ${error.message}</p>
+            </div>
+        `;
+        document.getElementById('importResult').style.display = 'block';
+        showNotification('导入失败: ' + error.message, 'error');
+    } finally {
+        document.getElementById('importSubmitBtn').disabled = false;
+    }
+}
+
+// 显示编辑代理弹窗
+function showEditProxyModal(proxyId) {
+    const proxy = allProxies.find(p => p.id === proxyId);
+    if (!proxy) {
+        showNotification('代理不存在', 'error');
+        return;
+    }
+    
+    // 填充表单
+    document.getElementById('edit_proxy_id').value = proxy.id;
+    document.getElementById('edit_proxy_name').value = proxy.name;
+    document.getElementById('edit_group_name').value = proxy.group_name || '';
+    document.getElementById('edit_proxy_type').value = proxy.proxy_type;
+    document.getElementById('edit_local_ip').value = proxy.local_ip;
+    document.getElementById('edit_local_port').value = proxy.local_port;
+    document.getElementById('edit_remote_port').value = proxy.remote_port || '';
+    
+    openModal('editProxyModal');
+}
+
+// 提交编辑代理表单
+async function submitEditProxy(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const proxyId = formData.get('proxy_id');
+    const data = {
+        name: formData.get('name'),
+        group_name: formData.get('group_name') || null,
+        proxy_type: formData.get('proxy_type'),
+        local_ip: formData.get('local_ip'),
+        local_port: parseInt(formData.get('local_port')),
+    };
+    
+    const remotePort = formData.get('remote_port');
+    if (remotePort) {
+        data.remote_port = parseInt(remotePort);
+    }
+    
+    // 验证端口号
+    if (data.local_port < 1 || data.local_port > 65535) {
+        showNotification('本地端口必须在 1-65535 范围内', 'error');
+        return;
+    }
+    
+    if (data.remote_port && (data.remote_port < 1 || data.remote_port > 65535)) {
+        showNotification('远程端口必须在 1-65535 范围内', 'error');
+        return;
+    }
+    
+    try {
+        await apiRequest(`/api/proxies/${proxyId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        
+        showNotification('代理更新成功', 'success');
+        closeModal('editProxyModal');
+        await loadProxiesForCurrentServer();
+    } catch (error) {
+        showNotification('更新失败: ' + error.message, 'error');
     }
 }
 

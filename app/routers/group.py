@@ -10,6 +10,7 @@ from app.auth import get_current_user
 from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
+from app.models.group import Group
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -31,6 +32,19 @@ class AutoAnalyzeRequest(BaseModel):
     frps_server_id: int
 
 
+class CreateGroupRequest(BaseModel):
+    """创建分组请求"""
+    group_name: str
+    frps_server_id: int
+
+
+class DeleteGroupRequest(BaseModel):
+    """删除分组请求"""
+    group_name: str
+    frps_server_id: int
+    reassign_group: Optional[str] = None  # 可选：将代理重新分配到的分组
+
+
 @router.get("")
 def get_groups(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
@@ -40,8 +54,27 @@ def get_groups(
     """获取代理分组列表及统计信息
     
     返回所有分组及其代理数量、在线数量等统计信息
+    合并 Group 表（已创建的空分组）和 Proxy 表（有代理的分组）的数据
     """
-    query = db.query(
+    groups_dict = {}
+    
+    # 1. 从 Group 表获取已创建的分组（包括空分组）
+    group_query = db.query(Group)
+    if frps_server_id:
+        group_query = group_query.filter(Group.frps_server_id == frps_server_id)
+    
+    created_groups = group_query.all()
+    for group in created_groups:
+        groups_dict[f"{group.frps_server_id}_{group.name}"] = {
+            "group_name": group.name,
+            "frps_server_id": group.frps_server_id,
+            "total_count": 0,
+            "online_count": 0,
+            "offline_count": 0
+        }
+    
+    # 2. 从 Proxy 表统计代理数量
+    proxy_query = db.query(
         Proxy.group_name,
         Proxy.frps_server_id,
         func.count(Proxy.id).label("total_count"),
@@ -53,27 +86,49 @@ def get_groups(
     ).group_by(Proxy.group_name, Proxy.frps_server_id)
     
     if frps_server_id:
-        query = query.filter(Proxy.frps_server_id == frps_server_id)
+        proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
     
-    results = query.all()
+    proxy_results = proxy_query.all()
+    
+    # 合并或添加代理统计数据
+    for result in proxy_results:
+        key = f"{result.frps_server_id}_{result.group_name}"
+        if key in groups_dict:
+            # 更新已存在的分组统计
+            groups_dict[key]["total_count"] = result.total_count
+            groups_dict[key]["online_count"] = result.online_count
+            groups_dict[key]["offline_count"] = result.offline_count
+        else:
+            # 添加未在 Group 表中的分组（从代理中发现的）
+            groups_dict[key] = {
+                "group_name": result.group_name,
+                "frps_server_id": result.frps_server_id,
+                "total_count": result.total_count,
+                "online_count": result.online_count,
+                "offline_count": result.offline_count
+            }
     
     # 获取服务器信息
     server_map = {}
-    if results:
-        server_ids = list(set([r.frps_server_id for r in results]))
+    if groups_dict:
+        server_ids = list(set([g["frps_server_id"] for g in groups_dict.values()]))
         servers = db.query(FrpsServer).filter(FrpsServer.id.in_(server_ids)).all()
         server_map = {s.id: s.name for s in servers}
     
+    # 构建返回结果
     groups = []
-    for result in results:
+    for group_data in groups_dict.values():
         groups.append({
-            "group_name": result.group_name,
-            "frps_server_id": result.frps_server_id,
-            "frps_server_name": server_map.get(result.frps_server_id, "未知"),
-            "total_count": result.total_count,
-            "online_count": result.online_count,
-            "offline_count": result.offline_count
+            "group_name": group_data["group_name"],
+            "frps_server_id": group_data["frps_server_id"],
+            "frps_server_name": server_map.get(group_data["frps_server_id"], "未知"),
+            "total_count": group_data["total_count"],
+            "online_count": group_data["online_count"],
+            "offline_count": group_data["offline_count"]
         })
+    
+    # 按分组名称排序
+    groups.sort(key=lambda x: x["group_name"])
     
     return {
         "groups": groups,
@@ -272,6 +327,105 @@ def rename_group(
     }
 
 
+@router.post("/create")
+def create_group(
+    request: CreateGroupRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """创建新分组
+    
+    在数据库中创建一个新的分组记录
+    """
+    group_name = request.group_name.strip()
+    
+    if not group_name:
+        raise HTTPException(status_code=400, detail="分组名称不能为空")
+    
+    if group_name == "其他":
+        raise HTTPException(status_code=400, detail="不能创建名为'其他'的分组")
+    
+    # 检查分组是否已存在
+    existing = db.query(Group).filter(
+        Group.frps_server_id == request.frps_server_id,
+        Group.name == group_name
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail=f"分组 '{group_name}' 已存在")
+    
+    # 创建分组记录
+    new_group = Group(
+        frps_server_id=request.frps_server_id,
+        name=group_name
+    )
+    db.add(new_group)
+    db.commit()
+    db.refresh(new_group)
+    
+    return {
+        "success": True,
+        "message": f"分组 '{group_name}' 已创建",
+        "group_name": group_name,
+        "group_id": new_group.id
+    }
+
+
+@router.delete("/{group_name}")
+def delete_group(
+    group_name: str,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    reassign_group: Optional[str] = Query(None, description="将代理重新分配到的分组"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """删除分组
+    
+    删除指定的分组。如果指定了 reassign_group，则将该分组的所有代理重新分配到新分组；
+    否则将代理分配到"其他"分组。
+    """
+    if not group_name or group_name == "其他":
+        raise HTTPException(status_code=400, detail="无效的分组名称")
+    
+    # 删除 Group 表中的记录
+    group_record = db.query(Group).filter(
+        Group.frps_server_id == frps_server_id,
+        Group.name == group_name
+    ).first()
+    
+    if group_record:
+        db.delete(group_record)
+    
+    # 查找该分组的所有代理
+    proxies = db.query(Proxy).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.group_name == group_name
+    ).all()
+    
+    # 确定重新分配的目标分组
+    target_group = reassign_group if reassign_group else "其他"
+    
+    # 重新分配所有代理
+    affected_count = 0
+    for proxy in proxies:
+        proxy.group_name = target_group
+        affected_count += 1
+    
+    db.commit()
+    
+    message = f"已删除分组 '{group_name}'"
+    if affected_count > 0:
+        message += f"，{affected_count} 个代理已移动到分组 '{target_group}'"
+    
+    return {
+        "success": True,
+        "message": message,
+        "deleted_group": group_name,
+        "target_group": target_group if affected_count > 0 else None,
+        "affected_count": affected_count
+    }
+
+
 @router.post("/auto-analyze")
 def auto_analyze_groups(
     frps_server_id: int = Body(..., embed=True),
@@ -280,7 +434,8 @@ def auto_analyze_groups(
 ):
     """自动分析并更新代理分组
     
-    从代理名称中智能分析分组，并更新那些分组为"其他"或需要重新分析的代理
+    从代理名称中智能分析分组，仅对分组为"其他"或空的代理进行更新。
+    不会覆盖已有的分组。
     """
     # 获取指定服务器的所有代理
     proxies = db.query(Proxy).filter(
@@ -292,11 +447,13 @@ def auto_analyze_groups(
     
     # 统计信息
     updated_count = 0
+    skipped_count = 0
     new_groups = set()
     analysis_result = {
         "total": len(proxies),
         "updated": 0,
-        "unchanged": 0,
+        "skipped": 0,  # 已有分组的代理数
+        "unchanged": 0,  # 分析后未变化的代理数
         "groups_found": {},
         "details": []
     }
@@ -304,7 +461,26 @@ def auto_analyze_groups(
     # 分析每个代理
     for proxy in proxies:
         old_group = proxy.group_name
-        # 重新解析分组
+        
+        # 只对分组为空、None 或"其他"的代理进行自动分析
+        if old_group and old_group != "其他":
+            # 跳过已有明确分组的代理
+            skipped_count += 1
+            analysis_result["details"].append({
+                "proxy_name": proxy.name,
+                "old_group": old_group,
+                "new_group": old_group,
+                "action": "skipped",
+                "reason": "已有分组，不覆盖"
+            })
+            
+            # 统计分组中的代理数
+            if old_group not in analysis_result["groups_found"]:
+                analysis_result["groups_found"][old_group] = 0
+            analysis_result["groups_found"][old_group] += 1
+            continue
+        
+        # 自动解析分组
         new_group = Proxy.parse_group_name(proxy.name)
         
         # 如果分组发生变化，更新
@@ -318,8 +494,16 @@ def auto_analyze_groups(
             
             analysis_result["details"].append({
                 "proxy_name": proxy.name,
-                "old_group": old_group,
-                "new_group": new_group
+                "old_group": old_group or "(空)",
+                "new_group": new_group,
+                "action": "updated"
+            })
+        else:
+            analysis_result["details"].append({
+                "proxy_name": proxy.name,
+                "old_group": old_group or "(空)",
+                "new_group": new_group,
+                "action": "unchanged"
             })
         
         # 统计分组中的代理数
@@ -328,14 +512,15 @@ def auto_analyze_groups(
         analysis_result["groups_found"][new_group] += 1
     
     analysis_result["updated"] = updated_count
-    analysis_result["unchanged"] = len(proxies) - updated_count
+    analysis_result["skipped"] = skipped_count
+    analysis_result["unchanged"] = len(proxies) - updated_count - skipped_count
     analysis_result["new_groups"] = list(new_groups)
     
     db.commit()
     
     return {
         "success": True,
-        "message": f"分析完成，更新了 {updated_count} 个代理的分组",
+        "message": f"分析完成，更新了 {updated_count} 个代理的分组，跳过 {skipped_count} 个已有分组的代理",
         "analysis": analysis_result
     }
 

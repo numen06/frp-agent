@@ -27,6 +27,7 @@ class FrpsServer(Base):
     proxies = relationship("Proxy", back_populates="frps_server", cascade="all, delete-orphan")
     port_allocations = relationship("PortAllocation", back_populates="frps_server", cascade="all, delete-orphan")
     proxy_histories = relationship("ProxyHistory", back_populates="frps_server", cascade="all, delete-orphan")
+    groups = relationship("Group", back_populates="frps_server", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<FrpsServer(id={self.id}, name='{self.name}', addr='{self.server_addr}:{self.server_port}')>"
