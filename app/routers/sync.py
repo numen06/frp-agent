@@ -1,4 +1,4 @@
-"""同步路由"""
+"""数据对比分析路由"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -13,16 +13,21 @@ from app.models.history import ProxyHistory
 from app.frps_client import FrpsClient
 from app.services.port_service import PortService
 
-router = APIRouter(prefix="/api/sync", tags=["同步"])
+router = APIRouter(prefix="/api/analysis", tags=["数据分析"])
 
 
-@router.post("")
-async def sync_proxies(
+@router.post("/compare")
+async def compare_proxies(
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    auto_update: bool = Query(True, description="是否自动更新本地状态"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """手动同步代理状态"""
+    """对比分析本地数据和frps数据
+    
+    本程序的数据库是最全的主数据源，frps可能会丢失数据。
+    此接口用于对比分析两边的数据差异。
+    """
     # 获取服务器配置
     server = db.query(FrpsServer).filter(FrpsServer.id == frps_server_id).first()
     if not server:
@@ -77,29 +82,32 @@ async def sync_proxies(
             
             updated_count += 1
         else:
-            # 创建新代理
-            new_proxy = Proxy(
-                frps_server_id=frps_server_id,
-                name=proxy_name,
-                proxy_type=proxy_info["proxy_type"],
-                remote_port=proxy_info["remote_port"],
-                local_ip=proxy_info["local_ip"],
-                local_port=0,  # 本地端口未知
-                status=proxy_info["status"]
-            )
-            db.add(new_proxy)
-            
-            # 记录历史
-            history = ProxyHistory(
-                frps_server_id=frps_server_id,
-                proxy_name=proxy_name,
-                action="discovered",
-                timestamp=datetime.utcnow(),
-                details=json.dumps(proxy_info)
-            )
-            db.add(history)
-            
-            new_count += 1
+            # 如果需要自动更新，创建新代理
+            if auto_update:
+                parsed_group = Proxy.parse_group_name(proxy_name)
+                new_proxy = Proxy(
+                    frps_server_id=frps_server_id,
+                    name=proxy_name,
+                    group_name=parsed_group,  # 自动解析，无法识别则为"其他"
+                    proxy_type=proxy_info["proxy_type"],
+                    remote_port=proxy_info["remote_port"],
+                    local_ip=proxy_info["local_ip"],
+                    local_port=0,  # 本地端口未知
+                    status=proxy_info["status"]
+                )
+                db.add(new_proxy)
+                
+                # 记录历史
+                history = ProxyHistory(
+                    frps_server_id=frps_server_id,
+                    proxy_name=proxy_name,
+                    action="discovered",
+                    timestamp=datetime.utcnow(),
+                    details=json.dumps(proxy_info)
+                )
+                db.add(history)
+                
+                new_count += 1
     
     # 标记不在活跃列表中的代理为离线
     for proxy_name, db_proxy in db_proxy_map.items():
@@ -137,22 +145,25 @@ async def sync_proxies(
     
     return {
         "success": True,
+        "message": "对比分析完成",
         "updated": updated_count,
-        "new": new_count,
+        "new": new_count if auto_update else 0,
         "offline": offline_count,
         "conflicts": conflicts,
-        "total_proxies": len(all_proxies)
+        "total_in_frps": len(all_proxies),
+        "total_in_db": len(db_proxies),
+        "note": "本地数据库是主数据源，frps可能会丢失数据"
     }
 
 
 @router.get("/history")
-def get_sync_history(
+def get_analysis_history(
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
     limit: int = Query(50, description="返回记录数量"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取同步历史记录"""
+    """获取对比分析历史记录"""
     histories = db.query(ProxyHistory).filter(
         ProxyHistory.frps_server_id == frps_server_id
     ).order_by(ProxyHistory.timestamp.desc()).limit(limit).all()

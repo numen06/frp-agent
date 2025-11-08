@@ -56,17 +56,66 @@
             </div>
         </div>
 
-        <!-- 代理列表 -->
+        <!-- 代理与分组管理 - Tab模式 -->
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2>代理列表</h2>
-                <div>
-                    <button class="btn btn-success" onclick="syncAll()">🔄 同步状态</button>
-                    <button class="btn btn-primary" onclick="openModal('addProxyModal')">+ 添加代理</button>
-                    <button class="btn btn-secondary" onclick="openModal('configModal')">⚙️ 生成配置</button>
-                </div>
+            <!-- 标签页导航 -->
+            <div class="tabs" style="margin-bottom: 1.5rem;">
+                <button class="tab-btn active" onclick="switchMainTab('proxies')">📋 代理列表</button>
+                <button class="tab-btn" onclick="switchMainTab('groups')">📁 分组管理</button>
             </div>
-            <div id="proxiesTable"></div>
+            
+            <!-- 代理列表标签页 -->
+            <div id="proxiesTab" class="tab-content active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <!-- 分组过滤 -->
+                        <select id="groupFilter" onchange="applyFilters()" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                            <option value="">全部分组</option>
+                        </select>
+                        
+                        <!-- 状态过滤 -->
+                        <select id="statusFilter" onchange="applyFilters()" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                            <option value="">全部状态</option>
+                            <option value="online">在线</option>
+                            <option value="offline">离线</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="refreshProxies()">🔄 刷新</button>
+                </div>
+                
+                <!-- 分析信息展示 -->
+                <div id="analysisInfo" style="margin-bottom: 1rem;"></div>
+                
+                <!-- 批量操作工具栏 -->
+                <div id="bulkActionBar" style="display: none; background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                        <span id="selectedCount" style="font-weight: 600; color: #374151;">已选择 0 个代理</span>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <select id="bulkGroupSelect" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; min-width: 150px;">
+                                <option value="">选择目标分组...</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="bulkAssignGroup()">分配到分组</button>
+                            <button class="btn btn-success" onclick="generateConfigForSelected()">⚙️ 生成配置</button>
+                            <button class="btn btn-secondary" onclick="clearSelection()">取消选择</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="proxiesTable"></div>
+            </div>
+            
+            <!-- 分组管理标签页 -->
+            <div id="groupsTab" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <p style="color: #6b7280; margin: 0;">管理所有代理分组，支持重命名和快速生成配置</p>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-success" onclick="autoAnalyzeGroups()">🔍 自动分析分组</button>
+                        <button class="btn btn-secondary" onclick="openCreateGroupModal()">💡 如何创建分组</button>
+                    </div>
+                </div>
+                <div id="groupsManageTable"></div>
+            </div>
         </div>
     </div>
 
@@ -165,42 +214,18 @@
         </div>
     </div>
 
-    <!-- 添加代理 Modal -->
-    <div id="addProxyModal" class="modal">
+    <!-- 创建/编辑分组 Modal -->
+    <div id="groupModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>添加代理</h2>
-                <span class="close-btn" onclick="closeModal('addProxyModal')">&times;</span>
+                <h2 id="groupModalTitle">重命名分组</h2>
+                <span class="close-btn" onclick="closeModal('groupModal')">&times;</span>
             </div>
-            <form id="proxyForm" onsubmit="submitProxy(event)">
+            <form id="groupForm" onsubmit="submitGroupForm(event)">
+                <input type="hidden" id="groupOldName">
                 <div class="form-group">
-                    <label>选择服务器</label>
-                    <select name="frps_server_id" id="serverSelect" required></select>
-                </div>
-                <div class="form-group">
-                    <label>代理名称</label>
-                    <input type="text" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label>代理类型</label>
-                    <select name="proxy_type">
-                        <option value="tcp">TCP</option>
-                        <option value="udp">UDP</option>
-                        <option value="http">HTTP</option>
-                        <option value="https">HTTPS</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>远程端口</label>
-                    <input type="number" name="remote_port">
-                </div>
-                <div class="form-group">
-                    <label>本地 IP</label>
-                    <input type="text" name="local_ip" value="127.0.0.1" required>
-                </div>
-                <div class="form-group">
-                    <label>本地端口</label>
-                    <input type="number" name="local_port" required>
+                    <label>分组名称</label>
+                    <input type="text" id="groupNewName" required placeholder="输入分组名称">
                 </div>
                 <button type="submit" class="btn btn-primary">保存</button>
             </form>
@@ -209,26 +234,35 @@
 
     <!-- 生成配置 Modal -->
     <div id="configModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px;">
             <div class="modal-header">
-                <h2>生成 frpc 配置</h2>
+                <h2>⚙️ 生成 frpc 配置</h2>
                 <span class="close-btn" onclick="closeModal('configModal')">&times;</span>
             </div>
-            <div class="form-group">
-                <label>选择服务器</label>
-                <select id="configServerSelect"></select>
+            
+            <div id="selectedProxiesInfo" style="margin-bottom: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 0.375rem;">
+                <strong>已选择的代理：</strong>
+                <div id="selectedProxiesList" style="margin-top: 0.5rem;"></div>
             </div>
+            
             <div class="form-group">
-                <button class="btn btn-primary" onclick="generateConfig()">生成配置文件</button>
-                <button class="btn btn-secondary" onclick="downloadLinuxScript()">下载 Linux 脚本</button>
-                <button class="btn btn-secondary" onclick="downloadWindowsScript()">下载 Windows 脚本</button>
+                <label>配置名称（可选）</label>
+                <input type="text" id="configClientName" placeholder="留空则使用分组名称">
             </div>
-            <div id="configOutput"></div>
+            
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <button class="btn btn-primary" onclick="generateConfigFromSelected()">📄 生成配置文件</button>
+                <button class="btn btn-secondary" onclick="generateInstallScript()">🐧 生成 Linux 安装脚本</button>
+                <button class="btn btn-secondary" onclick="downloadConfigFile()">💾 下载配置</button>
+            </div>
+            
+            <div id="configOutput" style="max-height: 500px; overflow-y: auto;"></div>
         </div>
     </div>
 
     <script src="/static/js/app.js"></script>
     <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/group_manage.js"></script>
 </body>
 </html>
 

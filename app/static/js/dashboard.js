@@ -2,7 +2,13 @@
 
 let servers = [];
 let proxies = [];
+let allProxies = []; // 保存所有代理用于过滤
 let currentServerId = null;
+let currentFilters = {
+    group: '',
+    status: ''
+};
+let selectedProxyIds = new Set(); // 选中的代理ID集合
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -148,18 +154,182 @@ async function switchServer() {
 async function loadProxiesForCurrentServer() {
     if (!currentServerId) {
         proxies = [];
+        allProxies = [];
         renderProxiesTable();
         updateStats();
+        updateGroupFilter();
         return;
     }
     
     try {
-        const allProxies = await apiRequest('/api/proxies');
-        proxies = allProxies.filter(p => p.frps_server_id == currentServerId);
-        renderProxiesTable();
-        updateStats();
+        // 新的API返回格式: {proxies: [...], analysis: {...}}
+        const response = await apiRequest(`/api/proxies?frps_server_id=${currentServerId}&sync_from_frps=true`);
+        
+        // 处理新的响应格式
+        if (response.proxies) {
+            allProxies = response.proxies;
+        } else if (Array.isArray(response)) {
+            // 兼容旧格式
+            allProxies = response.filter(p => p.frps_server_id == currentServerId);
+        } else {
+            allProxies = [];
+        }
+        
+        // 显示对比分析信息（如果有）
+        if (response.analysis && !response.analysis.error) {
+            showAnalysisInfo(response.analysis);
+        } else if (response.analysis && response.analysis.error) {
+            showAnalysisError(response.analysis.error);
+        }
+        
+        // 更新分组过滤器
+        updateGroupFilter();
+        
+        // 应用当前过滤器
+        applyFilters();
+        
     } catch (error) {
         showNotification('加载代理失败: ' + error.message, 'error');
+    }
+}
+
+// 显示对比分析信息
+function showAnalysisInfo(analysis) {
+    const container = document.getElementById('analysisInfo');
+    if (!analysis || !container) return;
+    
+    const badges = [];
+    
+    if (analysis.total_in_db > 0) {
+        badges.push(`<span class="badge badge-secondary">📊 本地: ${analysis.total_in_db}</span>`);
+    }
+    
+    if (analysis.total_in_frps > 0) {
+        badges.push(`<span class="badge badge-secondary">☁️ frps: ${analysis.total_in_frps}</span>`);
+    }
+    
+    if (analysis.online_proxies && analysis.online_proxies.length > 0) {
+        badges.push(`<span class="badge badge-online">✓ 在线: ${analysis.online_proxies.length}</span>`);
+    }
+    
+    if (analysis.status_changed && analysis.status_changed.length > 0) {
+        badges.push(`<span class="badge" style="background: #f59e0b;">🔄 状态变更: ${analysis.status_changed.length}</span>`);
+    }
+    
+    if (analysis.missing_in_frps && analysis.missing_in_frps.length > 0) {
+        badges.push(`<span class="badge" style="background: #ef4444;">⚠️ frps缺失: ${analysis.missing_in_frps.length}</span>`);
+    }
+    
+    if (analysis.only_in_frps && analysis.only_in_frps.length > 0) {
+        badges.push(`<span class="badge" style="background: #8b5cf6;">✨ 新发现: ${analysis.only_in_frps.length}</span>`);
+    }
+    
+    if (badges.length > 0) {
+        container.innerHTML = `
+            <div style="padding: 0.75rem; background: #f9fafb; border-radius: 0.375rem; border-left: 3px solid #3b82f6;">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                    <strong style="color: #374151;">对比分析:</strong>
+                    ${badges.join(' ')}
+                    <small style="color: #6b7280; margin-left: auto;">💡 本地数据库是主数据源</small>
+                </div>
+            </div>
+        `;
+        console.log('对比分析详情:', analysis);
+    } else {
+        container.innerHTML = '';
+    }
+}
+
+// 显示分析错误
+function showAnalysisError(error) {
+    const container = document.getElementById('analysisInfo');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div style="padding: 0.75rem; background: #fef2f2; border-radius: 0.375rem; border-left: 3px solid #ef4444;">
+            <div style="color: #991b1b;">
+                <strong>⚠️ 对比分析失败:</strong> ${error}
+            </div>
+        </div>
+    `;
+}
+
+// 更新分组过滤器
+function updateGroupFilter() {
+    const groupFilter = document.getElementById('groupFilter');
+    if (!groupFilter) return;
+    
+    // 获取所有唯一的分组
+    const groups = new Set();
+    allProxies.forEach(proxy => {
+        if (proxy.group_name) {
+            groups.add(proxy.group_name);
+        }
+    });
+    
+    const sortedGroups = Array.from(groups).sort();
+    
+    // 保存当前选择
+    const currentValue = groupFilter.value;
+    
+    // 更新选项
+    groupFilter.innerHTML = '<option value="">全部分组</option>' +
+        sortedGroups.map(group => `<option value="${group}">${group}</option>`).join('');
+    
+    // 恢复选择
+    if (currentValue && sortedGroups.includes(currentValue)) {
+        groupFilter.value = currentValue;
+    }
+}
+
+// 应用过滤器
+function applyFilters() {
+    const groupFilter = document.getElementById('groupFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    currentFilters.group = groupFilter ? groupFilter.value : '';
+    currentFilters.status = statusFilter ? statusFilter.value : '';
+    
+    // 过滤代理列表
+    proxies = allProxies.filter(proxy => {
+        // 分组过滤
+        if (currentFilters.group && proxy.group_name !== currentFilters.group) {
+            return false;
+        }
+        
+        // 状态过滤
+        if (currentFilters.status && proxy.status !== currentFilters.status) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    renderProxiesTable();
+    updateStats();
+}
+
+// 刷新代理列表
+async function refreshProxies() {
+    await loadProxiesForCurrentServer();
+    showNotification('代理列表已刷新', 'success');
+}
+
+// 切换主标签页
+function switchMainTab(tab) {
+    // 更新标签按钮状态
+    document.querySelectorAll('.tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // 切换内容
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (tab === 'proxies') {
+        document.getElementById('proxiesTab').classList.add('active');
+    } else if (tab === 'groups') {
+        document.getElementById('groupsTab').classList.add('active');
+        // 加载分组管理表格
+        loadGroupsManagement();
     }
 }
 
@@ -260,35 +430,60 @@ function renderProxiesTable() {
     const container = document.getElementById('proxiesTable');
     
     if (proxies.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 2rem;">暂无代理配置</p>';
+        const filterInfo = [];
+        if (currentFilters.group) filterInfo.push(`分组: ${currentFilters.group}`);
+        if (currentFilters.status) filterInfo.push(`状态: ${currentFilters.status}`);
+        
+        const message = filterInfo.length > 0 
+            ? `未找到符合条件的代理 (${filterInfo.join(', ')})`
+            : '暂无代理配置';
+            
+        container.innerHTML = `<p style="text-align: center; color: #6b7280; padding: 2rem;">${message}</p>`;
         return;
     }
     
     const html = `
+        <div style="margin-bottom: 0.5rem; color: #6b7280; font-size: 0.875rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>显示 ${proxies.length} 个代理 ${allProxies.length > proxies.length ? `/ 共 ${allProxies.length} 个` : ''}</span>
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" style="margin-right: 0.5rem;">
+                全选
+            </label>
+        </div>
         <table>
             <thead>
                 <tr>
+                    <th style="width: 40px;">选择</th>
+                    <th>分组</th>
                     <th>名称</th>
                     <th>类型</th>
                     <th>远程端口</th>
                     <th>本地地址</th>
                     <th>状态</th>
                     <th>更新时间</th>
-                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
                 ${proxies.map(proxy => `
                     <tr>
-                        <td>${proxy.name}</td>
+                        <td style="text-align: center;">
+                            <input type="checkbox" 
+                                   class="proxy-checkbox" 
+                                   value="${proxy.id}" 
+                                   onchange="handleProxySelection()"
+                                   ${selectedProxyIds.has(proxy.id) ? 'checked' : ''}>
+                        </td>
+                        <td>
+                            ${proxy.group_name 
+                                ? `<span class="badge" style="background: #6366f1;">${proxy.group_name}</span>` 
+                                : '<span style="color: #9ca3af;">-</span>'}
+                        </td>
+                        <td><strong>${proxy.name}</strong></td>
                         <td>${proxy.proxy_type.toUpperCase()}</td>
                         <td>${formatPort(proxy.remote_port)}</td>
-                        <td>${proxy.local_ip}:${proxy.local_port}</td>
+                        <td style="font-family: monospace; font-size: 0.875rem;">${proxy.local_ip}:${proxy.local_port}</td>
                         <td>${statusBadge(proxy.status)}</td>
                         <td>${formatDateTime(proxy.updated_at)}</td>
-                        <td>
-                            <button class="btn btn-danger btn-small" onclick="deleteProxy(${proxy.id})">删除</button>
-                        </td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -296,17 +491,230 @@ function renderProxiesTable() {
     `;
     
     container.innerHTML = html;
+    updateSelectAllCheckbox();
+}
+
+// 处理代理选择
+function handleProxySelection() {
+    const checkboxes = document.querySelectorAll('.proxy-checkbox');
+    selectedProxyIds.clear();
+    
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selectedProxyIds.add(parseInt(cb.value));
+        }
+    });
+    
+    updateBulkActionBar();
+    updateSelectAllCheckbox();
+}
+
+// 全选/取消全选
+function toggleSelectAll(checked) {
+    const checkboxes = document.querySelectorAll('.proxy-checkbox');
+    selectedProxyIds.clear();
+    
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+        if (checked) {
+            selectedProxyIds.add(parseInt(cb.value));
+        }
+    });
+    
+    updateBulkActionBar();
+}
+
+// 更新全选复选框状态
+function updateSelectAllCheckbox() {
+    const selectAllCb = document.getElementById('selectAllCheckbox');
+    if (!selectAllCb) return;
+    
+    const checkboxes = document.querySelectorAll('.proxy-checkbox');
+    const checkedCount = document.querySelectorAll('.proxy-checkbox:checked').length;
+    
+    selectAllCb.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+}
+
+// 更新批量操作工具栏
+function updateBulkActionBar() {
+    const bar = document.getElementById('bulkActionBar');
+    const count = document.getElementById('selectedCount');
+    const groupSelect = document.getElementById('bulkGroupSelect');
+    
+    if (selectedProxyIds.size > 0) {
+        bar.style.display = 'block';
+        count.textContent = `已选择 ${selectedProxyIds.size} 个代理`;
+        
+        // 更新分组选择器
+        updateBulkGroupSelect();
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+// 更新批量操作的分组选择器
+function updateBulkGroupSelect() {
+    const select = document.getElementById('bulkGroupSelect');
+    if (!select) return;
+    
+    const groups = new Set();
+    allProxies.forEach(proxy => {
+        if (proxy.group_name) {
+            groups.add(proxy.group_name);
+        }
+    });
+    
+    select.innerHTML = '<option value="">选择目标分组...</option>' +
+        '<option value="_new_">+ 创建新分组</option>' +
+        Array.from(groups).sort().map(g => `<option value="${g}">${g}</option>`).join('');
+}
+
+// 批量分配到分组
+async function bulkAssignGroup() {
+    const select = document.getElementById('bulkGroupSelect');
+    let groupName = select.value;
+    
+    if (!groupName) {
+        showNotification('请选择目标分组', 'error');
+        return;
+    }
+    
+    // 如果选择创建新分组
+    if (groupName === '_new_') {
+        groupName = prompt('请输入新分组名称：');
+        if (!groupName) return;
+    }
+    
+    if (!confirm(`确定要将 ${selectedProxyIds.size} 个代理分配到分组 "${groupName}" 吗？`)) {
+        return;
+    }
+    
+    try {
+        const result = await apiRequest('/api/groups/batch-update', {
+            method: 'PUT',
+            body: JSON.stringify({
+                proxy_ids: Array.from(selectedProxyIds),
+                group_name: groupName
+            })
+        });
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            clearSelection();
+            await refreshProxies();
+        }
+    } catch (error) {
+        showNotification('分配失败: ' + error.message, 'error');
+    }
+}
+
+// 清除选择
+function clearSelection() {
+    selectedProxyIds.clear();
+    document.querySelectorAll('.proxy-checkbox').forEach(cb => cb.checked = false);
+    updateBulkActionBar();
+    updateSelectAllCheckbox();
+}
+
+// 为选中的代理生成配置
+function generateConfigForSelected() {
+    if (selectedProxyIds.size === 0) {
+        showNotification('请先选择代理', 'error');
+        return;
+    }
+    
+    // 获取选中的代理信息
+    const selectedProxies = allProxies.filter(p => selectedProxyIds.has(p.id));
+    
+    // 显示选中的代理列表
+    const listHtml = selectedProxies.map(p => 
+        `<span class="badge" style="margin: 0.25rem;">${p.name}</span>`
+    ).join('');
+    document.getElementById('selectedProxiesList').innerHTML = listHtml;
+    
+    openModal('configModal');
+}
+
+// 生成配置文件
+async function generateConfigFromSelected() {
+    const proxyIds = Array.from(selectedProxyIds);
+    
+    try {
+        const config = await apiRequest('/api/frpc/config/by-proxies', {
+            method: 'POST',
+            body: JSON.stringify({ proxy_ids: proxyIds })
+        });
+        
+        document.getElementById('configOutput').innerHTML = `
+            <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;">${config}</pre>
+        `;
+    } catch (error) {
+        showNotification('生成配置失败: ' + error.message, 'error');
+    }
+}
+
+// 生成安装脚本
+async function generateInstallScript() {
+    const proxyIds = Array.from(selectedProxyIds);
+    const selectedProxies = allProxies.filter(p => proxyIds.includes(p.id));
+    
+    // 检查是否所有代理都在同一分组
+    const groups = new Set(selectedProxies.map(p => p.group_name));
+    
+    if (groups.size !== 1) {
+        showNotification('请选择同一分组的代理', 'error');
+        return;
+    }
+    
+    const groupName = Array.from(groups)[0];
+    
+    try {
+        const script = await apiRequest(
+            `/api/frpc/install-script/by-group/${groupName}?frps_server_id=${currentServerId}`
+        );
+        
+        document.getElementById('configOutput').innerHTML = `
+            <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;">${script}</pre>
+        `;
+    } catch (error) {
+        showNotification('生成脚本失败: ' + error.message, 'error');
+    }
+}
+
+// 下载配置文件
+function downloadConfigFile() {
+    const configOutput = document.querySelector('#configOutput pre');
+    if (!configOutput) {
+        showNotification('请先生成配置', 'error');
+        return;
+    }
+    
+    const content = configOutput.textContent;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'frpc.ini';
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification('配置文件已下载', 'success');
 }
 
 // 更新统计数据
 function updateStats() {
     const onlineCount = proxies.filter(p => p.status === 'online').length;
     const offlineCount = proxies.filter(p => p.status === 'offline').length;
+    const uniquePorts = new Set(proxies.filter(p => p.remote_port).map(p => p.remote_port));
     
-    document.getElementById('proxyCount').textContent = proxies.length;
+    // 显示过滤后的统计，如果有过滤则显示总数
+    const isFiltered = currentFilters.group || currentFilters.status;
+    const totalText = isFiltered ? ` / ${allProxies.length}` : '';
+    
+    document.getElementById('proxyCount').textContent = proxies.length + totalText;
     document.getElementById('onlineCount').textContent = onlineCount;
     document.getElementById('offlineCount').textContent = offlineCount;
-    document.getElementById('portCount').textContent = proxies.filter(p => p.remote_port).length;
+    document.getElementById('portCount').textContent = uniquePorts.size;
 }
 
 // 更新服务器选择框

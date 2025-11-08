@@ -9,7 +9,7 @@ import logging
 
 from app.config import get_settings
 from app.database import init_db, get_db
-from app.routers import frps_server, proxy, port, config, sync, user_settings
+from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config
 from app.scheduler import start_scheduler, shutdown_scheduler
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -68,6 +68,8 @@ app.include_router(port.router)
 app.include_router(config.router)
 app.include_router(sync.router)
 app.include_router(user_settings.router)
+app.include_router(group.router)
+app.include_router(frpc_config.router)
 
 # 健康检查端点
 @app.get("/api/health")
