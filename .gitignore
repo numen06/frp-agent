@@ -54,7 +54,15 @@ app/*.db
 .DS_Store
 Thumbs.db
 
-# Test files
-test_*.py
-*_test.py
+# Test files (exclude temp test files but include project test scripts)
+temp_test_*.py
+*_temp_test.py
+
+# User's frpc config files (exclude user configs but keep examples)
+frpc.ini
+frpc.toml
+frpc_*.ini
+frpc_*.toml
+!examples/frpc_*.ini
+!examples/frpc_*.toml
 
