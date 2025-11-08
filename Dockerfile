@@ -1,17 +1,6 @@
 # 使用阿里云的 Python 3.11 轻量级镜像作为基础
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/python:3.11.1
 
-# 设置工作目录
-WORKDIR /app
-
-# 设置时区
-RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-
-# 复制依赖文件
-COPY requirements.txt .
-
-
-
 # 维护者信息
 LABEL maintainer="frp-agent"
 LABEL version="1.0"
@@ -20,6 +9,8 @@ LABEL description="FRP Agent Management Platform"
 # 设置工作目录
 WORKDIR /app
 
+# 设置时区
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 # 复制依赖文件
 COPY requirements.txt .
@@ -39,7 +30,6 @@ RUN mkdir -p /app/data /app/logs
 # 暴露端口
 EXPOSE 8000
 
-
 # 应用环境变量
 ENV APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
@@ -48,10 +38,6 @@ ENV APP_HOST=0.0.0.0 \
     AUTH_PASSWORD=admin123 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
-
-# 健康检查（使用环境变量中的端口）
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${APP_PORT}/api/health || exit 1
 
 # 启动命令
 CMD ["python", "app.py"]

@@ -19,12 +19,3 @@ services:
   
       # 同步任务配置
       - SYNC_INTERVAL_SECONDS=30
-    
-    # 健康检查（使用环境变量中的端口）
-    healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:$$APP_PORT/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    
