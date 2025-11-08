@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表板 - frp-agent 管理系统</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <h1>🚀 frp-agent 管理系统</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">管理员</span>
+                <a href="/settings" class="btn btn-secondary btn-small" style="margin-left: 10px;">⚙️ 设置</a>
+                <button class="btn btn-danger btn-small" onclick="handleLogout()" style="margin-left: 10px;">退出登录</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <div class="container">
+        <!-- 服务器选择和管理 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                    <h2 style="margin: 0;">当前服务器：</h2>
+                    <select id="currentServerSelect" onchange="switchServer()" style="padding: 0.5rem; font-size: 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; min-width: 200px;">
+                        <option value="">请选择服务器...</option>
+                    </select>
+                    <button class="btn btn-secondary btn-small" onclick="testCurrentServer()">测试连接</button>
+                </div>
+                <button class="btn btn-primary" onclick="openModal('serverManageModal')">📋 管理服务器</button>
+            </div>
+            <div id="currentServerInfo"></div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid" id="stats">
+            <div class="stat-card">
+                <h3>代理总数</h3>
+                <div class="value" id="proxyCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>在线代理</h3>
+                <div class="value" id="onlineCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>离线代理</h3>
+                <div class="value" id="offlineCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>端口分配</h3>
+                <div class="value" id="portCount">0</div>
+            </div>
+        </div>
+
+        <!-- 代理列表 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2>代理列表</h2>
+                <div>
+                    <button class="btn btn-success" onclick="syncAll()">🔄 同步状态</button>
+                    <button class="btn btn-primary" onclick="openModal('addProxyModal')">+ 添加代理</button>
+                    <button class="btn btn-secondary" onclick="openModal('configModal')">⚙️ 生成配置</button>
+                </div>
+            </div>
+            <div id="proxiesTable"></div>
+        </div>
+    </div>
+
+    <!-- 服务器管理 Modal -->
+    <div id="serverManageModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>服务器管理</h2>
+                <span class="close-btn" onclick="closeModal('serverManageModal')">&times;</span>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <button class="btn btn-primary" onclick="openModal('addServerModal')">+ 添加服务器</button>
+            </div>
+            <div id="serversTable"></div>
+        </div>
+    </div>
+
+    <!-- 添加服务器 Modal -->
+    <div id="addServerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>添加 frps 服务器</h2>
+                <span class="close-btn" onclick="closeModal('addServerModal')">&times;</span>
+            </div>
+            <form id="serverForm" onsubmit="submitServer(event)">
+                <div class="form-group">
+                    <label>服务器名称</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>服务器地址</label>
+                    <input type="text" name="server_addr" id="server_addr" required onchange="generateApiUrl()">
+                </div>
+                <div class="form-group">
+                    <label>服务器端口</label>
+                    <input type="number" name="server_port" value="7000" required>
+                </div>
+                <div class="form-group">
+                    <label>API 基础地址 <small style="color: #6b7280;">(可自动生成或手动修改)</small></label>
+                    <input type="text" name="api_base_url" id="api_base_url" required placeholder="http://frp.51jbm.cn/api">
+                </div>
+                <div class="form-group">
+                    <label>认证用户名</label>
+                    <input type="text" name="auth_username" value="admin" required>
+                </div>
+                <div class="form-group">
+                    <label>认证密码</label>
+                    <input type="password" name="auth_password" required>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="testServerConnection()">测试连接</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑服务器 Modal -->
+    <div id="editServerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>编辑 frps 服务器</h2>
+                <span class="close-btn" onclick="closeModal('editServerModal')">&times;</span>
+            </div>
+            <form id="editServerForm" onsubmit="submitEditServer(event)">
+                <input type="hidden" name="id" id="edit_server_id">
+                <div class="form-group">
+                    <label>服务器名称</label>
+                    <input type="text" name="name" id="edit_name" required>
+                </div>
+                <div class="form-group">
+                    <label>服务器地址</label>
+                    <input type="text" name="server_addr" id="edit_server_addr" required onchange="generateEditApiUrl()">
+                </div>
+                <div class="form-group">
+                    <label>服务器端口</label>
+                    <input type="number" name="server_port" id="edit_server_port" required>
+                </div>
+                <div class="form-group">
+                    <label>API 基础地址 <small style="color: #6b7280;">(可自动生成或手动修改)</small></label>
+                    <input type="text" name="api_base_url" id="edit_api_base_url" required>
+                </div>
+                <div class="form-group">
+                    <label>认证用户名</label>
+                    <input type="text" name="auth_username" id="edit_auth_username" required>
+                </div>
+                <div class="form-group">
+                    <label>认证密码 <small style="color: #6b7280;">(留空表示不修改)</small></label>
+                    <input type="password" name="auth_password" id="edit_auth_password">
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="testEditServerConnection()">测试连接</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 添加代理 Modal -->
+    <div id="addProxyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>添加代理</h2>
+                <span class="close-btn" onclick="closeModal('addProxyModal')">&times;</span>
+            </div>
+            <form id="proxyForm" onsubmit="submitProxy(event)">
+                <div class="form-group">
+                    <label>选择服务器</label>
+                    <select name="frps_server_id" id="serverSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label>代理名称</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>代理类型</label>
+                    <select name="proxy_type">
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>远程端口</label>
+                    <input type="number" name="remote_port">
+                </div>
+                <div class="form-group">
+                    <label>本地 IP</label>
+                    <input type="text" name="local_ip" value="127.0.0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>本地端口</label>
+                    <input type="number" name="local_port" required>
+                </div>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 生成配置 Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>生成 frpc 配置</h2>
+                <span class="close-btn" onclick="closeModal('configModal')">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>选择服务器</label>
+                <select id="configServerSelect"></select>
+            </div>
+            <div class="form-group">
+                <button class="btn btn-primary" onclick="generateConfig()">生成配置文件</button>
+                <button class="btn btn-secondary" onclick="downloadLinuxScript()">下载 Linux 脚本</button>
+                <button class="btn btn-secondary" onclick="downloadWindowsScript()">下载 Windows 脚本</button>
+            </div>
+            <div id="configOutput"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
+

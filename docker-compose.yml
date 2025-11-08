@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  frp-agent:
+    build: .
+    container_name: frp-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # 挂载数据目录，持久化数据库和其他数据文件
+      - ./data:/app/data
+      # 可选：挂载配置文件
+      # - ./.env:/app/.env:ro
+    environment:
+      # 应用配置
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - APP_DEBUG=false
+      
+      # 数据库配置
+      - DATABASE_URL=sqlite:///./data/frp_agent.db
+      
+      # 认证配置（建议通过环境变量或 .env 文件配置）
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=admin@123
+      
+      # frps 默认配置
+      - DEFAULT_FRPS_NAME=默认服务器
+      - DEFAULT_FRPS_SERVER_ADDR=frp.51jbm.cn
+      - DEFAULT_FRPS_SERVER_PORT=7000
+      - DEFAULT_FRPS_API_BASE_URL=http://frp.51jbm.cn/api
+      - DEFAULT_FRPS_AUTH_USERNAME=admin
+      - DEFAULT_FRPS_AUTH_PASSWORD=admin@123
+      
+      # 同步任务配置
+      - SYNC_INTERVAL_SECONDS=30
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    
+    networks:
+      - frp-agent-network
+
+networks:
+  frp-agent-network:
+    driver: bridge
+

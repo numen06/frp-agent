@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户设置 - frp-agent 管理系统</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <h1>🚀 frp-agent 管理系统</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">管理员</span>
+                <a href="/dashboard" class="btn btn-secondary btn-small" style="margin-left: 10px;">返回首页</a>
+                <button class="btn btn-danger btn-small" onclick="handleLogout()" style="margin-left: 10px;">退出登录</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <div class="container">
+        <div class="card" style="max-width: 600px; margin: 2rem auto;">
+            <h2>⚙️ 用户设置</h2>
+            
+            <!-- 账号信息 -->
+            <div style="margin: 2rem 0; padding: 1.5rem; background: #f9fafb; border-radius: 8px;">
+                <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">账号信息</h3>
+                <div style="display: grid; gap: 1rem;">
+                    <div>
+                        <div style="color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem;">用户名</div>
+                        <div style="font-weight: 500;" id="currentUsername">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修改密码 -->
+            <div style="margin: 2rem 0;">
+                <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">修改密码</h3>
+                <form id="passwordForm" onsubmit="handlePasswordChange(event)">
+                    <div class="form-group">
+                        <label>当前密码</label>
+                        <input type="password" id="oldPassword" required placeholder="请输入当前密码">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" id="newPassword" required placeholder="至少 6 位字符">
+                        <small style="color: #6b7280;">密码长度至少 6 位</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>确认新密码</label>
+                        <input type="password" id="confirmPassword" required placeholder="再次输入新密码">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                </form>
+            </div>
+
+            <!-- 注意事项 -->
+            <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                <h4 style="color: #92400e; margin-bottom: 0.5rem;">⚠️ 注意事项</h4>
+                <ul style="color: #92400e; font-size: 0.875rem; margin-left: 1.5rem;">
+                    <li>修改密码后需要重新登录</li>
+                    <li>请妥善保管新密码，避免泄露</li>
+                    <li>建议使用强密码（包含字母、数字和特殊字符）</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // 检查登录状态
+        if (!localStorage.getItem('auth_token')) {
+            window.location.href = '/login';
+        }
+
+        // 显示用户名
+        const username = localStorage.getItem('username') || '管理员';
+        document.getElementById('usernameDisplay').textContent = username;
+
+        // 加载用户设置
+        async function loadUserSettings() {
+            try {
+                const settings = await apiRequest('/api/settings/user');
+                document.getElementById('currentUsername').textContent = settings.username;
+            } catch (error) {
+                showNotification('加载用户设置失败: ' + error.message, 'error');
+            }
+        }
+
+        // 处理退出登录
+        function handleLogout() {
+            if (confirm('确定要退出登录吗？')) {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('username');
+                localStorage.removeItem('currentServerId');
+                window.location.href = '/login';
+            }
+        }
+
+        // 修改密码
+        async function handlePasswordChange(event) {
+            event.preventDefault();
+            
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // 验证新密码
+            if (newPassword.length < 6) {
+                showNotification('新密码长度至少 6 位', 'error');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                showNotification('两次输入的新密码不一致', 'error');
+                return;
+            }
+            
+            try {
+                const result = await apiRequest('/api/settings/password', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        old_password: oldPassword,
+                        new_password: newPassword
+                    })
+                });
+                
+                showNotification(result.message || '密码修改成功', 'success');
+                
+                // 3 秒后跳转到登录页
+                setTimeout(() => {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('username');
+                    window.location.href = '/login';
+                }, 3000);
+                
+            } catch (error) {
+                showNotification('修改失败: ' + error.message, 'error');
+            }
+        }
+
+        // 页面加载时执行
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUserSettings();
+        });
+    </script>
+</body>
+</html>
+
