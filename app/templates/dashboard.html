@@ -626,25 +626,21 @@ Invoke-RestMethod -Uri "<span class="apiUrlClass">http://localhost:8000</span>/a
                     </div>
                     <div id="curlHelpContent" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #bfdbfe;">
                         <p style="color: #1e3a8a; margin-bottom: 0.75rem; font-size: 0.9rem;">
-                            <strong>从本地文件导入配置：</strong>
+                            <strong>一行命令导入配置：</strong>
                         </p>
                         <div style="background: #1e293b; color: #e2e8f0; padding: 0.75rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; font-size: 0.85rem; overflow-x: auto; margin-bottom: 0.75rem;">
-                            <div style="margin-bottom: 0.5rem;"># 方式 1: 最简洁（推荐，服务器直接执行）</div>
                             <div style="color: #94a3b8;">curl -u admin:admin -X POST \</div>
                             <div style="color: #94a3b8;">  -H "Content-Type: text/plain" \</div>
                             <div style="color: #94a3b8;">  --data-binary "@frpc.ini" \</div>
-                            <div style="color: #94a3b8;">  http://localhost:8000/api/config/import/ini/server_name/group_name</div>
+                            <div style="color: #94a3b8;">  http://localhost:8000/api/config/import/ini/服务器名称/分组名称</div>
                             
-                            <div style="margin-top: 0.75rem; margin-bottom: 0.5rem;"># 实际示例</div>
+                            <div style="margin-top: 1rem; margin-bottom: 0.5rem; color: #10b981;">## 实际示例</div>
                             <div style="color: #94a3b8;">curl -u admin:admin -X POST \</div>
                             <div style="color: #94a3b8;">  -H "Content-Type: text/plain" \</div>
                             <div style="color: #94a3b8;">  --data-binary "@frpc.ini" \</div>
-                            <div style="color: #94a3b8;">  http://localhost:8000/api/config/import/ini/test_server/production</div>
+                            <div style="color: #94a3b8;">  http://localhost:8000/api/config/import/ini/51jbm/production</div>
                             
-                            <div style="margin-top: 0.75rem; margin-bottom: 0.5rem;"># 方式 2: 使用项目脚本</div>
-                            <div style="color: #94a3b8;">./import_frpc_config.py frpc.ini --username admin --password admin</div>
-                            
-                            <div style="margin-top: 0.75rem; color: #10b981; font-size: 0.8rem;">💡 URL 格式: /import/{格式}/{服务器名称}/{分组名称}</div>
+                            <div style="margin-top: 1rem; color: #6b7280; font-size: 0.8rem;">TOML 格式将 "/ini/" 改为 "/toml/"</div>
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem;">
                             <button type="button" class="btn btn-secondary btn-small" onclick="copyCurlExample()" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">

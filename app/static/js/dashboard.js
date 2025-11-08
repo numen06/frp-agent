@@ -2137,33 +2137,31 @@ function copyCurlExample() {
     const currentServer = servers.find(s => s.id == serverId);
     const serverName = currentServer ? currentServer.name : 'server_name';
     
-    // 构建最简洁的 curl 命令示例
-    const curlExample = `# 方式 1: 最简洁（推荐，直接上传文件）
-# URL 格式: /import/{格式}/{服务器名称}/{分组名称}
+    // 构建实用的 curl 命令示例
+    const curlExample = `# 基础命令格式
+curl -u admin:admin -X POST \\
+  -H "Content-Type: text/plain" \\
+  --data-binary "@frpc.ini" \\
+  ${apiUrl}/api/config/import/ini/服务器名称/分组名称
+
+# 实际示例（当前服务器: ${serverName}）
 curl -u admin:admin -X POST \\
   -H "Content-Type: text/plain" \\
   --data-binary "@frpc.ini" \\
   ${apiUrl}/api/config/import/ini/${serverName}/production
 
-# 不同的服务器和分组示例
-curl -u admin:admin -X POST \\
-  -H "Content-Type: text/plain" \\
-  --data-binary "@frpc.ini" \\
-  ${apiUrl}/api/config/import/ini/${serverName}/test
+# 批量导入
+for file in configs/*.ini; do
+  curl -u admin:admin -X POST \\
+    -H "Content-Type: text/plain" \\
+    --data-binary "@$file" \\
+    ${apiUrl}/api/config/import/ini/${serverName}/production
+done
 
-# TOML 格式示例
-curl -u admin:admin -X POST \\
-  -H "Content-Type: text/plain" \\
-  --data-binary "@frpc.toml" \\
-  ${apiUrl}/api/config/import/toml/${serverName}/production
-
-# 方式 2: 使用项目脚本
-./import_frpc_config.py frpc.ini --username admin --password admin
-
-# 提示：
-# - 将 frpc.ini 替换为你的配置文件路径
-# - 将 ${serverName} 替换为实际的服务器名称
-# - 将 production 替换为实际的分组名称`;
+# 说明：
+# - INI/TOML 格式在 URL 中指定
+# - 服务器名称和分组名称在 URL 中
+# - 使用 --data-binary 上传文件内容`;
     
     // 复制到剪贴板
     navigator.clipboard.writeText(curlExample).then(() => {

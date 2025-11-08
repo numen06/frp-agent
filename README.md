@@ -135,63 +135,51 @@ APP_DEBUG=false
 
 ## 配置导入功能
 
-系统支持导入现有的 frpc 配置文件，支持 INI 和 TOML 两种格式。
-
-### 使用 Web 界面导入
-在管理界面选择"导入配置"功能，上传配置文件即可。
-
-### 使用 curl 导入（推荐用于自动化）
-
-#### 快速示例
+### 一行命令导入配置
 
 ```bash
-# 方式 1: 最简洁（推荐！只需一条命令）
 curl -u admin:admin -X POST \
   -H "Content-Type: text/plain" \
   --data-binary "@frpc.ini" \
-  http://localhost:8000/api/config/import/ini/server_name/group_name
-
-# 实际示例
-curl -u admin:admin -X POST \
-  -H "Content-Type: text/plain" \
-  --data-binary "@frpc.ini" \
-  http://localhost:8000/api/config/import/ini/test_server/production
-
-# 方式 2: 使用项目脚本
-./import_frpc_config.py frpc.ini --username admin --password admin
+  http://localhost:8000/api/config/import/ini/服务器名称/分组名称
 ```
 
-#### 工具脚本说明
+### 实际使用示例
 
-项目提供了两个便捷的导入工具：
+```bash
+# 导入 INI 配置到 51jbm 服务器的 production 分组
+curl -u admin:admin -X POST \
+  -H "Content-Type: text/plain" \
+  --data-binary "@frpc.ini" \
+  http://localhost:8000/api/config/import/ini/51jbm/production
 
-1. **Python 版本** (`import_frpc_config.py`):
-   - 功能完善，支持登录和 token 认证
-   - 自动检测配置格式
-   - 美化输出结果
-   
-   ```bash
-   # 使用 token
-   ./import_frpc_config.py frpc.ini --token YOUR_TOKEN
-   
-   # 使用用户名密码登录
-   ./import_frpc_config.py frpc.ini --username admin --password secret
-   
-   # 指定服务器和分组
-   ./import_frpc_config.py frpc.toml --token YOUR_TOKEN --server-id 2 --group production
-   ```
+# 导入 TOML 配置
+curl -u admin:admin -X POST \
+  -H "Content-Type: text/plain" \
+  --data-binary "@frpc.toml" \
+  http://localhost:8000/api/config/import/toml/prod_server/testing
+```
 
-2. **Shell 版本** (`import_frpc_config.sh`):
-   - 纯 Shell 实现，只需要 curl 和 jq
-   - 适合在 CI/CD 中使用
-   
-   ```bash
-   ./import_frpc_config.sh frpc.ini YOUR_TOKEN 1 ini default
-   ```
+### 其他导入方式
 
-📚 完整的使用指南：
-- **最简方式**: [CURL_SIMPLE.md](CURL_SIMPLE.md) - 一行命令搞定！
-- **详细指南**: [CURL_QUICK_EXAMPLE.md](CURL_QUICK_EXAMPLE.md) - 各种使用场景
+```bash
+# 使用 Python 脚本
+./import_frpc_config.py frpc.ini --username admin --password admin
+
+# 使用 Shell 脚本
+./import_frpc_config.sh frpc.ini $(echo -n 'admin:admin' | base64)
+```
+
+### 查看服务器名称
+
+```bash
+# 列出所有服务器
+curl -u admin:admin http://localhost:8000/api/servers | jq '.[] | {id, name}'
+```
+
+📚 **导入文档**:
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - 快速参考卡片
+- [CONFIG_IMPORT.md](CONFIG_IMPORT.md) - 完整实用指南（批量导入、CI/CD 集成等）
 
 ## 默认账号
 
