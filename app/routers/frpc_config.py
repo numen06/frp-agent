@@ -163,72 +163,6 @@ def get_config_by_group(
         raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
 
 
-@router.post("/install-script/by-group", response_class=PlainTextResponse)
-def generate_install_script_by_group(
-    request: GenerateConfigByGroupRequest,
-    install_path: str = Query("/etc/frp", description="安装路径"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """根据分组生成 frpc 安装脚本
-    
-    生成一键安装脚本，包含：
-    1. 下载 frpc
-    2. 生成配置文件
-    3. 创建 systemd 服务
-    4. 启动服务
-    """
-    try:
-        service = FrpcConfigService(db)
-        script = service.get_install_script(
-            group_name=request.group_name,
-            frps_server_id=request.frps_server_id,
-            install_path=install_path
-        )
-        return script
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成安装脚本失败: {str(e)}")
-
-
-@router.get("/install-script/by-group/{group_name}", response_class=PlainTextResponse)
-def get_install_script_by_group(
-    group_name: str,
-    frps_server_id: int = Query(..., description="frps 服务器 ID"),
-    install_path: str = Query("/etc/frp", description="安装路径"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """根据分组获取 frpc 安装脚本（GET 方法）
-    
-    生成一键安装脚本，包含：
-    1. 下载 frpc
-    2. 生成配置文件
-    3. 创建 systemd 服务
-    4. 启动服务
-    
-    使用方法：
-    ```bash
-    curl -o install.sh "http://your-api/api/frpc/install-script/by-group/dlyy?frps_server_id=1"
-    chmod +x install.sh
-    sudo ./install.sh
-    ```
-    """
-    try:
-        service = FrpcConfigService(db)
-        script = service.get_install_script(
-            group_name=group_name,
-            frps_server_id=frps_server_id,
-            install_path=install_path
-        )
-        return script
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成安装脚本失败: {str(e)}")
-
-
 @router.get("/get-my-token")
 def get_my_token(
     request: Request,
@@ -312,6 +246,82 @@ def get_temp_config(
         raise HTTPException(status_code=410, detail="临时配置已过期（24小时有效期）")
     
     return temp_config.config_content
+
+
+class ConvertIniToTomlRequest(BaseModel):
+    """INI转TOML请求"""
+    ini_content: str
+
+
+@router.post("/convert/ini-to-toml", response_class=PlainTextResponse)
+def convert_ini_to_toml(
+    request: ConvertIniToTomlRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """将INI格式的frpc配置转换为TOML格式
+    
+    使用方法（通过curl）:
+    ```bash
+    curl -u username:password -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"ini_content":"$(cat frpc.ini)"}' \
+      http://your-api/api/frpc/convert/ini-to-toml
+    ```
+    
+    或者更简单的方式：
+    ```bash
+    curl -u username:password -X POST \
+      -H "Content-Type: application/json" \
+      --data-binary "@frpc.ini" \
+      http://your-api/api/frpc/convert/ini-to-toml/direct
+    ```
+    """
+    try:
+        service = FrpcConfigService(db)
+        toml_content = service.convert_ini_to_toml(request.ini_content)
+        return toml_content
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"转换失败: {str(e)}")
+
+
+@router.post("/convert/ini-to-toml/direct", response_class=PlainTextResponse)
+async def convert_ini_to_toml_direct(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """将INI格式的frpc配置转换为TOML格式（直接接收原始文本）
+    
+    使用方法（通过curl）:
+    ```bash
+    # 从文件转换
+    curl -u username:password -X POST \
+      -H "Content-Type: text/plain" \
+      --data-binary "@frpc.ini" \
+      http://your-api/api/frpc/convert/ini-to-toml/direct -o frpc.toml
+    
+    # 或者从管道输入
+    cat frpc.ini | curl -u username:password -X POST \
+      -H "Content-Type: text/plain" \
+      --data-binary @- \
+      http://your-api/api/frpc/convert/ini-to-toml/direct
+    ```
+    """
+    try:
+        # 读取原始请求体
+        ini_content = await request.body()
+        ini_text = ini_content.decode('utf-8')
+        
+        service = FrpcConfigService(db)
+        toml_content = service.convert_ini_to_toml(ini_text)
+        return toml_content
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"转换失败: {str(e)}")
 
 
 @router.get("/config/direct/{server_name}/{group_name}/{filename}", response_class=PlainTextResponse)
@@ -438,126 +448,4 @@ def get_config_direct(
         raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
 
 
-@router.get("/install-script/direct/{server_name}/{group_name}", response_class=PlainTextResponse)
-def get_install_script_direct(
-    server_name: str,
-    group_name: str,
-    token: str = Query(None, description="访问令牌（可选）"),
-    install_path: str = Query("/opt/frp", description="安装路径"),
-    request: Request = None,
-    db: Session = Depends(get_db)
-):
-    """直接获取 frpc 安装脚本（支持 Basic Auth 或 Token 认证）
-    
-    此接口支持两种认证方式：
-    1. Basic Auth：在请求头中传递用户名密码
-    2. Token：在URL参数中传递token（更方便）
-    
-    使用方法：
-    ```bash
-    # 方法1：使用 token（推荐）
-    curl "http://your-api/api/frpc/install-script/direct/51jbm/dlyy?token=YOUR_TOKEN" | sudo bash
-    
-    # 方法2：使用 Basic Auth
-    curl -u username:password "http://your-api/api/frpc/install-script/direct/51jbm/dlyy" | sudo bash
-    ```
-    """
-    username = None
-    password = None
-    use_token = False
-    
-    # 优先使用 token 参数认证
-    if token:
-        use_token = True
-        try:
-            import base64
-            # 解码 token（base64 编码的 username:password）
-            decoded = base64.b64decode(token).decode('utf-8')
-            if ':' in decoded:
-                username, password = decoded.split(':', 1)
-            else:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Token 格式错误：无法解析用户名和密码",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Token 解码失败: {str(e)}",
-            )
-    else:
-        # 使用 Basic Auth
-        authorization = request.headers.get('Authorization')
-        
-        if not authorization:
-            raise HTTPException(
-                status_code=401,
-                detail="需要认证（请提供 token 参数或 Basic Auth）",
-                headers={"WWW-Authenticate": "Basic"},
-            )
-        
-        # 解析认证信息
-        auth_info = get_auth_from_header(authorization)
-        if not auth_info:
-            raise HTTPException(
-                status_code=401,
-                detail="认证格式错误",
-                headers={"WWW-Authenticate": "Basic"},
-            )
-        
-        username, password = auth_info
-    
-    # 验证用户
-    user = authenticate_user(db, username, password)
-    if not user:
-        # 如果数据库中没有用户，使用配置中的默认认证
-        if username != settings.auth_username or password != settings.auth_password:
-            # 根据认证方式返回不同的错误响应
-            if use_token:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Token 无效：用户名或密码错误",
-                )
-            else:
-                raise HTTPException(
-                    status_code=401,
-                    detail="用户名或密码错误",
-                    headers={"WWW-Authenticate": "Basic"},
-                )
-    
-    # 查找服务器（先尝试按名称查找，如果失败再尝试按ID）
-    server = db.query(FrpsServer).filter(FrpsServer.name == server_name).first()
-    if not server:
-        # 尝试将 server_name 作为 ID
-        try:
-            server_id = int(server_name)
-            server = db.query(FrpsServer).filter(FrpsServer.id == server_id).first()
-        except ValueError:
-            pass
-    
-    if not server:
-        raise HTTPException(status_code=404, detail=f"服务器 '{server_name}' 不存在")
-    
-    # 生成安装脚本
-    try:
-        service = FrpcConfigService(db)
-        # 获取请求的基础 URL
-        base_url = str(request.base_url).rstrip('/')
-        
-        script = service.get_install_script_with_auth(
-            group_name=group_name,
-            frps_server_id=server.id,
-            install_path=install_path,
-            api_base_url=base_url,
-            auth_username=username,
-            auth_password=password,
-            server_name=server_name
-        )
-        return script
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成安装脚本失败: {str(e)}")
 

@@ -59,6 +59,40 @@
                 </form>
             </div>
 
+            <!-- INI 转 TOML 工具 -->
+            <div style="margin: 2rem 0;">
+                <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">🔄 INI 转 TOML 工具</h3>
+                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">
+                    将旧版 FRP 的 INI 格式配置文件转换为新版的 TOML 格式
+                </p>
+                
+                <div class="form-group">
+                    <label>INI 配置内容</label>
+                    <textarea id="iniContent" placeholder="粘贴您的 frpc.ini 配置内容..." 
+                              style="font-family: monospace; height: 200px; width: 100%;"></textarea>
+                </div>
+                
+                <button class="btn btn-primary" onclick="convertIniToToml()">🔄 转换为 TOML</button>
+                
+                <div id="tomlOutput" style="display: none; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label style="font-weight: 600;">转换结果（TOML 格式）</label>
+                        <button class="btn btn-secondary btn-small" onclick="downloadToml()">💾 下载</button>
+                    </div>
+                    <textarea id="tomlContent" readonly 
+                              style="font-family: monospace; height: 200px; width: 100%; background: #f9fafb;"></textarea>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 1rem; background: #e0f2fe; border-left: 4px solid #3b82f6; border-radius: 4px;">
+                    <h4 style="color: #1e40af; margin-bottom: 0.5rem;">💡 通过 curl 使用</h4>
+                    <pre style="background: white; padding: 0.75rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.75rem; color: #1e3a8a;">curl -u username:password -X POST \
+  -H "Content-Type: text/plain" \
+  --data-binary "@frpc.ini" \
+  http://your-server/api/frpc/convert/ini-to-toml/direct \
+  -o frpc.toml</pre>
+                </div>
+            </div>
+
             <!-- 注意事项 -->
             <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
                 <h4 style="color: #92400e; margin-bottom: 0.5rem;">⚠️ 注意事项</h4>
@@ -148,6 +182,62 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadUserSettings();
         });
+
+        // INI 转 TOML 功能
+        async function convertIniToToml() {
+            const iniContent = document.getElementById('iniContent').value.trim();
+            
+            if (!iniContent) {
+                showNotification('请输入 INI 配置内容', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/frpc/convert/ini-to-toml/direct', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': getAuthHeader(),
+                        'Content-Type': 'text/plain'
+                    },
+                    body: iniContent
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                    throw new Error(error.detail || 'Request failed');
+                }
+                
+                const tomlContent = await response.text();
+                
+                // 显示结果
+                document.getElementById('tomlContent').value = tomlContent;
+                document.getElementById('tomlOutput').style.display = 'block';
+                
+                showNotification('转换成功！', 'success');
+            } catch (error) {
+                showNotification('转换失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 下载 TOML 文件
+        function downloadToml() {
+            const content = document.getElementById('tomlContent').value;
+            
+            if (!content) {
+                showNotification('没有可下载的内容', 'error');
+                return;
+            }
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'frpc.toml';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('文件已下载', 'success');
+        }
     </script>
 </body>
 </html>
