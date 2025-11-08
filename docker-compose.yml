@@ -2,9 +2,8 @@ version: '3.8'
 
 services:
   frp-agent:
-    build: .
-    container_name: frp-agent
-    restart: unless-stopped
+    image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+    restart: always
     ports:
       - "8000:8000"
     volumes:
@@ -29,10 +28,4 @@ services:
       retries: 3
       start_period: 5s
     
-    networks:
-      - frp-agent-network
-
-networks:
-  frp-agent-network:
-    driver: bridge
 
