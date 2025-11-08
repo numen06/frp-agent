@@ -41,7 +41,7 @@ async function loadGroupsManagement() {
                             <td>
                                 <button class="btn btn-secondary btn-small" onclick="viewGroupProxies('${group.group_name}')">查看代理</button>
                                 <button class="btn btn-secondary btn-small" onclick="openRenameGroupModal('${group.group_name}')">重命名</button>
-                                <button class="btn btn-success btn-small" onclick="generateGroupConfig('${group.group_name}')">生成配置</button>
+                                <button class="btn btn-success btn-small" onclick="openGenerateConfigModal('${group.group_name}')">生成配置</button>
                                 <button class="btn btn-danger btn-small" onclick="openDeleteGroupModal('${group.group_name}', ${group.total_count})">删除</button>
                             </td>
                         </tr>
@@ -215,18 +215,36 @@ async function submitGroupForm(event) {
     }
 }
 
-// 为分组生成配置
-async function generateGroupConfig(groupName, format = 'ini') {
-    // 如果没有指定格式，询问用户
-    if (!format) {
-        const userChoice = confirm('选择配置格式：\n\n点击"确定"使用 TOML 格式（推荐，新版本FRP）\n点击"取消"使用 INI 格式（兼容旧版本）');
-        format = userChoice ? 'toml' : 'ini';
+// 打开生成配置模态框
+let currentGenerateGroupName = null;
+
+function openGenerateConfigModal(groupName) {
+    currentGenerateGroupName = groupName;
+    
+    // 设置分组名称
+    document.getElementById('groupConfigName').textContent = groupName;
+    
+    // 清空输出区域
+    document.getElementById('groupConfigOutput').innerHTML = '';
+    
+    // 重置格式选择为 INI
+    document.getElementById('groupConfigFormat').value = 'ini';
+    
+    openModal('groupConfigModal');
+}
+
+// 从模态框生成配置
+async function generateGroupConfigFromModal() {
+    if (!currentGenerateGroupName || !currentServerId) {
+        showNotification('请先选择分组和服务器', 'error');
+        return;
     }
     
+    const format = document.getElementById('groupConfigFormat').value || 'ini';
+    
     try {
-        // 配置文件是纯文本，不能用 apiRequest
         const response = await fetch(
-            `/api/frpc/config/by-group/${groupName}?frps_server_id=${currentServerId}&format=${format}`,
+            `/api/frpc/config/by-group/${currentGenerateGroupName}?frps_server_id=${currentServerId}&format=${format}`,
             {
                 headers: {
                     'Authorization': getAuthHeader()
@@ -241,22 +259,73 @@ async function generateGroupConfig(groupName, format = 'ini') {
         
         const config = await response.text();
         
-        // 根据格式设置文件扩展名
-        const extension = format === 'toml' ? 'toml' : 'ini';
+        // 显示配置内容
+        document.getElementById('groupConfigOutput').innerHTML = `
+            <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #d1d5db;">${config}</pre>
+        `;
         
-        // 创建下载
-        const blob = new Blob([config], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `frpc_${groupName}.${extension}`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        showNotification(`已生成分组 "${groupName}" 的 ${format.toUpperCase()} 配置文件`, 'success');
+        showNotification(`配置文件已生成（${format.toUpperCase()} 格式）`, 'success');
     } catch (error) {
         showNotification('生成配置失败: ' + error.message, 'error');
     }
+}
+
+// 生成 Linux 安装脚本
+async function generateGroupInstallScript() {
+    if (!currentGenerateGroupName || !currentServerId) {
+        showNotification('请先生成配置文件', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(
+            `/api/frpc/install-script/by-group/${currentGenerateGroupName}?frps_server_id=${currentServerId}`,
+            {
+                headers: {
+                    'Authorization': getAuthHeader()
+                }
+            }
+        );
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(error.detail || 'Request failed');
+        }
+        
+        const script = await response.text();
+        
+        // 显示脚本内容
+        document.getElementById('groupConfigOutput').innerHTML = `
+            <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #475569;">${script}</pre>
+        `;
+        
+        showNotification('安装脚本已生成', 'success');
+    } catch (error) {
+        showNotification('生成脚本失败: ' + error.message, 'error');
+    }
+}
+
+// 下载配置文件
+function downloadGroupConfigFile() {
+    const configOutput = document.querySelector('#groupConfigOutput pre');
+    if (!configOutput) {
+        showNotification('请先生成配置', 'error');
+        return;
+    }
+    
+    const format = document.getElementById('groupConfigFormat').value || 'ini';
+    const extension = format === 'toml' ? 'toml' : 'ini';
+    
+    const content = configOutput.textContent;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `frpc_${currentGenerateGroupName}.${extension}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showNotification('配置文件已下载', 'success');
 }
 
 // 自动分析分组
