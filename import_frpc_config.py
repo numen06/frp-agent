@@ -57,7 +57,7 @@ def import_config(api_url: str, token: str, content: str,
     
     # 构建请求头
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Basic {token}",
         "Content-Type": "application/json"
     }
     
@@ -91,21 +91,24 @@ def import_config(api_url: str, token: str, content: str,
 
 
 def login(api_url: str, username: str, password: str) -> str:
-    """登录并获取 token"""
+    """生成 Basic Auth token"""
+    import base64
+    # 生成 Basic Auth token
+    credentials = f"{username}:{password}"
+    token_bytes = base64.b64encode(credentials.encode('utf-8'))
+    token = token_bytes.decode('utf-8')
+    
+    # 验证 token 是否有效（测试一个API）
     try:
-        response = requests.post(
-            f"{api_url}/api/auth/login",
-            data={
-                "username": username,
-                "password": password
-            },
+        response = requests.get(
+            f"{api_url}/api/health",
+            headers={"Authorization": f"Basic {token}"},
             timeout=10
         )
-        response.raise_for_status()
-        data = response.json()
-        return data.get("access_token")
+        # 不需要验证响应，只要能连接就行
+        return token
     except Exception as e:
-        print(f"错误: 登录失败: {e}", file=sys.stderr)
+        print(f"错误: 无法连接到服务器: {e}", file=sys.stderr)
         sys.exit(1)
 
 

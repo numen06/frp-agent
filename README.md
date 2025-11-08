@@ -126,8 +126,9 @@ APP_DEBUG=false
 
 ### 配置生成与导入
 - `POST /api/config/generate` - 生成 frpc 配置文件
-- `POST /api/config/import` - 导入 frpc 配置文件（文件上传）
-- `POST /api/config/import/text` - 导入 frpc 配置文件（JSON 提交，**适合 curl**）
+- `POST /api/config/import` - 导入配置文件（文件上传）
+- `POST /api/config/import/{format}/{server_name}/{group_name}` - 导入配置文件（**最简洁，推荐！**）
+- `POST /api/config/import/text` - 导入配置文件（JSON 提交）
 
 ### 同步
 - `POST /api/sync` - 手动触发同步
@@ -144,21 +145,20 @@ APP_DEBUG=false
 #### 快速示例
 
 ```bash
-# 使用 Python 脚本导入（最简单）
-./import_frpc_config.py frpc.ini --token YOUR_TOKEN
+# 方式 1: 最简洁（推荐！只需一条命令）
+curl -u admin:admin -X POST \
+  -H "Content-Type: text/plain" \
+  --data-binary "@frpc.ini" \
+  http://localhost:8000/api/config/import/ini/server_name/group_name
 
-# 使用 Shell 脚本导入
-./import_frpc_config.sh frpc.ini YOUR_TOKEN
+# 实际示例
+curl -u admin:admin -X POST \
+  -H "Content-Type: text/plain" \
+  --data-binary "@frpc.ini" \
+  http://localhost:8000/api/config/import/ini/test_server/production
 
-# 使用原生 curl 命令
-curl -X POST "http://localhost:8000/api/config/import/text" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "[ssh]\ntype = tcp\nlocal_ip = 127.0.0.1\nlocal_port = 22\nremote_port = 6000",
-    "format": "ini",
-    "frps_server_id": 1
-  }'
+# 方式 2: 使用项目脚本
+./import_frpc_config.py frpc.ini --username admin --password admin
 ```
 
 #### 工具脚本说明
@@ -189,7 +189,9 @@ curl -X POST "http://localhost:8000/api/config/import/text" \
    ./import_frpc_config.sh frpc.ini YOUR_TOKEN 1 ini default
    ```
 
-📚 完整的 curl 导入指南请查看 [CURL_IMPORT_GUIDE.md](CURL_IMPORT_GUIDE.md)
+📚 完整的使用指南：
+- **最简方式**: [CURL_SIMPLE.md](CURL_SIMPLE.md) - 一行命令搞定！
+- **详细指南**: [CURL_QUICK_EXAMPLE.md](CURL_QUICK_EXAMPLE.md) - 各种使用场景
 
 ## 默认账号
 

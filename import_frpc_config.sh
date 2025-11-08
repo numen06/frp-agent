@@ -130,13 +130,13 @@ fi
 # 发送请求
 echo -e "${YELLOW}正在导入配置 (格式: $FORMAT, 服务器: $SERVER_ID)...${NC}"
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/api/config/import/text" \
-    -H "Authorization: Bearer $TOKEN" \
+    -H "Authorization: Basic $TOKEN" \
     -H "Content-Type: application/json" \
     -d "$JSON_DATA")
 
 # 分离响应体和状态码
-HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
 
 # 检查 HTTP 状态码
 if [ "$HTTP_CODE" -ne 200 ]; then
