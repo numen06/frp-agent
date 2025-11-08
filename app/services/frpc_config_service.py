@@ -328,3 +328,156 @@ class FrpcConfigService:
         
         return "\n".join(script_lines)
 
+    def get_install_script_with_auth(
+        self,
+        group_name: str,
+        frps_server_id: int,
+        install_path: str = "/opt/frp",
+        api_base_url: str = "",
+        auth_username: str = "",
+        auth_password: str = "",
+        server_name: str = ""
+    ) -> str:
+        """生成带认证URL的 frpc 安装脚本
+        
+        此脚本会从 API 下载配置文件，而不是嵌入配置内容。
+        
+        Args:
+            group_name: 分组名称
+            frps_server_id: frps 服务器 ID
+            install_path: 安装路径
+            api_base_url: API 基础 URL
+            auth_username: 认证用户名
+            auth_password: 认证密码
+            server_name: 服务器名称
+            
+        Returns:
+            安装脚本内容（Shell 脚本）
+        """
+        # 构建配置下载 URL - 使用新的URL格式
+        # 格式: /api/frpc/config/direct/{server_name}/{group_name}/frpc.ini
+        # 生成 token (base64编码的 username:password)
+        import base64
+        token = base64.b64encode(f"{auth_username}:{auth_password}".encode()).decode()
+        config_url = f"{api_base_url}/api/frpc/config/direct/{server_name}/{group_name}/frpc.ini?token={token}"
+        
+        script_lines = [
+            "#!/bin/bash",
+            "# frpc 自动安装脚本（远程配置版）",
+            f"# 分组: {group_name}",
+            f"# API: {api_base_url}",
+            "",
+            "set -e",
+            "",
+            f"INSTALL_PATH=\"{install_path}\"",
+            f"CONFIG_FILE=\"$INSTALL_PATH/frpc.ini\"",
+            f"SERVICE_NAME=\"frpc\"",
+            f"CONFIG_URL=\"{config_url}\"",
+            "",
+            "# 检查是否为 root 用户",
+            'if [ "$EUID" -ne 0 ]; then',
+            '    echo "请使用 root 权限运行此脚本"',
+            '    exit 1',
+            'fi',
+            "",
+            "# 创建安装目录",
+            'echo "创建安装目录: $INSTALL_PATH"',
+            'mkdir -p "$INSTALL_PATH"',
+            "",
+            "# 从 API 下载配置文件",
+            'echo "从服务器下载配置文件..."',
+            'curl -f "$CONFIG_URL" -o "$CONFIG_FILE"',
+            'if [ $? -ne 0 ]; then',
+            '    echo "配置文件下载失败！请检查访问令牌和网络连接。"',
+            '    exit 1',
+            'fi',
+            'echo "配置文件下载成功: $CONFIG_FILE"',
+            "",
+            "# 下载 frpc（如果不存在）",
+            'if [ ! -f "$INSTALL_PATH/frpc" ]; then',
+            '    echo "下载 frpc..."',
+            '    # 根据系统架构下载对应的 frpc',
+            '    ARCH=$(uname -m)',
+            '    if [ "$ARCH" = "x86_64" ]; then',
+            '        FRPC_URL="https://github.com/fatedier/frp/releases/download/v0.52.0/frp_0.52.0_linux_amd64.tar.gz"',
+            '    elif [ "$ARCH" = "aarch64" ]; then',
+            '        FRPC_URL="https://github.com/fatedier/frp/releases/download/v0.52.0/frp_0.52.0_linux_arm64.tar.gz"',
+            '    else',
+            '        echo "不支持的系统架构: $ARCH"',
+            '        exit 1',
+            '    fi',
+            '    wget -O /tmp/frp.tar.gz "$FRPC_URL"',
+            '    tar -xzf /tmp/frp.tar.gz -C /tmp',
+            '    mv /tmp/frp_*/frpc "$INSTALL_PATH/"',
+            '    chmod +x "$INSTALL_PATH/frpc"',
+            '    rm -rf /tmp/frp*',
+            '    echo "frpc 下载完成"',
+            'else',
+            '    echo "frpc 已存在，跳过下载"',
+            'fi',
+            "",
+            "# 创建配置更新脚本",
+            'cat > "$INSTALL_PATH/update_config.sh" << \"EOF_UPDATE\"',
+            "#!/bin/bash",
+            "# frpc 配置更新脚本",
+            f"CONFIG_URL=\"{config_url}\"",
+            f"CONFIG_FILE=\"{install_path}/frpc.ini\"",
+            "",
+            'echo "正在更新配置..."',
+            'curl -f "$CONFIG_URL" -o "$CONFIG_FILE.new"',
+            'if [ $? -eq 0 ]; then',
+            '    mv "$CONFIG_FILE.new" "$CONFIG_FILE"',
+            '    echo "配置更新成功"',
+            '    systemctl restart frpc',
+            '    echo "frpc 服务已重启"',
+            'else',
+            '    echo "配置更新失败！请检查访问令牌和网络连接。"',
+            '    rm -f "$CONFIG_FILE.new"',
+            '    exit 1',
+            'fi',
+            "EOF_UPDATE",
+            'chmod +x "$INSTALL_PATH/update_config.sh"',
+            "",
+            "# 创建 systemd 服务",
+            'echo "创建 systemd 服务: $SERVICE_NAME"',
+            'cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF',
+            "[Unit]",
+            f"Description=frpc service for {group_name}",
+            "After=network.target",
+            "",
+            "[Service]",
+            "Type=simple",
+            'ExecStart=$INSTALL_PATH/frpc -c $CONFIG_FILE',
+            "Restart=on-failure",
+            "RestartSec=5s",
+            "",
+            "[Install]",
+            "WantedBy=multi-user.target",
+            "EOF",
+            "",
+            "# 重载 systemd 并启动服务",
+            "systemctl daemon-reload",
+            'systemctl enable "$SERVICE_NAME"',
+            'systemctl restart "$SERVICE_NAME"',
+            "",
+            'echo ""',
+            'echo "============================================"',
+            'echo "安装完成！"',
+            'echo "============================================"',
+            'echo "服务名称: $SERVICE_NAME"',
+            'echo "配置文件: $CONFIG_FILE"',
+            'echo "安装路径: $INSTALL_PATH"',
+            'echo ""',
+            'echo "常用命令："',
+            'echo "  查看状态: systemctl status $SERVICE_NAME"',
+            'echo "  查看日志: journalctl -u $SERVICE_NAME -f"',
+            'echo "  重启服务: systemctl restart $SERVICE_NAME"',
+            'echo "  停止服务: systemctl stop $SERVICE_NAME"',
+            'echo "  更新配置: $INSTALL_PATH/update_config.sh"',
+            'echo ""',
+            'echo "配置 URL: $CONFIG_URL"',
+            'echo "============================================"',
+        ]
+        
+        return "\n".join(script_lines)
+

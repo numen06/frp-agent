@@ -259,8 +259,56 @@ async function generateGroupConfigFromModal() {
         
         const config = await response.text();
         
-        // 显示配置内容
+        // 生成配置URL
+        const username = localStorage.getItem('username') || 'admin';
+        const baseUrl = window.location.origin;
+        
+        // 获取当前服务器信息
+        const currentServer = servers.find(s => s.id == currentServerId);
+        const serverName = currentServer ? currentServer.name : currentServerId;
+        
+        // 根据格式生成文件名
+        const filename = format === 'toml' ? 'frpc.toml' : 'frpc.ini';
+        
+        // 自动获取当前用户的 token
+        let token;
+        try {
+            const tokenResponse = await apiRequest('/api/frpc/get-my-token');
+            token = tokenResponse.token;
+        } catch (error) {
+            showNotification('获取访问令牌失败: ' + error.message, 'error');
+            // 仍然显示配置，只是不显示URL
+            document.getElementById('groupConfigOutput').innerHTML = `
+                <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #d1d5db;">${config}</pre>
+            `;
+            return;
+        }
+        
+        const configUrlWithToken = `${baseUrl}/api/frpc/config/direct/${serverName}/${currentGenerateGroupName}/${filename}?token=${token}`;
+        
+        // 显示配置内容和URL
         document.getElementById('groupConfigOutput').innerHTML = `
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #fef3c7; border-radius: 0.375rem; border: 1px solid #fcd34d;">
+                <h4 style="margin: 0 0 0.75rem 0; color: #92400e;">🔗 配置文件直接访问地址</h4>
+                
+                <div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" readonly value="${configUrlWithToken}" 
+                            id="groupConfigDirectUrl" 
+                            style="flex: 1; padding: 0.5rem; border: 1px solid #fcd34d; border-radius: 0.375rem; background: white; font-family: monospace; font-size: 0.875rem;">
+                        <button onclick="copyToClipboard('groupConfigDirectUrl', '配置URL已复制')" 
+                            style="padding: 0.5rem 1rem; background: #f59e0b; color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 600;">
+                            📋 复制
+                        </button>
+                    </div>
+                    <small style="color: #92400e; display: block; margin-top: 0.5rem;">
+                        💡 使用方法（无需输入密码）: <code style="background: white; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">curl -f "${configUrlWithToken}" -o ${filename}</code>
+                        <br>
+                        <span style="color: #78350f; font-size: 0.8em;">⚠️ 此URL包含访问令牌，请妥善保管，不要分享给他人</span>
+                    </small>
+                </div>
+            </div>
+            
             <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #d1d5db;">${config}</pre>
         `;
         
@@ -276,6 +324,9 @@ async function generateGroupInstallScript() {
         showNotification('请先生成配置文件', 'error');
         return;
     }
+    
+    const username = localStorage.getItem('username') || 'admin';
+    const baseUrl = window.location.origin;
     
     try {
         const response = await fetch(
@@ -294,9 +345,47 @@ async function generateGroupInstallScript() {
         
         const script = await response.text();
         
-        // 显示脚本内容
+        // 生成一键安装命令
+        const installUrl = `${baseUrl}/api/frpc/install-script/direct/${currentGenerateGroupName}?frps_server_id=${currentServerId}`;
+        const installCmd = `curl -u ${username}:PASSWORD "${installUrl}" | sudo bash`;
+        
+        // 显示脚本内容和一键安装命令
         document.getElementById('groupConfigOutput').innerHTML = `
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #dbeafe; border-radius: 0.375rem; border: 1px solid #60a5fa;">
+                <h4 style="margin: 0 0 0.75rem 0; color: #1e40af;">🚀 一键安装命令</h4>
+                
+                <div style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.875rem; font-weight: 600; color: #1e3a8a; display: block; margin-bottom: 0.25rem;">复制并执行此命令：</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" readonly value="${installCmd}" 
+                            id="groupQuickInstallCmd" 
+                            style="flex: 1; padding: 0.5rem; border: 1px solid #60a5fa; border-radius: 0.375rem; background: white; font-family: monospace; font-size: 0.875rem;">
+                        <button onclick="copyToClipboard('groupQuickInstallCmd', '命令已复制')" 
+                            style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 600;">
+                            📋 复制
+                        </button>
+                    </div>
+                    <small style="color: #1e40af; display: block; margin-top: 0.25rem;">
+                        ⚠️ 将 <code style="background: white; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">PASSWORD</code> 替换为您的实际密码
+                    </small>
+                </div>
+                
+                <div style="background: white; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; color: #1e40af;">
+                    <strong>✨ 优势：</strong>
+                    <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+                        <li>无需手动下载配置文件，自动从服务器拉取最新配置</li>
+                        <li>配置文件更新后，可执行 <code style="background: #dbeafe; padding: 0.125rem 0.375rem; border-radius: 0.25rem;">/opt/frp/update_config.sh</code> 自动更新</li>
+                        <li>自动创建 systemd 服务，开机自启</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <details>
+                <summary style="cursor: pointer; padding: 0.5rem; background: #f3f4f6; border-radius: 0.375rem; margin-bottom: 0.5rem; font-weight: 600;">
+                    📄 查看完整脚本内容
+                </summary>
             <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #475569;">${script}</pre>
+            </details>
         `;
         
         showNotification('安装脚本已生成', 'success');
