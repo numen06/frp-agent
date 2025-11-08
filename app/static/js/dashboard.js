@@ -2121,62 +2121,52 @@ function toggleCurlHelp() {
     if (content.style.display === 'none') {
         content.style.display = 'block';
         toggle.textContent = '▲';
+        // 展开时更新命令
+        updateCurlCommand();
     } else {
         content.style.display = 'none';
         toggle.textContent = '▼';
     }
 }
 
-// 复制 curl 示例到剪贴板
-function copyCurlExample() {
-    const token = localStorage.getItem('auth_token');
-    const serverId = currentServerId || 1;
+// 更新 curl 命令显示
+function updateCurlCommand() {
+    const currentServer = servers.find(s => s.id == currentServerId);
+    const serverName = currentServer ? currentServer.name : '服务器名';
     const apiUrl = window.location.origin;
     
-    // 获取当前服务器名称
-    const currentServer = servers.find(s => s.id == serverId);
-    const serverName = currentServer ? currentServer.name : 'server_name';
+    const urlLine = document.getElementById('curlUrlLine');
+    if (urlLine) {
+        urlLine.textContent = `  ${apiUrl}/api/config/import/ini/${serverName}/分组名`;
+    }
+}
+
+// 复制 curl 命令到剪贴板
+function copyCurlCommand() {
+    const currentServer = servers.find(s => s.id == currentServerId);
+    const serverName = currentServer ? currentServer.name : '服务器名';
+    const apiUrl = window.location.origin;
     
-    // 构建实用的 curl 命令示例
-    const curlExample = `# 基础命令格式
-curl -u admin:admin -X POST \\
+    // 构建简洁的 curl 命令
+    const curlCommand = `curl -u admin:admin -X POST \\
   -H "Content-Type: text/plain" \\
   --data-binary "@frpc.ini" \\
-  ${apiUrl}/api/config/import/ini/服务器名称/分组名称
-
-# 实际示例（当前服务器: ${serverName}）
-curl -u admin:admin -X POST \\
-  -H "Content-Type: text/plain" \\
-  --data-binary "@frpc.ini" \\
-  ${apiUrl}/api/config/import/ini/${serverName}/production
-
-# 批量导入
-for file in configs/*.ini; do
-  curl -u admin:admin -X POST \\
-    -H "Content-Type: text/plain" \\
-    --data-binary "@$file" \\
-    ${apiUrl}/api/config/import/ini/${serverName}/production
-done
-
-# 说明：
-# - INI/TOML 格式在 URL 中指定
-# - 服务器名称和分组名称在 URL 中
-# - 使用 --data-binary 上传文件内容`;
+  ${apiUrl}/api/config/import/ini/${serverName}/分组名`;
     
     // 复制到剪贴板
-    navigator.clipboard.writeText(curlExample).then(() => {
-        showNotification('curl 示例已复制到剪贴板', 'success');
+    navigator.clipboard.writeText(curlCommand).then(() => {
+        showNotification('命令已复制到剪贴板', 'success');
     }).catch(err => {
         // 降级方案：使用 textarea
         const textarea = document.createElement('textarea');
-        textarea.value = curlExample;
+        textarea.value = curlCommand;
         textarea.style.position = 'fixed';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
         try {
             document.execCommand('copy');
-            showNotification('curl 示例已复制到剪贴板', 'success');
+            showNotification('命令已复制到剪贴板', 'success');
         } catch (err) {
             showNotification('复制失败，请手动复制', 'error');
         }
@@ -2184,87 +2174,4 @@ done
     });
 }
 
-// 显示 Token 信息
-function showTokenInfo() {
-    const token = localStorage.getItem('auth_token');
-    
-    if (!token) {
-        showNotification('未找到 Token，请重新登录', 'error');
-        return;
-    }
-    
-    // 创建模态框显示 Token
-    const modalHtml = `
-        <div id="tokenInfoModal" class="modal" style="display: block;">
-            <div class="modal-content" style="max-width: 600px;">
-                <div class="modal-header">
-                    <h2>🔑 认证 Token</h2>
-                    <span class="close-btn" onclick="closeModal('tokenInfoModal')">&times;</span>
-                </div>
-                <div style="padding: 1.5rem;">
-                    <p style="color: #6b7280; margin-bottom: 1rem;">
-                        您的认证 Token（请妥善保管，不要泄露）：
-                    </p>
-                    <div style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; font-family: 'Courier New', monospace; font-size: 0.9rem; word-break: break-all; margin-bottom: 1rem;">
-                        ${token}
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="copyTokenToClipboard()">
-                            📋 复制 Token
-                        </button>
-                        <button class="btn btn-secondary" onclick="closeModal('tokenInfoModal')">
-                            关闭
-                        </button>
-                    </div>
-                    <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 0.375rem;">
-                        <p style="margin: 0; color: #92400e; font-size: 0.875rem;">
-                            💡 <strong>使用提示：</strong><br>
-                            • 使用 Python 脚本：<code>./import_frpc_config.py frpc.ini --token "${token.substring(0, 20)}..."</code><br>
-                            • 使用 Shell 脚本：<code>./import_frpc_config.sh frpc.ini "${token.substring(0, 20)}..."</code><br>
-                            • 获取新 Token：<code>./get_token.sh</code>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 移除旧的模态框（如果存在）
-    const oldModal = document.getElementById('tokenInfoModal');
-    if (oldModal) {
-        oldModal.remove();
-    }
-    
-    // 添加新模态框
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-
-// 复制 Token 到剪贴板
-function copyTokenToClipboard() {
-    const token = localStorage.getItem('auth_token');
-    
-    if (!token) {
-        showNotification('未找到 Token', 'error');
-        return;
-    }
-    
-    navigator.clipboard.writeText(token).then(() => {
-        showNotification('Token 已复制到剪贴板', 'success');
-    }).catch(err => {
-        // 降级方案
-        const textarea = document.createElement('textarea');
-        textarea.value = token;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            showNotification('Token 已复制到剪贴板', 'success');
-        } catch (err) {
-            showNotification('复制失败，请手动复制', 'error');
-        }
-        document.body.removeChild(textarea);
-    });
-}
 
