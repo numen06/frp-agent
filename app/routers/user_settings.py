@@ -1,9 +1,11 @@
 """用户设置路由"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from app.auth import get_current_user
+from sqlalchemy.orm import Session
+from app.auth import get_current_user, verify_password, get_password_hash
 from app.models.user import User
 from app.config import get_settings
+from app.database import get_db
 import os
 
 router = APIRouter(prefix="/api/settings", tags=["用户设置"])
@@ -32,17 +34,27 @@ def get_user_settings(current_user: User = Depends(get_current_user)):
 @router.post("/password")
 def change_password(
     password_data: PasswordChange,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """修改密码"""
     settings = get_settings()
     
     # 验证旧密码
-    if password_data.old_password != settings.auth_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="旧密码错误"
-        )
+    # 如果是数据库用户（id != 0），使用 bcrypt 验证
+    if current_user.id != 0:
+        if not verify_password(password_data.old_password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="旧密码错误"
+            )
+    else:
+        # 如果是环境变量用户，使用明文比较
+        if password_data.old_password != settings.auth_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="旧密码错误"
+            )
     
     # 验证新密码
     if len(password_data.new_password) < 6:
@@ -57,14 +69,24 @@ def change_password(
             detail="新密码不能与旧密码相同"
         )
     
-    # 更新 .env 文件
+    # 更新密码
     try:
+        # 如果是数据库用户，更新数据库中的密码
+        if current_user.id != 0:
+            db_user = db.query(User).filter(User.id == current_user.id).first()
+            if db_user:
+                db_user.password_hash = get_password_hash(password_data.new_password)
+                db.commit()
+        
+        # 同时更新 .env 文件（保持环境变量同步）
         update_env_file('AUTH_PASSWORD', password_data.new_password)
+        
         return {
             "success": True,
             "message": "密码修改成功，请重新登录"
         }
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"保存失败: {str(e)}"
