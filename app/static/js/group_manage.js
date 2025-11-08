@@ -40,6 +40,7 @@ async function loadGroupsManagement() {
                             <td><span class="badge badge-offline">${group.offline_count}</span></td>
                             <td>
                                 <button class="btn btn-secondary btn-small" onclick="viewGroupProxies('${group.group_name}')">查看代理</button>
+                                <button class="btn btn-warning btn-small" onclick="generateDefaultProxies('${group.group_name}')" title="为该分组添加 docker、ssh、http 三个默认代理">➕ 生成默认配置</button>
                                 <button class="btn btn-secondary btn-small" onclick="openRenameGroupModal('${group.group_name}')">重命名</button>
                                 <button class="btn btn-success btn-small" onclick="openGenerateConfigModal('${group.group_name}')">生成配置</button>
                                 <button class="btn btn-danger btn-small" onclick="openDeleteGroupModal('${group.group_name}', ${group.total_count})">删除</button>
@@ -443,6 +444,85 @@ async function autoAnalyzeGroups() {
         // 显示完整的错误消息
         alert('分析失败:\n\n' + errorMsg + '\n\n请查看控制台获取更多信息');
         showNotification('分析失败: ' + errorMsg, 'error');
+    }
+}
+
+// 生成默认配置（docker、ssh、http）
+async function generateDefaultProxies(groupName) {
+    if (!currentServerId) {
+        showNotification('请先选择服务器', 'error');
+        return;
+    }
+    
+    try {
+        // 先检查哪些默认代理需要添加
+        const checkResult = await apiRequest(`/api/groups/${encodeURIComponent(groupName)}/check-defaults?frps_server_id=${currentServerId}`);
+        
+        if (checkResult.needed.length === 0) {
+            showNotification(`分组"${groupName}"已包含所有默认代理（docker, ssh, http）`, 'info');
+            return;
+        }
+        
+        // 构建确认消息
+        let confirmMessage = `将为分组"${groupName}"添加以下默认代理：\n\n`;
+        checkResult.needed.forEach(proxy => {
+            confirmMessage += `  • ${proxy.name} (${proxy.type})\n`;
+            confirmMessage += `    本地端口: ${proxy.local_port}\n`;
+            confirmMessage += `    说明: ${proxy.description}\n\n`;
+        });
+        
+        if (checkResult.existing.length > 0) {
+            confirmMessage += `\n已存在的代理将跳过：\n`;
+            checkResult.existing.forEach(proxy => {
+                confirmMessage += `  • ${proxy}\n`;
+            });
+        }
+        
+        confirmMessage += `\n确认添加吗？`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // 调用API生成默认配置
+        showNotification('正在生成默认配置...', 'info');
+        
+        const result = await apiRequest(`/api/groups/${encodeURIComponent(groupName)}/generate-defaults?frps_server_id=${currentServerId}`, {
+            method: 'POST'
+        });
+        
+        // 显示详细结果
+        if (result.created > 0 || result.skipped > 0) {
+            let message = `✅ 默认配置生成完成！\n\n`;
+            message += `总计: ${result.total}\n`;
+            message += `已创建: ${result.created}\n`;
+            message += `已跳过: ${result.skipped}\n\n`;
+            
+            if (result.proxies && result.proxies.length > 0) {
+                message += `创建的代理：\n`;
+                result.proxies.forEach(p => {
+                    message += `  • ${p.name}: ${p.local_ip}:${p.local_port}\n`;
+                });
+            }
+            
+            if (result.skipped_names && result.skipped_names.length > 0) {
+                message += `\n跳过的代理：\n`;
+                result.skipped_names.forEach(name => {
+                    message += `  • ${name} (已存在)\n`;
+                });
+            }
+            
+            alert(message);
+            showNotification(result.message, 'success');
+            
+            // 刷新代理列表
+            await loadProxiesForCurrentServer();
+            updateStats();
+        } else {
+            showNotification(result.message, 'info');
+        }
+    } catch (error) {
+        showNotification('生成默认配置失败: ' + error.message, 'error');
     }
 }
 

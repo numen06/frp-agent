@@ -524,3 +524,154 @@ def auto_analyze_groups(
         "analysis": analysis_result
     }
 
+
+@router.get("/{group_name}/check-defaults")
+def check_default_proxies(
+    group_name: str,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """检查分组需要添加哪些默认代理
+    
+    检查 docker, ssh, http 三个默认代理在该分组中是否存在
+    """
+    # 定义默认代理配置
+    default_configs = [
+        {
+            "type": "docker",
+            "name": f"{group_name}_docker",
+            "proxy_type": "tcp",
+            "local_port": 9000,
+            "description": "Docker 管理面板"
+        },
+        {
+            "type": "ssh",
+            "name": f"{group_name}_ssh",
+            "proxy_type": "tcp",
+            "local_port": 22,
+            "description": "SSH 远程终端"
+        },
+        {
+            "type": "http",
+            "name": f"{group_name}_http",
+            "proxy_type": "tcp",
+            "local_port": 80,
+            "description": "HTTP Web 服务"
+        }
+    ]
+    
+    # 查询该分组下的所有代理名称
+    existing_proxies = db.query(Proxy.name).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.group_name == group_name
+    ).all()
+    existing_names = set([p.name for p in existing_proxies])
+    
+    # 检查哪些需要添加，哪些已存在
+    needed = []
+    existing = []
+    
+    for config in default_configs:
+        if config["name"] in existing_names:
+            existing.append(config["name"])
+        else:
+            needed.append(config)
+    
+    return {
+        "group_name": group_name,
+        "needed": needed,
+        "existing": existing,
+        "total": len(default_configs)
+    }
+
+
+@router.post("/{group_name}/generate-defaults")
+def generate_default_proxies(
+    group_name: str,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """为分组生成默认代理配置
+    
+    为指定分组添加 docker(9000), ssh(22), http(80) 三个常用代理
+    不会覆盖已存在的同名代理
+    """
+    # 定义默认代理配置
+    default_configs = [
+        {
+            "name": f"{group_name}_docker",
+            "proxy_type": "tcp",
+            "local_ip": "127.0.0.1",
+            "local_port": 9000,
+            "remote_port": None,
+            "description": "Docker 管理面板"
+        },
+        {
+            "name": f"{group_name}_ssh",
+            "proxy_type": "tcp",
+            "local_ip": "127.0.0.1",
+            "local_port": 22,
+            "remote_port": None,
+            "description": "SSH 远程终端"
+        },
+        {
+            "name": f"{group_name}_http",
+            "proxy_type": "tcp",
+            "local_ip": "127.0.0.1",
+            "local_port": 80,
+            "remote_port": None,
+            "description": "HTTP Web 服务"
+        }
+    ]
+    
+    # 查询该分组下已存在的代理名称
+    existing_proxies = db.query(Proxy).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.group_name == group_name
+    ).all()
+    existing_names = set([p.name for p in existing_proxies])
+    
+    # 创建不存在的代理
+    created_proxies = []
+    skipped_names = []
+    
+    for config in default_configs:
+        if config["name"] in existing_names:
+            # 已存在，跳过
+            skipped_names.append(config["name"])
+            continue
+        
+        # 创建新代理
+        new_proxy = Proxy(
+            frps_server_id=frps_server_id,
+            name=config["name"],
+            group_name=group_name,
+            proxy_type=config["proxy_type"],
+            local_ip=config["local_ip"],
+            local_port=config["local_port"],
+            remote_port=config["remote_port"],
+            status="offline"
+        )
+        db.add(new_proxy)
+        created_proxies.append({
+            "name": new_proxy.name,
+            "local_ip": new_proxy.local_ip,
+            "local_port": new_proxy.local_port,
+            "description": config["description"]
+        })
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"已为分组 '{group_name}' 创建 {len(created_proxies)} 个默认代理，跳过 {len(skipped_names)} 个已存在的代理",
+        "group_name": group_name,
+        "total": len(default_configs),
+        "created": len(created_proxies),
+        "skipped": len(skipped_names),
+        "proxies": created_proxies,
+        "skipped_names": skipped_names
+    }
+
