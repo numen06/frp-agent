@@ -12,6 +12,7 @@ class FrpsServerCreate(BaseModel):
     api_base_url: str
     auth_username: str
     auth_password: str
+    auth_token: Optional[str] = None
 
 
 class FrpsServerUpdate(BaseModel):
@@ -22,6 +23,7 @@ class FrpsServerUpdate(BaseModel):
     api_base_url: Optional[str] = None
     auth_username: Optional[str] = None
     auth_password: Optional[str] = None
+    auth_token: Optional[str] = None
 
 
 class FrpsServerResponse(BaseModel):
@@ -32,6 +34,7 @@ class FrpsServerResponse(BaseModel):
     server_port: int
     api_base_url: str
     auth_username: str
+    auth_token: Optional[str] = None
     is_active: bool
     last_test_status: str = "unknown"
     last_test_time: Optional[datetime] = None

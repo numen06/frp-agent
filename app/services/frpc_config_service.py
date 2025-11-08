@@ -15,7 +15,8 @@ class FrpcConfigService:
         self,
         group_name: str,
         frps_server_id: int,
-        client_name: str = None
+        client_name: str = None,
+        format: str = "ini"
     ) -> str:
         """根据分组生成 frpc 配置文件
         
@@ -23,9 +24,10 @@ class FrpcConfigService:
             group_name: 分组名称
             frps_server_id: frps 服务器 ID
             client_name: 客户端名称（可选，默认使用分组名称）
+            format: 配置格式，支持 'ini' 或 'toml'
             
         Returns:
-            frpc 配置文件内容（TOML 格式）
+            frpc 配置文件内容
         """
         # 获取服务器配置
         server = self.db.query(FrpsServer).filter(
@@ -48,46 +50,25 @@ class FrpcConfigService:
         if not client_name:
             client_name = group_name
         
-        # 生成配置
-        config_lines = []
-        
-        # 服务器配置部分
-        config_lines.append("# frpc 配置文件")
-        config_lines.append(f"# 分组: {group_name}")
-        config_lines.append(f"# 服务器: {server.name}")
-        config_lines.append(f"# 生成时间: {self._get_current_time()}")
-        config_lines.append("")
-        config_lines.append("[common]")
-        
-        # 解析服务器地址和端口
-        server_addr, server_port = self._parse_server_address(server.api_base_url)
-        config_lines.append(f"server_addr = {server_addr}")
-        config_lines.append(f"server_port = {server_port}")
-        
-        # 如果需要认证
-        if server.auth_username and server.auth_password:
-            config_lines.append(f"auth_token = {server.auth_password}")
-        
-        config_lines.append("")
-        
-        # 生成每个代理的配置
-        for proxy in proxies:
-            config_lines.extend(self._generate_proxy_section(proxy))
-            config_lines.append("")
-        
-        return "\n".join(config_lines)
+        # 根据格式生成配置
+        if format.lower() == "toml":
+            return self._generate_toml_config(server, proxies, group_name, client_name)
+        else:
+            return self._generate_ini_config(server, proxies, group_name, client_name)
     
     def generate_config_for_proxies(
         self,
-        proxy_ids: List[int]
+        proxy_ids: List[int],
+        format: str = "ini"
     ) -> str:
         """根据代理ID列表生成 frpc 配置文件
         
         Args:
             proxy_ids: 代理ID列表
+            format: 配置格式，支持 'ini' 或 'toml'
             
         Returns:
-            frpc 配置文件内容（TOML 格式）
+            frpc 配置文件内容
         """
         # 获取代理
         proxies = self.db.query(Proxy).filter(Proxy.id.in_(proxy_ids)).all()
@@ -108,59 +89,123 @@ class FrpcConfigService:
         if not server:
             raise ValueError("服务器不存在")
         
-        # 生成配置
+        # 根据格式生成配置
+        group_name = proxies[0].group_name if proxies else "selected"
+        if format.lower() == "toml":
+            return self._generate_toml_config(server, proxies, group_name, None)
+        else:
+            return self._generate_ini_config(server, proxies, group_name, None)
+    
+    def _generate_ini_config(self, server: FrpsServer, proxies: List[Proxy], group_name: str, client_name: str = None) -> str:
+        """生成 INI 格式的配置文件
+        
+        Args:
+            server: 服务器对象
+            proxies: 代理列表
+            group_name: 分组名称
+            client_name: 客户端名称（可选）
+            
+        Returns:
+            INI 格式配置内容
+        """
         config_lines = []
         
-        # 服务器配置部分
-        config_lines.append("# frpc 配置文件")
+        # 注释头部
+        config_lines.append("# frpc 配置文件 (INI 格式)")
+        config_lines.append(f"# 分组: {group_name}")
         config_lines.append(f"# 服务器: {server.name}")
         config_lines.append(f"# 代理数量: {len(proxies)}")
         config_lines.append(f"# 生成时间: {self._get_current_time()}")
         config_lines.append("")
+        
+        # [common] 部分
         config_lines.append("[common]")
+        config_lines.append(f"server_addr = {server.server_addr}")
+        config_lines.append(f"server_port = {server.server_port}")
         
-        # 解析服务器地址和端口
-        server_addr, server_port = self._parse_server_address(server.api_base_url)
-        config_lines.append(f"server_addr = {server_addr}")
-        config_lines.append(f"server_port = {server_port}")
-        
-        # 如果需要认证
-        if server.auth_username and server.auth_password:
-            config_lines.append(f"auth_token = {server.auth_password}")
+        # 认证配置 - 优先使用 auth_token
+        if server.auth_token:
+            config_lines.append(f"auth_token = {server.auth_token}")
+        elif server.auth_username and server.auth_password:
+            config_lines.append(f"# 使用用户名密码认证")
+            config_lines.append(f"user = {server.auth_username}")
+            config_lines.append(f"# 注意：新版本 frp 推荐使用 token 认证")
         
         config_lines.append("")
         
         # 生成每个代理的配置
         for proxy in proxies:
-            config_lines.extend(self._generate_proxy_section(proxy))
+            config_lines.append(f"[{proxy.name}]")
+            config_lines.append(f"type = {proxy.proxy_type}")
+            config_lines.append(f"local_ip = {proxy.local_ip}")
+            config_lines.append(f"local_port = {proxy.local_port}")
+            
+            # TCP/UDP 类型需要指定远程端口
+            if proxy.proxy_type in ["tcp", "udp"] and proxy.remote_port:
+                config_lines.append(f"remote_port = {proxy.remote_port}")
+            
+            # HTTP/HTTPS 类型可能需要自定义域名
+            if proxy.proxy_type in ["http", "https"]:
+                config_lines.append(f"# custom_domains = example.com")
+            
             config_lines.append("")
         
         return "\n".join(config_lines)
     
-    def _generate_proxy_section(self, proxy: Proxy) -> List[str]:
-        """生成单个代理的配置段
+    def _generate_toml_config(self, server: FrpsServer, proxies: List[Proxy], group_name: str, client_name: str = None) -> str:
+        """生成 TOML 格式的配置文件
         
         Args:
-            proxy: 代理对象
+            server: 服务器对象
+            proxies: 代理列表
+            group_name: 分组名称
+            client_name: 客户端名称（可选）
             
         Returns:
-            配置行列表
+            TOML 格式配置内容
         """
-        lines = []
-        lines.append(f"[{proxy.name}]")
-        lines.append(f"type = {proxy.proxy_type}")
-        lines.append(f"local_ip = {proxy.local_ip}")
-        lines.append(f"local_port = {proxy.local_port}")
+        config_lines = []
         
-        # TCP/UDP 类型需要指定远程端口
-        if proxy.proxy_type in ["tcp", "udp"] and proxy.remote_port:
-            lines.append(f"remote_port = {proxy.remote_port}")
+        # 注释头部
+        config_lines.append("# frpc 配置文件 (TOML 格式)")
+        config_lines.append(f"# 分组: {group_name}")
+        config_lines.append(f"# 服务器: {server.name}")
+        config_lines.append(f"# 代理数量: {len(proxies)}")
+        config_lines.append(f"# 生成时间: {self._get_current_time()}")
+        config_lines.append("")
         
-        # HTTP/HTTPS 类型可能需要自定义域名
-        if proxy.proxy_type in ["http", "https"]:
-            lines.append(f"# custom_domains = example.com")
+        # 服务器配置部分
+        config_lines.append(f"serverAddr = \"{server.server_addr}\"")
+        config_lines.append(f"serverPort = {server.server_port}")
         
-        return lines
+        # 认证配置 - 优先使用 auth_token
+        if server.auth_token:
+            config_lines.append(f"auth.token = \"{server.auth_token}\"")
+        elif server.auth_username and server.auth_password:
+            config_lines.append(f"# 使用用户名密码认证（新版本推荐使用 token）")
+            config_lines.append(f"# auth.method = \"token\"")
+        
+        config_lines.append("")
+        
+        # 生成每个代理的配置
+        for proxy in proxies:
+            config_lines.append(f"[[proxies]]")
+            config_lines.append(f"name = \"{proxy.name}\"")
+            config_lines.append(f"type = \"{proxy.proxy_type}\"")
+            config_lines.append(f"localIP = \"{proxy.local_ip}\"")
+            config_lines.append(f"localPort = {proxy.local_port}")
+            
+            # TCP/UDP 类型需要指定远程端口
+            if proxy.proxy_type in ["tcp", "udp"] and proxy.remote_port:
+                config_lines.append(f"remotePort = {proxy.remote_port}")
+            
+            # HTTP/HTTPS 类型可能需要自定义域名
+            if proxy.proxy_type in ["http", "https"]:
+                config_lines.append(f"# customDomains = [\"example.com\"]")
+            
+            config_lines.append("")
+        
+        return "\n".join(config_lines)
     
     def _parse_server_address(self, api_base_url: str) -> tuple:
         """从 API URL 解析服务器地址和端口

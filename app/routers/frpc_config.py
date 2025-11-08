@@ -18,11 +18,13 @@ class GenerateConfigByGroupRequest(BaseModel):
     group_name: str
     frps_server_id: int
     client_name: str = None
+    format: str = "ini"  # 配置格式：ini 或 toml
 
 
 class GenerateConfigByProxiesRequest(BaseModel):
     """根据代理列表生成配置请求"""
     proxy_ids: List[int]
+    format: str = "ini"  # 配置格式：ini 或 toml
 
 
 @router.post("/config/by-group", response_class=PlainTextResponse)
@@ -40,7 +42,8 @@ def generate_config_by_group(
         config = service.generate_config_for_group(
             group_name=request.group_name,
             frps_server_id=request.frps_server_id,
-            client_name=request.client_name
+            client_name=request.client_name,
+            format=request.format
         )
         return config
     except ValueError as e:
@@ -61,7 +64,10 @@ def generate_config_by_proxies(
     """
     try:
         service = FrpcConfigService(db)
-        config = service.generate_config_for_proxies(proxy_ids=request.proxy_ids)
+        config = service.generate_config_for_proxies(
+            proxy_ids=request.proxy_ids,
+            format=request.format
+        )
         return config
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -74,19 +80,22 @@ def get_config_by_group(
     group_name: str,
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
     client_name: str = Query(None, description="客户端名称（可选）"),
+    format: str = Query("ini", description="配置格式：ini 或 toml"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """根据分组获取 frpc 配置文件（GET 方法）
     
     根据指定的分组名称和服务器，生成包含该分组所有代理的 frpc 配置文件。
+    支持 ini 和 toml 两种格式。
     """
     try:
         service = FrpcConfigService(db)
         config = service.generate_config_for_group(
             group_name=group_name,
             frps_server_id=frps_server_id,
-            client_name=client_name
+            client_name=client_name,
+            format=format
         )
         return config
     except ValueError as e:

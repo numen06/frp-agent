@@ -26,6 +26,11 @@ class BatchUpdateGroupRequest(BaseModel):
     group_name: str
 
 
+class AutoAnalyzeRequest(BaseModel):
+    """自动分析分组请求"""
+    frps_server_id: int
+
+
 @router.get("")
 def get_groups(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
@@ -269,7 +274,7 @@ def rename_group(
 
 @router.post("/auto-analyze")
 def auto_analyze_groups(
-    frps_server_id: int = Body(...),
+    frps_server_id: int = Body(..., embed=True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

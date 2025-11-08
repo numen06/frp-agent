@@ -41,7 +41,7 @@ async function loadDashboard() {
     if (savedServerId && servers.find(s => s.id == savedServerId)) {
         currentServerId = parseInt(savedServerId);
     } else if (servers.length > 0) {
-        currentServerId = servers[0].id;
+        currentServerId = parseInt(servers[0].id);
     }
     
     if (currentServerId) {
@@ -475,7 +475,7 @@ function renderProxiesTable() {
                         </td>
                         <td>
                             ${proxy.group_name 
-                                ? `<span class="badge" style="background: #6366f1;">${proxy.group_name}</span>` 
+                                ? `<span class="badge" style="background: ${getGroupColor(proxy.group_name)}; color: white; font-weight: 600;">${proxy.group_name}</span>` 
                                 : '<span style="color: #9ca3af;">-</span>'}
                         </td>
                         <td><strong>${proxy.name}</strong></td>
@@ -627,9 +627,11 @@ function generateConfigForSelected() {
     // 获取选中的代理信息
     const selectedProxies = allProxies.filter(p => selectedProxyIds.has(p.id));
     
-    // 显示选中的代理列表
+    // 显示选中的代理列表（带分组颜色）
     const listHtml = selectedProxies.map(p => 
-        `<span class="badge" style="margin: 0.25rem;">${p.name}</span>`
+        `<span class="badge" style="margin: 0.25rem; background: ${getGroupColor(p.group_name)}; color: white; font-weight: 600;">
+            ${p.group_name ? `[${p.group_name}] ` : ''}${p.name}
+        </span>`
     ).join('');
     document.getElementById('selectedProxiesList').innerHTML = listHtml;
     
@@ -639,15 +641,31 @@ function generateConfigForSelected() {
 // 生成配置文件
 async function generateConfigFromSelected() {
     const proxyIds = Array.from(selectedProxyIds);
+    const format = document.getElementById('configFormat').value || 'ini';
     
     try {
-        const config = await apiRequest('/api/frpc/config/by-proxies', {
+        // 配置文件是纯文本格式，不能用 apiRequest（会尝试解析JSON）
+        const response = await fetch('/api/frpc/config/by-proxies', {
             method: 'POST',
-            body: JSON.stringify({ proxy_ids: proxyIds })
+            headers: {
+                'Authorization': getAuthHeader(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                proxy_ids: proxyIds,
+                format: format
+            })
         });
         
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(error.detail || 'Request failed');
+        }
+        
+        const config = await response.text();
+        
         document.getElementById('configOutput').innerHTML = `
-            <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;">${config}</pre>
+            <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #d1d5db;">${config}</pre>
         `;
     } catch (error) {
         showNotification('生成配置失败: ' + error.message, 'error');
@@ -670,12 +688,25 @@ async function generateInstallScript() {
     const groupName = Array.from(groups)[0];
     
     try {
-        const script = await apiRequest(
-            `/api/frpc/install-script/by-group/${groupName}?frps_server_id=${currentServerId}`
+        // 脚本是纯文本格式，不能用 apiRequest
+        const response = await fetch(
+            `/api/frpc/install-script/by-group/${groupName}?frps_server_id=${currentServerId}`,
+            {
+                headers: {
+                    'Authorization': getAuthHeader()
+                }
+            }
         );
         
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(error.detail || 'Request failed');
+        }
+        
+        const script = await response.text();
+        
         document.getElementById('configOutput').innerHTML = `
-            <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto;">${script}</pre>
+            <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; border: 1px solid #475569;">${script}</pre>
         `;
     } catch (error) {
         showNotification('生成脚本失败: ' + error.message, 'error');
@@ -690,15 +721,56 @@ function downloadConfigFile() {
         return;
     }
     
+    const format = document.getElementById('configFormat').value || 'ini';
+    const extension = format === 'toml' ? 'toml' : 'ini';
+    
     const content = configOutput.textContent;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'frpc.ini';
+    a.download = `frpc.${extension}`;
     a.click();
     URL.revokeObjectURL(url);
     showNotification('配置文件已下载', 'success');
+}
+
+// 根据分组名称生成颜色
+function getGroupColor(groupName) {
+    if (!groupName || groupName === '其他') {
+        return '#9ca3af'; // 灰色
+    }
+    
+    // 预定义的颜色方案 - 鲜艳且易区分
+    const colors = [
+        '#3b82f6', // 蓝色
+        '#10b981', // 绿色
+        '#f59e0b', // 橙色
+        '#8b5cf6', // 紫色
+        '#ef4444', // 红色
+        '#06b6d4', // 青色
+        '#ec4899', // 粉色
+        '#84cc16', // 亮绿
+        '#f97316', // 深橙
+        '#6366f1', // 靛蓝
+        '#14b8a6', // 蓝绿
+        '#a855f7', // 亮紫
+        '#f43f5e', // 玫瑰红
+        '#22c55e', // 青草绿
+        '#0ea5e9', // 天蓝
+        '#d946ef', // 品红
+        '#facc15', // 黄色
+        '#fb923c'  // 珊瑚橙
+    ];
+    
+    // 使用字符串哈希选择颜色
+    let hash = 0;
+    for (let i = 0; i < groupName.length; i++) {
+        hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
 }
 
 // 更新统计数据
@@ -767,7 +839,7 @@ async function submitServer(event) {
         
         // 如果是第一个服务器，自动选中它
         if (servers.length === 1) {
-            currentServerId = newServer.id;
+            currentServerId = parseInt(newServer.id);
             localStorage.setItem('currentServerId', currentServerId);
             document.getElementById('currentServerSelect').value = currentServerId;
             await loadProxiesForCurrentServer();
@@ -1064,6 +1136,7 @@ async function openEditServerModal(serverId) {
         document.getElementById('edit_api_base_url').value = server.api_base_url;
         document.getElementById('edit_auth_username').value = server.auth_username;
         document.getElementById('edit_auth_password').value = '';
+        document.getElementById('edit_auth_token').value = server.auth_token || '';
         
         openModal('editServerModal');
     } catch (error) {
@@ -1088,6 +1161,11 @@ async function submitEditServer(event) {
     // 如果密码为空，不更新密码
     if (!data.auth_password) {
         delete data.auth_password;
+    }
+    
+    // 如果 auth_token 为空，删除该字段（允许清空）
+    if (!data.auth_token) {
+        data.auth_token = null;
     }
     
     try {

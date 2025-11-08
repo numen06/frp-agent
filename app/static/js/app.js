@@ -40,7 +40,23 @@ async function apiRequest(url, options = {}) {
     
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(error.detail || 'Request failed');
+        
+        // 处理 422 验证错误 - FastAPI 返回的格式
+        let errorMsg;
+        if (response.status === 422 && error.detail && Array.isArray(error.detail)) {
+            // FastAPI 验证错误格式
+            errorMsg = '请求参数验证失败:\n' + error.detail.map(e => 
+                `  - ${e.loc.join('.')}: ${e.msg} (${e.type})`
+            ).join('\n');
+        } else {
+            errorMsg = error.detail || error.message || JSON.stringify(error) || 'Request failed';
+        }
+        
+        const err = new Error(errorMsg);
+        err.detail = error.detail;
+        err.statusCode = response.status;
+        err.rawError = error;
+        throw err;
     }
     
     if (response.status === 204) {
