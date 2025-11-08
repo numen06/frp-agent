@@ -200,32 +200,32 @@ async def import_config(
     }
 
 
-@router.post("/import/{format}/{server_name}/{group_name}")
+@router.post("/import/{format}/{server_name}")
 async def import_config_by_names(
     format: str,
     server_name: str,
-    group_name: str,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """直接上传配置文件导入（使用服务器名称和分组名称）
+    """直接上传配置文件导入
     
     使用示例（curl）:
     ```bash
-    # 导入 INI 配置
+    # 导入 INI 配置（分组自动从代理名称解析）
     curl -u admin:admin -X POST \\
       -H "Content-Type: text/plain" \\
       --data-binary "@frpc.ini" \\
-      http://localhost:8000/api/config/import/ini/test_server/test_group
+      http://localhost:8000/api/config/import/ini/51jbm
     
     # 导入 TOML 配置
     curl -u admin:admin -X POST \\
       -H "Content-Type: text/plain" \\
       --data-binary "@frpc.toml" \\
-      http://localhost:8000/api/config/import/toml/prod_server/production
+      http://localhost:8000/api/config/import/toml/prod_server
     ```
     """
+    group_name = None
     # 验证格式
     if format.lower() not in ['ini', 'toml']:
         raise HTTPException(

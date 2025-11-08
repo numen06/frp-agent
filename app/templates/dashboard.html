@@ -629,13 +629,13 @@ Invoke-RestMethod -Uri "<span class="apiUrlClass">http://localhost:8000</span>/a
                             <div style="color: #94a3b8;">curl -u admin:admin -X POST \</div>
                             <div style="color: #94a3b8;">  -H "Content-Type: text/plain" \</div>
                             <div style="color: #94a3b8;">  --data-binary "@frpc.ini" \</div>
-                            <div style="color: #22c55e;" id="curlUrlLine">  http://localhost:8000/api/config/import/ini/服务器名/分组名</div>
+                            <div style="color: #22c55e;" id="curlUrlLine">  http://localhost:8000/api/config/import/ini/服务器名</div>
                         </div>
                         <button type="button" class="btn btn-primary" onclick="copyCurlCommand()" style="width: 100%; margin-bottom: 0.75rem;">
                             📋 复制命令
                         </button>
                         <p style="color: #64748b; font-size: 0.85rem; margin: 0;">
-                            💡 TOML 格式将 <code style="background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 0.25rem;">/ini/</code> 改为 <code style="background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 0.25rem;">/toml/</code>
+                            💡 分组会从代理名称自动解析，TOML 格式将 <code style="background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 0.25rem;">/ini/</code> 改为 <code style="background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 0.25rem;">/toml/</code>
                         </p>
                     </div>
                 </div>

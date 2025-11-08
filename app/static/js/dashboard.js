@@ -2137,7 +2137,7 @@ function updateCurlCommand() {
     
     const urlLine = document.getElementById('curlUrlLine');
     if (urlLine) {
-        urlLine.textContent = `  ${apiUrl}/api/config/import/ini/${serverName}/分组名`;
+        urlLine.textContent = `  ${apiUrl}/api/config/import/ini/${serverName}`;
     }
 }
 
@@ -2151,7 +2151,7 @@ function copyCurlCommand() {
     const curlCommand = `curl -u admin:admin -X POST \\
   -H "Content-Type: text/plain" \\
   --data-binary "@frpc.ini" \\
-  ${apiUrl}/api/config/import/ini/${serverName}/分组名`;
+  ${apiUrl}/api/config/import/ini/${serverName}`;
     
     // 复制到剪贴板
     navigator.clipboard.writeText(curlCommand).then(() => {

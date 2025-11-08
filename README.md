@@ -127,7 +127,7 @@ APP_DEBUG=false
 ### 配置生成与导入
 - `POST /api/config/generate` - 生成 frpc 配置文件
 - `POST /api/config/import` - 导入配置文件（文件上传）
-- `POST /api/config/import/{format}/{server_name}/{group_name}` - 导入配置文件（**最简洁，推荐！**）
+- `POST /api/config/import/{format}/{server_name}` - 导入配置文件（**最简洁，推荐！**）
 - `POST /api/config/import/text` - 导入配置文件（JSON 提交）
 
 ### 同步
@@ -141,23 +141,23 @@ APP_DEBUG=false
 curl -u admin:admin -X POST \
   -H "Content-Type: text/plain" \
   --data-binary "@frpc.ini" \
-  http://localhost:8000/api/config/import/ini/服务器名称/分组名称
+  http://localhost:8000/api/config/import/ini/服务器名
 ```
 
 ### 实际使用示例
 
 ```bash
-# 导入 INI 配置到 51jbm 服务器的 production 分组
+# 导入 INI 配置到 51jbm 服务器
 curl -u admin:admin -X POST \
   -H "Content-Type: text/plain" \
   --data-binary "@frpc.ini" \
-  http://localhost:8000/api/config/import/ini/51jbm/production
+  http://localhost:8000/api/config/import/ini/51jbm
 
 # 导入 TOML 配置
 curl -u admin:admin -X POST \
   -H "Content-Type: text/plain" \
   --data-binary "@frpc.toml" \
-  http://localhost:8000/api/config/import/toml/prod_server/testing
+  http://localhost:8000/api/config/import/toml/prod_server
 ```
 
 ### 其他导入方式
@@ -173,13 +173,8 @@ curl -u admin:admin -X POST \
 ### 查看服务器名称
 
 ```bash
-# 列出所有服务器
-curl -u admin:admin http://localhost:8000/api/servers | jq '.[] | {id, name}'
+curl -u admin:admin http://localhost:8000/api/servers | jq '.[].name'
 ```
-
-📚 **导入文档**:
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - 快速参考卡片
-- [CONFIG_IMPORT.md](CONFIG_IMPORT.md) - 完整实用指南（批量导入、CI/CD 集成等）
 
 ## 默认账号
 
