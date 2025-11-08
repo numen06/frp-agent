@@ -77,6 +77,21 @@ def change_password(
             if db_user:
                 db_user.password_hash = get_password_hash(password_data.new_password)
                 db.commit()
+        else:
+            # 如果是环境变量用户（临时用户），在数据库中创建真实的用户记录
+            # 这样下次登录就会使用数据库中的密码，而不依赖环境变量
+            existing_user = db.query(User).filter(User.username == current_user.username).first()
+            if not existing_user:
+                new_user = User(
+                    username=current_user.username,
+                    password_hash=get_password_hash(password_data.new_password)
+                )
+                db.add(new_user)
+                db.commit()
+            else:
+                # 如果数据库中已存在同名用户，更新密码
+                existing_user.password_hash = get_password_hash(password_data.new_password)
+                db.commit()
         
         # 同时更新 .env 文件（保持环境变量同步）
         update_env_file('AUTH_PASSWORD', password_data.new_password)
