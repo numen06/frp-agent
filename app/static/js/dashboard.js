@@ -330,6 +330,10 @@ function switchMainTab(tab) {
         document.getElementById('groupsTab').classList.add('active');
         // 加载分组管理表格
         loadGroupsManagement();
+    } else if (tab === 'converter') {
+        document.getElementById('converterTab').classList.add('active');
+        // 更新 API URL 为真实地址
+        updateApiUrlInHelp();
     }
 }
 
@@ -1556,5 +1560,201 @@ function copyToClipboard(elementId, successMessage = '已复制到剪贴板') {
             showNotification('复制失败，请手动复制', 'error');
         });
     }
+}
+
+// ==================== INI 转换功能 ====================
+
+// 更新 API 帮助信息（使用真实地址）
+function updateApiInfo() {
+    // 获取当前访问的真实地址
+    const protocol = window.location.protocol; // http: 或 https:
+    const host = window.location.host; // 包含主机名和端口
+    const apiUrl = `${protocol}//${host}`;
+    
+    // 更新 API URL 显示（使用 ID）
+    const urlPlaceholder = document.getElementById('apiUrlPlaceholder');
+    if (urlPlaceholder) {
+        urlPlaceholder.textContent = apiUrl;
+    }
+    
+    // 更新 API URL 显示（使用 class，批量更新）
+    const urlElements = document.querySelectorAll('.apiUrlClass');
+    urlElements.forEach(el => {
+        el.textContent = apiUrl;
+    });
+    
+    // 更新用户名显示
+    const username = localStorage.getItem('username') || 'admin';
+    
+    // 使用 ID 的元素
+    const apiUsername = document.getElementById('apiUsername');
+    const usernameDisplay2 = document.getElementById('usernameDisplay2');
+    const apiPassword = document.getElementById('apiPassword');
+    
+    if (apiUsername) {
+        apiUsername.textContent = username;
+    }
+    if (usernameDisplay2) {
+        usernameDisplay2.textContent = username;
+    }
+    if (apiPassword) {
+        apiPassword.textContent = 'your_password';
+    }
+    
+    // 使用 class 的元素（批量更新）
+    const usernameElements = document.querySelectorAll('.apiUsernameClass');
+    usernameElements.forEach(el => {
+        el.textContent = username;
+    });
+}
+
+// 兼容旧函数名
+function updateApiUrlInHelp() {
+    updateApiInfo();
+}
+
+// 复制 curl 命令
+function copyCurlCommand() {
+    const curlExample = document.getElementById('curlExample');
+    if (!curlExample) {
+        showNotification('无法找到命令内容', 'error');
+        return;
+    }
+    
+    // 获取命令文本（去除 HTML 标签）
+    const commandText = curlExample.textContent || curlExample.innerText;
+    
+    // 复制到剪贴板
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(commandText).then(() => {
+            showNotification('curl 命令已复制到剪贴板', 'success');
+        }).catch(() => {
+            showNotification('复制失败，请手动复制', 'error');
+        });
+    } else {
+        // 备用方法
+        const textarea = document.createElement('textarea');
+        textarea.value = commandText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showNotification('curl 命令已复制到剪贴板', 'success');
+        } catch (err) {
+            showNotification('复制失败，请手动复制', 'error');
+        }
+        document.body.removeChild(textarea);
+    }
+}
+
+// 处理文件上传
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    
+    if (!file) {
+        return;
+    }
+    
+    // 检查文件类型
+    const validExtensions = ['.ini', '.txt', '.conf'];
+    const fileName = file.name.toLowerCase();
+    const isValidType = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValidType) {
+        showNotification('请上传 .ini、.txt 或 .conf 格式的文件', 'error');
+        event.target.value = ''; // 清空文件选择
+        return;
+    }
+    
+    // 检查文件大小 (限制 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+        showNotification('文件大小不能超过 5MB', 'error');
+        event.target.value = '';
+        return;
+    }
+    
+    try {
+        const text = await file.text();
+        document.getElementById('iniContent').value = text;
+        showNotification(`文件 "${file.name}" 已加载`, 'success');
+    } catch (error) {
+        showNotification('读取文件失败: ' + error.message, 'error');
+        event.target.value = '';
+    }
+}
+
+// 清空输入
+function clearInput() {
+    document.getElementById('iniContent').value = '';
+    document.getElementById('iniFileInput').value = '';
+    document.getElementById('tomlOutput').style.display = 'none';
+    document.getElementById('tomlContent').value = '';
+    showNotification('已清空', 'success');
+}
+
+// INI 转 TOML
+async function convertIniToToml() {
+    const iniContent = document.getElementById('iniContent').value.trim();
+    
+    if (!iniContent) {
+        showNotification('请上传文件或输入 INI 配置内容', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/frpc/convert/ini-to-toml/direct', {
+            method: 'POST',
+            headers: {
+                'Authorization': getAuthHeader(),
+                'Content-Type': 'text/plain'
+            },
+            body: iniContent
+        });
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(error.detail || 'Request failed');
+        }
+        
+        const tomlContent = await response.text();
+        
+        // 显示结果
+        document.getElementById('tomlContent').value = tomlContent;
+        document.getElementById('tomlOutput').style.display = 'block';
+        
+        showNotification('转换成功！', 'success');
+    } catch (error) {
+        showNotification('转换失败: ' + error.message, 'error');
+    }
+}
+
+// 下载 TOML 文件
+function downloadToml() {
+    const content = document.getElementById('tomlContent').value;
+    
+    if (!content) {
+        showNotification('没有可下载的内容', 'error');
+        return;
+    }
+    
+    // 生成文件名（基于当前时间）
+    const now = new Date();
+    const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+    const fileName = `frpc_${timestamp}.toml`;
+    
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('文件已下载: ' + fileName, 'success');
 }
 
