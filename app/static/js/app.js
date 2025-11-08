@@ -110,6 +110,19 @@ function closeModal(modalId) {
     }
 }
 
+// ESC键关闭模态框
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' || event.key === 'Esc') {
+        // 查找所有打开的模态框
+        const activeModals = document.querySelectorAll('.modal.active');
+        if (activeModals.length > 0) {
+            // 关闭最后一个打开的模态框（最上层）
+            const lastModal = activeModals[activeModals.length - 1];
+            lastModal.classList.remove('active');
+        }
+    }
+});
+
 // 格式化日期时间
 function formatDateTime(dateString) {
     if (!dateString) return '-';
