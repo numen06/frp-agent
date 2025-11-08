@@ -10,6 +10,103 @@ let currentFilters = {
 };
 let selectedProxyIds = new Set(); // 选中的代理ID集合
 
+// 端口自动识别映射表（使用数组保持顺序，长关键字优先）
+const PORT_MAPPINGS = [
+    // 先检查长关键字和特殊关键字
+    ['elasticsearch', 9200],
+    ['postgresql', 5432],
+    ['prometheus', 9090],
+    ['minecraft', 25565],
+    ['mariadb', 3306],
+    ['mongodb', 27017],
+    ['terraria', 7777],
+    // HTTPS 必须在 HTTP 之前检查
+    ['https', 443],
+    // VNC 必须在 remote 之前检查
+    ['vnc', 5900],
+    // 远程桌面
+    ['rdp', 3389],
+    ['mstsc', 3389],
+    ['remote', 3389],
+    // SSH
+    ['ssh', 22],
+    ['sftp', 22],
+    // HTTP/Web
+    ['http', 80],
+    ['web', 80],
+    ['nginx', 80],
+    ['apache', 80],
+    // Docker
+    ['docker', 9000],
+    // MySQL
+    ['mysql', 3306],
+    // PostgreSQL
+    ['postgres', 5432],
+    ['pgsql', 5432],
+    // Redis
+    ['redis', 6379],
+    // MongoDB
+    ['mongo', 27017],
+    // FTP
+    ['ftp', 21],
+    // SMTP
+    ['smtps', 465],
+    ['smtp', 25],
+    // IMAP/POP3
+    ['imaps', 993],
+    ['imap', 143],
+    ['pop3s', 995],
+    ['pop3', 110],
+    // DNS
+    ['dns', 53],
+    // NTP
+    ['ntp', 123],
+    // Game servers
+    ['csgo', 27015],
+    ['cs', 27015],
+    ['mc', 25565],
+    // Other common services
+    ['es', 9200],
+    ['kibana', 5601],
+    ['grafana', 3000],
+    ['jenkins', 8080],
+    ['tomcat', 8080]
+];
+
+// 根据代理名称自动识别本地端口
+function autoDetectLocalPort(proxyName) {
+    if (!proxyName) return 0;
+    
+    const nameLower = proxyName.toLowerCase();
+    
+    // 先检查是否包含端口号（例如：dlyy_http_8080）
+    const portPattern = /_(\d{2,5})$/;
+    const match = nameLower.match(portPattern);
+    if (match) {
+        const port = parseInt(match[1]);
+        if (port >= 1 && port <= 65535) {
+            return port;
+        }
+    }
+    
+    // 先尝试完整单词匹配（使用下划线或开头/结尾作为边界）
+    for (const [keyword, port] of PORT_MAPPINGS) {
+        const pattern = new RegExp(`(^|_)${keyword}($|_)`);
+        if (pattern.test(nameLower)) {
+            return port;
+        }
+    }
+    
+    // 如果没有完整单词匹配，再尝试包含匹配（按顺序，长关键字优先）
+    for (const [keyword, port] of PORT_MAPPINGS) {
+        if (nameLower.includes(keyword)) {
+            return port;
+        }
+    }
+    
+    return 0;
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 显示用户名
@@ -19,8 +116,61 @@ document.addEventListener('DOMContentLoaded', () => {
         usernameDisplay.textContent = username;
     }
     
+    // 为添加代理表单添加自动端口识别监听器
+    setupAddProxyAutoDetection();
+    
     loadDashboard();
 });
+
+// 为添加代理表单设置自动端口识别
+function setupAddProxyAutoDetection() {
+    const nameInput = document.getElementById('add_proxy_name');
+    const portInput = document.getElementById('add_local_port');
+    
+    if (nameInput && portInput) {
+        nameInput.addEventListener('input', function() {
+            const currentPort = parseInt(portInput.value) || 0;
+            // 如果当前端口为0，尝试自动识别
+            if (currentPort === 0) {
+                const detectedPort = autoDetectLocalPort(this.value);
+                if (detectedPort > 0) {
+                    portInput.value = detectedPort;
+                    // 显示提示信息
+                    const hint = portInput.nextElementSibling;
+                    if (hint && hint.tagName === 'SMALL') {
+                        const originalText = hint.innerHTML;
+                        hint.innerHTML = `✅ 已自动识别端口: ${detectedPort}（可手动修改）`;
+                        hint.style.color = '#10b981';
+                        setTimeout(() => {
+                            hint.style.color = '#6b7280';
+                            hint.innerHTML = originalText;
+                        }, 3000);
+                    }
+                }
+            }
+        });
+        
+        // 当端口输入框值变为0时，也尝试自动识别
+        portInput.addEventListener('input', function() {
+            const port = parseInt(this.value) || 0;
+            if (port === 0 && nameInput.value) {
+                const detectedPort = autoDetectLocalPort(nameInput.value);
+                if (detectedPort > 0) {
+                    this.value = detectedPort;
+                    const hint = this.nextElementSibling;
+                    if (hint && hint.tagName === 'SMALL') {
+                        hint.innerHTML = `✅ 已自动识别端口: ${detectedPort}（可手动修改）`;
+                        hint.style.color = '#10b981';
+                        setTimeout(() => {
+                            hint.style.color = '#6b7280';
+                            hint.innerHTML = '本地服务的端口号（1-65535），输入 0 可根据名称自动识别（如 rdp→3389, ssh→22, http→80, docker→9000）';
+                        }, 3000);
+                    }
+                }
+            }
+        });
+    }
+}
 
 // 处理退出登录
 function handleLogout() {
@@ -878,7 +1028,21 @@ async function submitProxy(event) {
     const formData = new FormData(event.target);
     const data = Object.fromEntries(formData);
     data.frps_server_id = currentServerId; // 强制使用当前服务器
-    data.local_port = parseInt(data.local_port);
+    
+    let localPort = parseInt(data.local_port) || 0;
+    
+    // 如果本地端口为0，尝试自动识别
+    if (localPort === 0) {
+        const proxyName = data.name;
+        localPort = autoDetectLocalPort(proxyName);
+        if (localPort === 0) {
+            showNotification('无法从代理名称自动识别本地端口，请手动指定', 'error');
+            return;
+        }
+        showNotification(`已自动识别本地端口: ${localPort}`, 'info');
+    }
+    
+    data.local_port = localPort;
     
     if (data.remote_port) {
         data.remote_port = parseInt(data.remote_port);
@@ -895,7 +1059,9 @@ async function submitProxy(event) {
         showNotification('代理添加成功');
         closeModal('addProxyModal');
         event.target.reset();
-        await loadProxies();
+        // 重置表单后，端口恢复为默认值0
+        document.getElementById('add_local_port').value = 0;
+        await loadProxiesForCurrentServer();
         updateStats();
     } catch (error) {
         showNotification('添加失败: ' + error.message, 'error');
@@ -937,6 +1103,158 @@ async function deleteProxy(proxyId) {
     } catch (error) {
         showNotification('删除失败: ' + error.message, 'error');
     }
+}
+
+// 批量识别端口
+async function batchDetectPorts() {
+    if (!currentServerId) {
+        showNotification('请先选择一个服务器', 'error');
+        return;
+    }
+    
+    if (!confirm('是否批量识别所有本地端口为 0 的代理？\n\n系统会根据代理名称自动识别端口（如 rdp→3389, ssh→22, http→80 等）')) {
+        return;
+    }
+    
+    showNotification('正在批量识别端口...', 'info');
+    
+    try {
+        const result = await apiRequest(`/api/proxies/batch-detect-ports?frps_server_id=${currentServerId}`, {
+            method: 'POST'
+        });
+        
+        // 显示详细结果
+        if (result.total === 0) {
+            showNotification(result.message, 'info');
+        } else {
+            // 构建结果摘要
+            let message = `✅ ${result.message}\n\n`;
+            
+            if (result.detected > 0) {
+                message += `成功识别的代理：\n`;
+                result.results
+                    .filter(r => r.status === 'success')
+                    .forEach(r => {
+                        message += `  • ${r.name}: ${r.new_port}\n`;
+                    });
+            }
+            
+            if (result.failed > 0) {
+                message += `\n无法识别的代理（需手动设置）：\n`;
+                result.results
+                    .filter(r => r.status === 'failed')
+                    .forEach(r => {
+                        message += `  • ${r.name}\n`;
+                    });
+            }
+            
+            // 使用自定义模态框显示详细结果
+            showBatchDetectResultModal(result);
+            
+            // 刷新代理列表
+            await loadProxiesForCurrentServer();
+            updateStats();
+        }
+    } catch (error) {
+        showNotification('批量识别失败: ' + error.message, 'error');
+    }
+}
+
+// 显示批量识别结果模态框
+function showBatchDetectResultModal(result) {
+    const successList = result.results.filter(r => r.status === 'success');
+    const failedList = result.results.filter(r => r.status === 'failed');
+    
+    let html = `
+        <div style="padding: 1rem;">
+            <div style="background: #f0f9ff; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
+                <h3 style="margin: 0 0 0.5rem 0; color: #1e40af;">📊 批量识别结果</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem;">
+                    <div>
+                        <div style="color: #6b7280; font-size: 0.875rem;">总计</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #374151;">${result.total}</div>
+                    </div>
+                    <div>
+                        <div style="color: #6b7280; font-size: 0.875rem;">识别成功</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #10b981;">${result.detected}</div>
+                    </div>
+                    <div>
+                        <div style="color: #6b7280; font-size: 0.875rem;">识别失败</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #ef4444;">${result.failed}</div>
+                    </div>
+                </div>
+            </div>
+    `;
+    
+    if (successList.length > 0) {
+        html += `
+            <div style="margin-bottom: 1rem;">
+                <h4 style="color: #10b981; margin-bottom: 0.5rem;">✅ 识别成功（${successList.length}个）</h4>
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead style="background: #f9fafb; position: sticky; top: 0;">
+                            <tr>
+                                <th style="padding: 0.5rem; text-align: left; border-bottom: 1px solid #e5e7eb;">代理名称</th>
+                                <th style="padding: 0.5rem; text-align: left; border-bottom: 1px solid #e5e7eb;">分组</th>
+                                <th style="padding: 0.5rem; text-align: center; border-bottom: 1px solid #e5e7eb;">识别端口</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${successList.map(r => `
+                                <tr style="border-bottom: 1px solid #f3f4f6;">
+                                    <td style="padding: 0.5rem;">${r.name}</td>
+                                    <td style="padding: 0.5rem;">${r.group || '-'}</td>
+                                    <td style="padding: 0.5rem; text-align: center; font-weight: 600; color: #10b981;">${r.new_port}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (failedList.length > 0) {
+        html += `
+            <div style="margin-bottom: 1rem;">
+                <h4 style="color: #ef4444; margin-bottom: 0.5rem;">❌ 无法识别（${failedList.length}个）</h4>
+                <div style="background: #fef2f2; padding: 1rem; border-radius: 0.375rem; border-left: 4px solid #ef4444;">
+                    <p style="margin: 0 0 0.5rem 0; color: #991b1b; font-size: 0.875rem;">以下代理名称中未包含可识别的关键字，请手动编辑设置端口：</p>
+                    <ul style="margin: 0; padding-left: 1.5rem; color: #7f1d1d;">
+                        ${failedList.map(r => `<li>${r.name} (${r.group || '未分组'})</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += `
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-primary" onclick="closeModal('batchDetectResultModal')" style="width: 100%;">关闭</button>
+            </div>
+        </div>
+    `;
+    
+    // 创建或更新模态框
+    let modal = document.getElementById('batchDetectResultModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'batchDetectResultModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2>🔍 批量识别端口结果</h2>
+                    <span class="close-btn" onclick="closeModal('batchDetectResultModal')">&times;</span>
+                </div>
+                <div id="batchDetectResultContent"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    document.getElementById('batchDetectResultContent').innerHTML = html;
+    openModal('batchDetectResultModal');
 }
 
 // 同步所有服务器
@@ -1489,6 +1807,31 @@ function showEditProxyModal(proxyId) {
     document.getElementById('edit_local_port').value = proxy.local_port;
     document.getElementById('edit_remote_port').value = proxy.remote_port || '';
     
+    // 添加代理名称变化监听器，自动识别端口
+    const nameInput = document.getElementById('edit_proxy_name');
+    const portInput = document.getElementById('edit_local_port');
+    
+    nameInput.addEventListener('input', function() {
+        const currentPort = parseInt(portInput.value) || 0;
+        // 如果当前端口为0或未设置，尝试自动识别
+        if (!currentPort || currentPort === 0) {
+            const detectedPort = autoDetectLocalPort(this.value);
+            if (detectedPort > 0) {
+                portInput.value = detectedPort;
+                // 显示提示信息
+                const hint = portInput.nextElementSibling;
+                if (hint && hint.tagName === 'SMALL') {
+                    hint.innerHTML = `已自动识别端口: ${detectedPort}（可手动修改）`;
+                    hint.style.color = '#10b981';
+                    setTimeout(() => {
+                        hint.style.color = '#6b7280';
+                        hint.innerHTML = '本地服务的端口号（1-65535），输入0自动识别';
+                    }, 3000);
+                }
+            }
+        }
+    });
+    
     openModal('editProxyModal');
 }
 
@@ -1498,12 +1841,24 @@ async function submitEditProxy(event) {
     
     const formData = new FormData(event.target);
     const proxyId = formData.get('proxy_id');
+    let localPort = parseInt(formData.get('local_port')) || 0;
+    
+    // 如果本地端口为0，尝试自动识别
+    if (localPort === 0) {
+        const proxyName = formData.get('name');
+        localPort = autoDetectLocalPort(proxyName);
+        if (localPort === 0) {
+            showNotification('无法从代理名称自动识别本地端口，请手动指定', 'error');
+            return;
+        }
+    }
+    
     const data = {
         name: formData.get('name'),
         group_name: formData.get('group_name') || null,
         proxy_type: formData.get('proxy_type'),
         local_ip: formData.get('local_ip'),
-        local_port: parseInt(formData.get('local_port')),
+        local_port: localPort,
     };
     
     const remotePort = formData.get('remote_port');

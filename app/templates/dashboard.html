@@ -83,8 +83,10 @@
                     </div>
                     
                     <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-warning" onclick="batchDetectPorts()">🔍 批量识别端口</button>
+                        <button class="btn btn-success" onclick="openModal('addProxyModal')">➕ 添加代理</button>
                         <button class="btn btn-success" onclick="showImportConfigModal()">📤 导入配置</button>
-                    <button class="btn btn-primary" onclick="refreshProxies()">🔄 刷新</button>
+                        <button class="btn btn-primary" onclick="refreshProxies()">🔄 刷新</button>
                     </div>
                 </div>
                 
@@ -376,6 +378,71 @@ Invoke-RestMethod -Uri "<span class="apiUrlClass">http://localhost:8000</span>/a
         </div>
     </div>
 
+    <!-- 添加代理 Modal -->
+    <div id="addProxyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ 添加代理</h2>
+                <span class="close-btn" onclick="closeModal('addProxyModal')">&times;</span>
+            </div>
+            <form id="addProxyForm" onsubmit="submitProxy(event)">
+                <div class="form-group">
+                    <label>代理名称 *</label>
+                    <input type="text" name="name" id="add_proxy_name" required placeholder="例如: dlyy_rdp">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        建议格式: 分组_服务类型（例如: dlyy_rdp, server_ssh）
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>分组名称</label>
+                    <input type="text" name="group_name" placeholder="留空则自动从名称解析">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        如留空，系统将从代理名称自动解析分组（例如: dlyy_rdp → dlyy）
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>代理类型 *</label>
+                    <select name="proxy_type" required>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                        <option value="stcp">STCP</option>
+                        <option value="xtcp">XTCP</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>本地 IP *</label>
+                    <input type="text" name="local_ip" value="127.0.0.1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>本地端口 *</label>
+                    <input type="number" id="add_local_port" name="local_port" min="0" max="65535" value="0" required>
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        本地服务的端口号（1-65535），输入 0 可根据名称自动识别（如 rdp→3389, ssh→22, http→80, docker→9000）
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>远程端口</label>
+                    <input type="number" name="remote_port" min="1" max="65535" placeholder="TCP/UDP 类型需要">
+                    <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                        frps 服务器上的端口号（TCP/UDP 类型必填）
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary">添加</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addProxyModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 编辑代理 Modal -->
     <div id="editProxyModal" class="modal">
         <div class="modal-content">
@@ -418,9 +485,9 @@ Invoke-RestMethod -Uri "<span class="apiUrlClass">http://localhost:8000</span>/a
                 
                 <div class="form-group">
                     <label>本地端口 *</label>
-                    <input type="number" id="edit_local_port" name="local_port" min="1" max="65535" required>
+                    <input type="number" id="edit_local_port" name="local_port" min="0" max="65535" required>
                     <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
-                        本地服务的端口号（1-65535）
+                        本地服务的端口号（1-65535），输入0自动识别
                     </small>
                 </div>
                 

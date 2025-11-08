@@ -12,7 +12,7 @@ class ProxyCreate(BaseModel):
     proxy_type: str = "tcp"  # tcp, udp, http, https, stcp, xtcp
     remote_port: Optional[int] = None
     local_ip: str = "127.0.0.1"
-    local_port: int
+    local_port: int = 0  # 默认为0，如果为0则自动从名称识别
     client_name: Optional[str] = None
 
 

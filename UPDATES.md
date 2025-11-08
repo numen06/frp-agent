@@ -1,5 +1,70 @@
 # 系统更新说明
 
+## 🎉 版本更新 - 2025-11-08 (新增功能)
+
+### 自动端口识别功能 ⚡
+
+#### 功能概述
+在代理列表中新增了智能端口识别功能。当本地端口设置为 0 或留空时，系统会根据代理名称自动识别并设置合适的端口号。
+
+#### 核心特性
+- ✅ 支持 40+ 种常见服务的自动端口识别
+- ✅ 支持自定义端口号后缀（如 `app_8080`）
+- ✅ 前后端统一实现，确保行为一致
+- ✅ 智能匹配算法，优先完整单词匹配
+- ✅ 实时提示，编辑时动态显示识别结果
+
+#### 支持的服务类型
+- **远程访问**: RDP(3389), SSH(22), VNC(5900)
+- **Web服务**: HTTP(80), HTTPS(443)
+- **数据库**: MySQL(3306), PostgreSQL(5432), MongoDB(27017), Redis(6379)
+- **容器**: Docker(9000)
+- **监控**: Grafana(3000), Prometheus(9090), Kibana(5601)
+- **游戏服务器**: Minecraft(25565), CS:GO(27015)
+- 更多服务请查看 [AUTO_PORT_DETECTION.md](./AUTO_PORT_DETECTION.md)
+
+#### 使用方法
+
+**方法一：批量识别端口（推荐）** 🔥
+- 点击页面顶部的"🔍 批量识别端口"按钮
+- 系统自动扫描所有本地端口为 0 的代理
+- 根据代理名称智能识别并更新端口
+- 显示详细的识别结果报告
+
+**方法二：代理名称包含关键字**
+```
+dlyy_rdp    → 自动识别为 3389
+server_ssh  → 自动识别为 22
+web_http    → 自动识别为 80
+app_docker  → 自动识别为 9000
+```
+
+**方法三：端口号后缀**
+```
+dlyy_app_8080     → 使用端口 8080
+service_api_3000  → 使用端口 3000
+```
+
+**方法四：编辑时输入 0**
+在编辑代理时，将本地端口设置为 0，系统自动识别。
+
+#### 技术实现
+- 后端: `app/models/proxy.py` - `Proxy.auto_detect_local_port()`
+- 批量API: `app/routers/proxy.py` - `POST /api/proxies/batch-detect-ports`
+- 前端: `app/static/js/dashboard.js` - `autoDetectLocalPort()`, `batchDetectPorts()`
+- 匹配规则: 端口号后缀 → 完整单词匹配 → 部分包含匹配
+
+#### 更新的文件
+- ✅ `app/models/proxy.py` - 添加自动识别逻辑
+- ✅ `app/routers/proxy.py` - 创建/更新时应用自动识别
+- ✅ `app/schemas/proxy.py` - local_port 默认值改为 0
+- ✅ `app/static/js/dashboard.js` - 前端实时识别
+- ✅ `app/templates/dashboard.html` - 更新提示信息
+
+详细文档请查看: [AUTO_PORT_DETECTION.md](./AUTO_PORT_DETECTION.md)
+
+---
+
 ## 🎉 版本更新 - 2025-11-08
 
 ### 核心功能重构

@@ -174,6 +174,23 @@ def create_proxy(
     if existing:
         raise HTTPException(status_code=400, detail="代理名称已存在")
     
+    # 自动解析分组名称
+    proxy_dict = proxy_data.model_dump()
+    if not proxy_dict.get("group_name"):
+        proxy_dict["group_name"] = Proxy.parse_group_name(proxy_data.name)
+    
+    # 自动识别本地端口（如果端口为 0 或未设置）
+    if not proxy_dict.get("local_port") or proxy_dict.get("local_port") == 0:
+        detected_port = Proxy.auto_detect_local_port(proxy_data.name)
+        if detected_port > 0:
+            proxy_dict["local_port"] = detected_port
+        else:
+            # 如果无法自动识别，仍然需要一个有效的端口
+            raise HTTPException(
+                status_code=400, 
+                detail="无法从代理名称自动识别本地端口，请手动指定 local_port"
+            )
+    
     # 如果是 TCP/UDP 代理且指定了端口，检查端口是否可用
     if proxy_data.proxy_type in ["tcp", "udp"] and proxy_data.remote_port:
         port_service = PortService(db)
@@ -189,11 +206,6 @@ def create_proxy(
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-    
-    # 自动解析分组名称
-    proxy_dict = proxy_data.model_dump()
-    if not proxy_dict.get("group_name"):
-        proxy_dict["group_name"] = Proxy.parse_group_name(proxy_data.name)
     
     proxy = Proxy(**proxy_dict)
     db.add(proxy)
@@ -217,9 +229,30 @@ def update_proxy(
     # 更新字段
     update_data = proxy_data.model_dump(exclude_unset=True)
     
-    # 如果更新了名称，自动更新分组
-    if "name" in update_data and "group_name" not in update_data:
-        update_data["group_name"] = Proxy.parse_group_name(update_data["name"])
+    # 如果更新了名称，自动更新分组和本地端口
+    if "name" in update_data:
+        # 自动更新分组
+        if "group_name" not in update_data:
+            update_data["group_name"] = Proxy.parse_group_name(update_data["name"])
+        
+        # 如果本地端口为 0，尝试自动识别
+        current_local_port = update_data.get("local_port", proxy.local_port)
+        if current_local_port == 0:
+            detected_port = Proxy.auto_detect_local_port(update_data["name"])
+            if detected_port > 0:
+                update_data["local_port"] = detected_port
+    
+    # 如果直接更新本地端口为 0，尝试自动识别
+    if "local_port" in update_data and update_data["local_port"] == 0:
+        proxy_name = update_data.get("name", proxy.name)
+        detected_port = Proxy.auto_detect_local_port(proxy_name)
+        if detected_port > 0:
+            update_data["local_port"] = detected_port
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="无法从代理名称自动识别本地端口，请手动指定 local_port"
+            )
     
     # 如果更新了远程端口，需要检查端口可用性
     if "remote_port" in update_data and update_data["remote_port"] != proxy.remote_port:
@@ -262,4 +295,75 @@ def delete_proxy(
     db.delete(proxy)
     db.commit()
     return None
+
+
+@router.post("/batch-detect-ports", status_code=status.HTTP_200_OK)
+def batch_detect_ports(
+    frps_server_id: int = Query(..., description="服务器ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """批量识别端口为0的代理的本地端口
+    
+    扫描指定服务器的所有代理，对于本地端口为0的代理，
+    根据代理名称自动识别并更新端口号
+    """
+    # 查询所有本地端口为0的代理
+    proxies_with_zero_port = db.query(Proxy).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.local_port == 0
+    ).all()
+    
+    if not proxies_with_zero_port:
+        return {
+            "message": "没有需要识别的代理（本地端口都不为0）",
+            "total": 0,
+            "detected": 0,
+            "failed": 0,
+            "results": []
+        }
+    
+    results = []
+    detected_count = 0
+    failed_count = 0
+    
+    for proxy in proxies_with_zero_port:
+        detected_port = Proxy.auto_detect_local_port(proxy.name)
+        
+        if detected_port > 0:
+            # 成功识别
+            old_port = proxy.local_port
+            proxy.local_port = detected_port
+            proxy.updated_at = datetime.utcnow()
+            detected_count += 1
+            results.append({
+                "id": proxy.id,
+                "name": proxy.name,
+                "group": proxy.group_name,
+                "old_port": old_port,
+                "new_port": detected_port,
+                "status": "success"
+            })
+        else:
+            # 无法识别
+            failed_count += 1
+            results.append({
+                "id": proxy.id,
+                "name": proxy.name,
+                "group": proxy.group_name,
+                "old_port": 0,
+                "new_port": 0,
+                "status": "failed",
+                "message": "无法从代理名称识别端口"
+            })
+    
+    db.commit()
+    
+    return {
+        "message": f"批量识别完成：成功 {detected_count} 个，失败 {failed_count} 个",
+        "total": len(proxies_with_zero_port),
+        "detected": detected_count,
+        "failed": failed_count,
+        "results": results
+    }
 
