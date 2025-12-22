@@ -1,21 +1,35 @@
 version: '3.8'
 
 services:
-  frp-agent:
-    image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: frp-agent-backend
     restart: always
-    ports:
-      - "8000:8000"
     volumes:
-      # 挂载数据目录，持久化数据库和其他数据文件
       - ./data:/app/data
-      # 可选：挂载配置文件
-      # - ./.env:/app/.env:ro
     environment:
-      # 应用配置
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
       - APP_DEBUG=false
-  
-      # 同步任务配置
       - SYNC_INTERVAL_SECONDS=30
+    networks:
+      - frp-agent-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: frp-agent-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - frp-agent-network
+
+networks:
+  frp-agent-network:
+    driver: bridge

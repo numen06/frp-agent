@@ -1,0 +1,196 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "安装 Python 依赖",
+            "type": "shell",
+            "command": "pip install -r requirements.txt",
+            "windows": {
+                "command": "python -m pip install -r requirements.txt"
+            },
+            "linux": {
+                "command": "pip3 install -r requirements.txt"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "初始化数据库",
+            "type": "shell",
+            "command": "python -m app.init_db",
+            "windows": {
+                "command": "python -m app.init_db"
+            },
+            "linux": {
+                "command": "python3 -m app.init_db"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "运行 FastAPI 应用",
+            "type": "shell",
+            "command": "python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+            "windows": {
+                "command": "python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+            },
+            "linux": {
+                "command": "python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "运行 app.py",
+            "type": "shell",
+            "command": "python app.py",
+            "windows": {
+                "command": "python app.py"
+            },
+            "linux": {
+                "command": "python3 app.py"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "安装开发依赖",
+            "type": "shell",
+            "command": "pip install -r requirements.txt debugpy",
+            "windows": {
+                "command": "python -m pip install -r requirements.txt debugpy"
+            },
+            "linux": {
+                "command": "pip3 install -r requirements.txt debugpy"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "安装 Node.js 依赖",
+            "type": "shell",
+            "command": "npm install",
+            "windows": {
+                "command": "cmd.exe",
+                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm install"]
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "运行前端开发服务器",
+            "type": "shell",
+            "command": "npm run dev",
+            "windows": {
+                "command": "cmd.exe",
+                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm run dev"]
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^([^\\s].*)\\s\\((\\d+):(\\d+)\\)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*VITE.*",
+                    "endsPattern": ".*Local:.*"
+                }
+            }
+        },
+        {
+            "label": "构建前端应用",
+            "type": "shell",
+            "command": "npm run build",
+            "windows": {
+                "command": "cmd.exe",
+                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm run build"]
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "预览构建结果",
+            "type": "shell",
+            "command": "npm run preview",
+            "windows": {
+                "command": "cmd.exe",
+                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm run preview"]
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "安装所有依赖",
+            "dependsOn": [
+                "安装 Python 依赖",
+                "安装 Node.js 依赖"
+            ],
+            "dependsOrder": "parallel",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}
+

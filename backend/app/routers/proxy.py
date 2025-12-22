@@ -21,7 +21,7 @@ async def get_proxies(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
     group_name: Optional[str] = Query(None, description="按分组过滤"),
     status_filter: Optional[str] = Query(None, description="按状态过滤"),
-    sync_from_frps: bool = Query(True, description="是否从frps实时拉取数据进行对比"),
+    sync_from_frps: bool = Query(False, description="是否从frps实时拉取数据进行对比"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -118,15 +118,29 @@ async def get_proxies(
                             "note": "本地有记录但frps中不存在，可能frps数据丢失"
                         })
                 
-                # 检查frps中有但本地没有的代理
+                # 检查frps中有但本地没有的代理，自动添加到数据库
                 for frps_name, frps_proxy in frps_proxy_map.items():
                     if frps_name not in db_proxy_map:
+                        # 自动创建新代理到数据库
+                        group_name = Proxy.parse_group_name(frps_name)
+                        new_proxy = Proxy(
+                            frps_server_id=server.id,
+                            name=frps_name,
+                            proxy_type=frps_proxy["proxy_type"],
+                            remote_port=frps_proxy.get("remote_port"),
+                            local_ip=frps_proxy.get("local_ip", "127.0.0.1"),
+                            local_port=0,  # 需要后续识别
+                            status=frps_proxy["status"],
+                            group_name=group_name
+                        )
+                        db.add(new_proxy)
+                        
                         analysis["only_in_frps"].append({
                             "name": frps_name,
-                            "group": Proxy.parse_group_name(frps_name),
+                            "group": group_name,
                             "status": frps_proxy["status"],
                             "remote_port": frps_proxy.get("remote_port"),
-                            "note": "仅在frps中存在，可考虑添加到本地数据库"
+                            "note": "已自动添加到本地数据库"
                         })
                 
                 db.commit()

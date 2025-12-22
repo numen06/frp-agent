@@ -8,6 +8,7 @@ from app.auth import get_current_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
 from app.schemas.frps_server import FrpsServerCreate, FrpsServerUpdate, FrpsServerResponse
+from app.scheduler import sync_server
 
 router = APIRouter(prefix="/api/servers", tags=["frps服务器管理"])
 
@@ -120,6 +121,14 @@ async def test_server(
             server.last_test_time = datetime.utcnow()
             server.last_test_message = "连接成功"
             db.commit()
+            
+            # 测试成功后自动同步代理列表到数据库
+            try:
+                await sync_server(db, server)
+            except Exception as sync_error:
+                # 同步失败不影响测试结果，但记录错误信息
+                server.last_test_message = f"连接成功，但同步代理列表失败: {str(sync_error)}"
+                db.commit()
             
             return {
                 "success": True,

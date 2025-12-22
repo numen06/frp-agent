@@ -92,6 +92,10 @@ async def sync_server(db: Session, server: FrpsServer):
             db_proxy.status = proxy_info["status"]
             db_proxy.remote_port = proxy_info["remote_port"]
             
+            # 如果分组信息为空，自动设置分组
+            if not db_proxy.group_name:
+                db_proxy.group_name = Proxy.parse_group_name(proxy_name)
+            
             # 如果状态从离线变为在线，记录历史
             if old_status == "offline" and proxy_info["status"] == "online":
                 history = ProxyHistory(
@@ -105,6 +109,7 @@ async def sync_server(db: Session, server: FrpsServer):
                 logger.info(f"代理 {proxy_name} 上线")
         else:
             # 发现新代理
+            group_name = Proxy.parse_group_name(proxy_name)
             new_proxy = Proxy(
                 frps_server_id=server.id,
                 name=proxy_name,
@@ -112,7 +117,8 @@ async def sync_server(db: Session, server: FrpsServer):
                 remote_port=proxy_info["remote_port"],
                 local_ip=proxy_info["local_ip"],
                 local_port=0,
-                status=proxy_info["status"]
+                status=proxy_info["status"],
+                group_name=group_name
             )
             db.add(new_proxy)
             
