@@ -5,6 +5,20 @@ let modalCount = 0
 // 存储所有活动的模态框处理器
 const activeModals = []
 
+// 全局 ESC 键监听器（所有模态框共享同一个）
+const globalEscapeHandler = (event) => {
+  if (event.key === 'Escape' || event.keyCode === 27) {
+    // 找到最上层的可见模态框并关闭它（从后往前查找）
+    for (let i = activeModals.length - 1; i >= 0; i--) {
+      const handler = activeModals[i]
+      if (handler.visible && handler.visible.value && handler.onClose) {
+        handler.onClose()
+        break
+      }
+    }
+  }
+}
+
 /**
  * 统一的模态框组合式函数
  * 提供 ESC 退出功能和遮罩层管理
@@ -17,20 +31,6 @@ export function useModal(visible, onClose) {
   const modalHandler = {
     visible,
     onClose
-  }
-
-  // 全局 ESC 键监听器
-  const globalEscapeHandler = (event) => {
-    if (event.key === 'Escape') {
-      // 找到最上层的可见模态框并关闭它（从后往前查找）
-      for (let i = activeModals.length - 1; i >= 0; i--) {
-        const handler = activeModals[i]
-        if (handler.visible && handler.visible.value && handler.onClose) {
-          handler.onClose()
-          break
-        }
-      }
-    }
   }
 
   // 监听 visible 变化，动态添加/移除 ESC 监听器
