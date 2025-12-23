@@ -32,7 +32,7 @@
         <div class="mb-2">
           <strong>功能特点：</strong>
           <ul class="mb-0 mt-1">
-            <li>支持 API Key 认证（Bearer Token）</li>
+            <li>支持 API Key 认证（URL 参数 <code>api_key</code>）</li>
             <li>如果分组不存在，自动创建分组和默认代理配置（docker:9000, ssh:22, http:80）</li>
             <li>如果分组已存在，直接返回该分组的配置</li>
             <li>支持可选参数：<code>server_id</code>（服务器ID）、<code>format</code>（ini/toml）、<code>client_name</code>（客户端名称）</li>
@@ -59,7 +59,7 @@
               复制命令
             </button>
           </div>
-          <pre class="bg-dark text-light p-2 rounded mt-1 mb-0" style="font-size: 0.875rem; position: relative;"><code class="text-light" id="exampleCommand">{{ exampleCommand }}</code></pre>
+          <pre class="bg-dark text-light p-2 rounded mt-1 mb-0" style="font-size: 0.875rem; position: relative; background-color: #1a1a1a !important; color: #ffffff !important; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"><code class="text-light" id="exampleCommand" style="color: #ffffff !important;">{{ exampleCommand }}</code></pre>
         </div>
       </div>
     </div>
@@ -94,8 +94,22 @@
       </div>
     </div>
     
-    <div class="table-responsive">
-      <table class="table table-vcenter card-table">
+    <div class="card">
+      <!-- 搜索和过滤区域 -->
+      <div class="card-body border-bottom">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div style="width: 250px;">
+            <TableSearch
+              v-model="groupsStore.filters.search"
+              placeholder="搜索分组名称..."
+              @search="handleSearch"
+            />
+          </div>
+        </div>
+      </div>
+      <!-- 表格区域 -->
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table w-100">
         <thead>
           <tr>
             <th>分组名称</th>
@@ -128,11 +142,21 @@
             </td>
             <td>
               <div class="dropdown">
-                <button class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                <button 
+                  :ref="el => { if (el) getGroupDropdown(group.group_name).triggerRef.value = el }"
+                  class="btn btn-sm dropdown-toggle" 
+                  @click.prevent="getGroupDropdown(group.group_name).toggle()"
+                  :aria-expanded="getGroupDropdown(group.group_name).isOpen.value"
+                >
                   操作
                 </button>
-                <div class="dropdown-menu">
-                  <a class="dropdown-item" href="#" @click.prevent="viewGroupProxies(group.group_name)">
+                <div 
+                  :ref="el => { if (el) getGroupDropdown(group.group_name).dropdownRef.value = el }"
+                  class="dropdown-menu"
+                  :class="{ show: getGroupDropdown(group.group_name).isOpen.value }"
+                  @click.stop
+                >
+                  <a class="dropdown-item" href="#" @click.prevent="viewGroupProxies(group.group_name); getGroupDropdown(group.group_name).close()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
@@ -140,7 +164,7 @@
                     </svg>
                     查看代理
                   </a>
-                  <a class="dropdown-item" href="#" @click.prevent="editGroup(group)">
+                  <a class="dropdown-item" href="#" @click.prevent="editGroup(group); getGroupDropdown(group.group_name).close()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -149,7 +173,7 @@
                     </svg>
                     重命名
                   </a>
-                  <a class="dropdown-item" href="#" @click.prevent="generateGroupConfig(group.group_name)">
+                  <a class="dropdown-item" href="#" @click.prevent="generateGroupConfig(group.group_name); getGroupDropdown(group.group_name).close()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M14 3v4a1 1 0 0 0 1 1h4" />
@@ -158,7 +182,7 @@
                     生成配置
                   </a>
                   <div class="dropdown-divider"></div>
-                  <a class="dropdown-item text-danger" href="#" @click.prevent="deleteGroup(group)">
+                  <a class="dropdown-item text-danger" href="#" @click.prevent="deleteGroup(group); getGroupDropdown(group.group_name).close()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M4 7l16 0" />
@@ -173,8 +197,19 @@
               </div>
             </td>
           </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+      <!-- 分页 -->
+      <div class="card-footer" v-if="groupsStore.pagination.total > 0">
+        <TablePagination
+          :total="groupsStore.pagination.total"
+          :page="groupsStore.pagination.page"
+          :page-size="groupsStore.pagination.page_size"
+          @page-change="handlePageChange"
+          @page-size-change="handlePageSizeChange"
+        />
+      </div>
     </div>
 
     <!-- 创建分组对话框 -->
@@ -229,7 +264,10 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useModal } from '@/composables/useModal'
+import { useDropdown } from '@/composables/useDropdown'
 import { apiKeysApi } from '@/api/apiKeys'
+import TablePagination from '@/components/TablePagination.vue'
+import TableSearch from '@/components/TableSearch.vue'
 
 const emit = defineEmits(['view-group', 'generate-config'])
 
@@ -242,11 +280,25 @@ const props = defineProps({
 
 const groupsStore = useGroupsStore()
 
+// 每个分组的下拉菜单（使用 Map 存储）
+const groupDropdowns = new Map()
+
+const getGroupDropdown = (groupName) => {
+  if (!groupDropdowns.has(groupName)) {
+    groupDropdowns.set(groupName, useDropdown())
+  }
+  return groupDropdowns.get(groupName)
+}
+
 // 加载分组数据
-const loadGroups = async () => {
+const loadGroups = async (page = 1) => {
   if (props.serverId) {
     try {
-      await groupsStore.loadGroups(props.serverId)
+      await groupsStore.loadGroups(props.serverId, {
+        page,
+        page_size: groupsStore.pagination.page_size,
+        search: groupsStore.filters.search || undefined
+      })
     } catch (error) {
       console.error('加载分组数据失败:', error)
     }
@@ -376,8 +428,8 @@ const exampleCommand = computed(() => {
     }
   }
   const baseUrl = apiBaseUrl.value
-  // 生成单行命令（更易复制执行）
-  return `curl -H "Authorization: Bearer ${apiKey}" "${baseUrl}/frpc/config/group/test?format=toml" -o frpc.toml`
+  // 生成单行命令（更易复制执行）- 使用 URL 参数传递 API Key
+  return `curl "${baseUrl}/frpc/config/group/test?format=toml&api_key=${apiKey}" -o frpc.toml`
 })
 
 // 获取选中的 API Key 描述
@@ -458,8 +510,9 @@ const handleCreateGroup = async () => {
     alert('创建分组成功')
     showCreateDialog.value = false
     createForm.group_name = ''
-    // 刷新分组列表
-    await loadGroups()
+    // 刷新分组列表，重置到第一页
+    groupsStore.setPagination({ page: 1 })
+    await loadGroups(1)
   } catch (error) {
     alert('创建分组失败: ' + error.message)
   }
@@ -485,8 +538,8 @@ const handleRenameGroup = async () => {
     )
     alert('重命名成功')
     showRenameDialog.value = false
-    // 刷新分组列表
-    await loadGroups()
+    // 刷新分组列表，保持当前页
+    await loadGroups(groupsStore.pagination.page)
   } catch (error) {
     alert('重命名失败: ' + error.message)
   }
@@ -504,6 +557,8 @@ const deleteGroup = async (group) => {
   try {
     await groupsStore.deleteGroup(group.group_name, reassignGroup || '', props.serverId)
     alert('删除成功')
+    // 刷新分组列表，保持当前页
+    await loadGroups(groupsStore.pagination.page)
   } catch (error) {
     alert('删除失败: ' + error.message)
   }
@@ -540,8 +595,9 @@ const handleAutoAnalyze = async () => {
     } else {
       alert('自动分析分组成功')
     }
-    // 刷新分组列表
-    await loadGroups()
+    // 刷新分组列表，重置到第一页
+    groupsStore.setPagination({ page: 1 })
+    await loadGroups(1)
   } catch (error) {
     alert('自动分析失败: ' + error.message)
   }
@@ -568,5 +624,21 @@ const closeRenameDialog = () => {
 // 使用统一的模态框功能
 useModal(showCreateDialog, closeCreateDialog)
 useModal(showRenameDialog, closeRenameDialog)
+
+// 分页处理
+const handlePageChange = (newPage) => {
+  loadGroups(newPage)
+}
+
+const handlePageSizeChange = (newPageSize) => {
+  groupsStore.setPagination({ page_size: newPageSize, page: 1 })
+  loadGroups(1)
+}
+
+// 搜索处理
+const handleSearch = () => {
+  groupsStore.setPagination({ page: 1 })
+  loadGroups(1)
+}
 </script>
 

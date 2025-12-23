@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- 欢迎区域 -->
-    <div class="card mb-3">
+    <div class="card">
       <div class="card-body">
         <h3 class="card-title mb-0">欢迎回来，{{ authStore.username || '管理员' }}</h3>
         <div class="text-muted">共 {{ serversStore.servers.length }} 个服务器</div>
@@ -9,7 +9,7 @@
     </div>
 
     <!-- 汇总统计卡片 -->
-    <div class="card mb-3">
+    <div class="card mt-3 mb-3">
       <div class="card-header">
         <h3 class="card-title">汇总统计</h3>
       </div>
@@ -80,80 +80,80 @@
     </div>
 
     <!-- 各服务器统计 -->
-    <div class="card mb-3" v-if="serversStore.servers.length > 0">
+    <div class="card mt-3 mb-3" v-if="serversStore.servers.length > 0">
       <div class="card-header">
         <h3 class="card-title">服务器详情</h3>
       </div>
-      <div class="card-body">
-        <div v-if="loading" class="text-center py-4">
+      <div v-if="loading" class="card-body">
+        <div class="text-center py-4">
           <div class="spinner-border spinner-border-sm" role="status"></div>
           <span class="ms-2">加载中...</span>
         </div>
-        <div v-else class="table-responsive">
-          <table class="table table-vcenter card-table table-striped">
-            <thead>
-              <tr>
-                <th>服务器名称</th>
-                <th>服务器地址</th>
-                <th>连接状态</th>
-                <th>代理总数</th>
-                <th>在线</th>
-                <th>离线</th>
-                <th>端口数</th>
-                <th>在线率</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="server in serversStore.servers" :key="server.id">
-                <td>
-                  <div class="fw-bold">{{ server.name }}</div>
-                  <div class="text-muted small">{{ server.api_base_url }}</div>
-                </td>
-                <td>
-                  <div>{{ server.server_addr }}:{{ server.server_port }}</div>
-                  <div class="text-muted small">{{ server.auth_username }}</div>
-                </td>
-                <td>
-                  <span class="badge" :class="getServerStatusBadgeClass(server)">
-                    {{ getServerStatusText(server) }}
-                  </span>
-                </td>
-                <td>
-                  <div class="fw-bold">{{ getServerStats(server.id).total }}</div>
-                </td>
-                <td>
-                  <span class="badge text-bg-success">
-                    {{ getServerStats(server.id).online }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge text-bg-danger">
-                    {{ getServerStats(server.id).offline }}
-                  </span>
-                </td>
-                <td>{{ getServerStats(server.id).portCount }}</td>
-                <td>
-                  <div class="d-flex align-items-center">
-                    <div class="progress progress-sm me-2" style="width: 60px;">
-                      <div class="progress-bar" :class="getServerOnlineRate(server.id) > 0 ? 'bg-success' : 'bg-secondary'" 
-                           :style="`width: ${getServerOnlineRate(server.id)}%`" 
-                           role="progressbar"
-                           :aria-valuenow="getServerOnlineRate(server.id)"
-                           aria-valuemin="0"
-                           aria-valuemax="100"></div>
-                    </div>
-                    <span class="small">{{ getServerOnlineRate(server.id) }}%</span>
+      </div>
+      <div v-else class="table-responsive">
+        <table class="table table-vcenter card-table table-striped w-100">
+          <thead>
+            <tr>
+              <th>服务器名称</th>
+              <th>服务器地址</th>
+              <th>连接状态</th>
+              <th>代理总数</th>
+              <th>在线</th>
+              <th>离线</th>
+              <th>端口数</th>
+              <th>在线率</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="server in serversStore.servers" :key="server.id">
+              <td>
+                <div class="fw-bold">{{ server.name }}</div>
+                <div class="text-muted small">{{ server.api_base_url }}</div>
+              </td>
+              <td>
+                <div>{{ server.server_addr }}:{{ server.server_port }}</div>
+                <div class="text-muted small">{{ server.auth_username }}</div>
+              </td>
+              <td>
+                <span class="badge" :class="getServerStatusBadgeClass(server)">
+                  {{ getServerStatusText(server) }}
+                </span>
+              </td>
+              <td>
+                <div class="fw-bold">{{ getServerStats(server.id).total }}</div>
+              </td>
+              <td>
+                <span class="badge text-bg-success">
+                  {{ getServerStats(server.id).online }}
+                </span>
+              </td>
+              <td>
+                <span class="badge text-bg-danger">
+                  {{ getServerStats(server.id).offline }}
+                </span>
+              </td>
+              <td>{{ getServerStats(server.id).portCount }}</td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="progress progress-sm me-2" style="width: 60px;">
+                    <div class="progress-bar" :class="getServerOnlineRate(server.id) > 0 ? 'bg-success' : 'bg-secondary'" 
+                         :style="`width: ${getServerOnlineRate(server.id)}%`" 
+                         role="progressbar"
+                         :aria-valuenow="getServerOnlineRate(server.id)"
+                         aria-valuemin="0"
+                         aria-valuemax="100"></div>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <span class="small">{{ getServerOnlineRate(server.id) }}%</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
     <!-- 快速操作 -->
-    <div class="card mb-3">
+    <div class="card mt-3">
       <div class="card-header">
         <h3 class="card-title">快速操作</h3>
       </div>
@@ -200,13 +200,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServersStore } from '@/stores/servers'
 import { proxyApi } from '@/api/proxies'
+import { useRefresh } from '@/composables/useRefresh'
 
 const authStore = useAuthStore()
 const serversStore = useServersStore()
+const { refreshEvent } = useRefresh()
 
 const loading = ref(false)
 const serverStatsMap = ref(new Map()) // 存储每个服务器的统计数据
@@ -272,12 +274,15 @@ const loadAllServersData = async () => {
       try {
         const response = await proxyApi.getProxies({
           frps_server_id: server.id,
-          sync_from_frps: false
+          sync_from_frps: false,
+          page: 1,
+          page_size: 1000 // 获取足够多的数据用于统计
         })
         
-        const proxies = response.proxies || []
+        // 处理分页响应格式
+        const proxies = response.items || response.proxies || []
         const stats = {
-          total: proxies.length,
+          total: response.total || proxies.length,
           online: proxies.filter(p => p.status === 'online').length,
           offline: proxies.filter(p => p.status === 'offline').length,
           ports: new Set()
@@ -310,6 +315,13 @@ const loadAllServersData = async () => {
     loading.value = false
   }
 }
+
+// 监听刷新事件，当同步操作完成后自动刷新统计数据
+watch(refreshEvent, () => {
+  if (refreshEvent.value > 0) {
+    loadAllServersData()
+  }
+})
 
 onMounted(async () => {
   try {

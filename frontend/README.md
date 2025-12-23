@@ -1,6 +1,6 @@
 # frp-agent 前端
 
-基于 Vue 3 + Vite + Element Plus 的前端应用。
+基于 Vue 3 + Vite + Tabler UI 的前端应用。
 
 ## 开发
 
@@ -33,6 +33,7 @@ npm run preview
 - Vite
 - Vue Router
 - Pinia
-- Element Plus
+- Tabler UI (@tabler/core)
+- Tabler Icons (@tabler/icons-vue)
 - Axios
 

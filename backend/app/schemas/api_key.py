@@ -48,3 +48,10 @@ class ApiKeyUpdate(BaseModel):
     expires_at: Optional[datetime] = None
     is_active: Optional[bool] = None
 
+
+class ApiKeyFullKeyResponse(BaseModel):
+    """获取完整密钥响应"""
+    id: int
+    key: str  # 完整密钥
+    description: str
+

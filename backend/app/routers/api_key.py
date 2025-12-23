@@ -14,7 +14,8 @@ from app.schemas.api_key import (
     ApiKeyCreate,
     ApiKeyResponse,
     ApiKeyCreateResponse,
-    ApiKeyUpdate
+    ApiKeyUpdate,
+    ApiKeyFullKeyResponse
 )
 from app.database import get_db
 from app.config import get_settings
@@ -130,6 +131,42 @@ def list_api_keys(
         ))
     
     return result
+
+
+@router.get("/{api_key_id}/full-key", response_model=ApiKeyFullKeyResponse)
+def get_api_key_full_key(
+    api_key_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取 API Key 的完整密钥（仅限已认证用户）"""
+    api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key 不存在"
+        )
+    
+    # 检查是否有加密存储的密钥
+    if not api_key.key_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="无法获取完整密钥，该密钥可能是在加密功能添加之前创建的"
+        )
+    
+    # 解密密钥
+    full_key = decrypt_key(api_key.key_encrypted)
+    if not full_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="解密密钥失败"
+        )
+    
+    return ApiKeyFullKeyResponse(
+        id=api_key.id,
+        key=full_key,
+        description=api_key.description
+    )
 
 
 @router.get("/{api_key_id}", response_model=ApiKeyResponse)

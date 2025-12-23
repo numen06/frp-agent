@@ -21,7 +21,7 @@
           </div>
           
           <div class="table-responsive">
-            <table class="table table-vcenter card-table">
+            <table class="table table-vcenter card-table w-100">
               <thead>
                 <tr>
                   <th>服务器名称</th>
@@ -48,11 +48,21 @@
                   <td><small>{{ server.api_base_url }}</small></td>
                   <td>
                     <div class="dropdown dropend">
-                      <button class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                      <button 
+                        :ref="el => { if (el) getServerDropdown(server.id).triggerRef.value = el }"
+                        class="btn btn-sm dropdown-toggle" 
+                        @click.prevent="getServerDropdown(server.id).toggle()"
+                        :aria-expanded="getServerDropdown(server.id).isOpen.value"
+                      >
                         操作
                       </button>
-                      <div class="dropdown-menu">
-                        <a class="dropdown-item" href="#" @click.prevent="editServer(server)">
+                      <div 
+                        :ref="el => { if (el) getServerDropdown(server.id).dropdownRef.value = el }"
+                        class="dropdown-menu"
+                        :class="{ show: getServerDropdown(server.id).isOpen.value }"
+                        @click.stop
+                      >
+                        <a class="dropdown-item" href="#" @click.prevent="editServer(server); getServerDropdown(server.id).close()">
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                             <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -62,7 +72,7 @@
                           编辑
                         </a>
                         <div class="dropdown-divider"></div>
-                        <a class="dropdown-item text-danger" href="#" @click.prevent="deleteServer(server)">
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="deleteServer(server); getServerDropdown(server.id).close()">
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                             <path d="M4 7l16 0" />
@@ -139,6 +149,7 @@
 import { ref, reactive, watch } from 'vue'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
+import { useDropdown } from '@/composables/useDropdown'
 
 const props = defineProps({
   modelValue: {
@@ -153,6 +164,16 @@ const serversStore = useServersStore()
 const dialogVisible = ref(false)
 const showAddDialog = ref(false)
 const editingServer = ref(null)
+
+// 每个服务器的下拉菜单（使用 Map 存储）
+const serverDropdowns = new Map()
+
+const getServerDropdown = (serverId) => {
+  if (!serverDropdowns.has(serverId)) {
+    serverDropdowns.set(serverId, useDropdown())
+  }
+  return serverDropdowns.get(serverId)
+}
 
 const serverForm = reactive({
   name: '',

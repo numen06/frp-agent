@@ -1,111 +1,93 @@
 <template>
-  <div class="page-body">
-    <div class="container-xl">
-      <div class="row">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">API Key 管理</h3>
-              <div class="card-actions">
-                <button class="btn btn-primary" @click="showCreateDialog = true">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M12 5l0 14" />
-                    <path d="M5 12l14 0" />
-                  </svg>
-                  创建密钥
-                </button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-vcenter card-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>密钥</th>
-                      <th>描述</th>
-                      <th>过期时间</th>
-                      <th>状态</th>
-                      <th>创建时间</th>
-                      <th>最后使用</th>
-                      <th class="w-1">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-if="loading">
-                      <td colspan="8" class="text-center py-4">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                          <span class="visually-hidden">加载中...</span>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-else-if="apiKeys.length === 0">
-                      <td colspan="8" class="text-center text-muted py-4">
-                        暂无 API Key，点击上方按钮创建
-                      </td>
-                    </tr>
-                     <tr v-else v-for="key in apiKeys" :key="key.id">
-                       <td>{{ key.id }}</td>
-                       <td>
-                         <div class="d-flex align-items-center gap-2">
-                           <code class="text-muted flex-grow-1">{{ key.key }}</code>
-                           <button 
-                             class="btn btn-sm btn-icon"
-                             :class="hasFullKey(key.id) ? 'btn-outline-primary' : 'btn-outline-secondary'"
-                             @click="copyKeyFromList(key.id)"
-                             :title="hasFullKey(key.id) ? '点击复制完整密钥' : '密钥已不可见，无法复制'"
-                             :disabled="!hasFullKey(key.id)"
-                           >
-                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                               <path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" />
-                               <path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" />
-                             </svg>
-                           </button>
-                         </div>
-                       </td>
-                       <td>{{ key.description }}</td>
-                      <td>
-                        <span v-if="key.expires_at">
-                          {{ formatDateTime(key.expires_at) }}
-                        </span>
-                        <span v-else class="text-muted">永不过期</span>
-                      </td>
-                      <td>
-                        <span v-if="key.is_expired" class="badge bg-red">已过期</span>
-                        <span v-else-if="!key.is_active" class="badge bg-secondary">已禁用</span>
-                        <span v-else class="badge bg-success">正常</span>
-                      </td>
-                      <td>{{ formatDateTime(key.created_at) }}</td>
-                      <td>
-                        <span v-if="key.last_used_at">{{ formatDateTime(key.last_used_at) }}</span>
-                        <span v-else class="text-muted">从未使用</span>
-                      </td>
-                      <td>
-                        <div class="btn-list flex-nowrap">
-                          <button 
-                            class="btn btn-sm btn-outline-primary" 
-                            @click="editKey(key)"
-                            :disabled="key.is_expired"
-                          >
-                            编辑
-                          </button>
-                          <button 
-                            class="btn btn-sm btn-outline-danger" 
-                            @click="deleteKey(key)"
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">API Key 管理</h3>
+        <div class="card-actions">
+          <button class="btn btn-primary btn-sm" @click.stop="showCreateDialog = true">
+            <IconPlus :size="16" class="me-1" />
+            创建密钥
+          </button>
+        </div>
+      </div>
+      <div v-if="loading" class="card-body">
+        <div class="text-center py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">加载中...</span>
           </div>
         </div>
+      </div>
+      <div v-else class="table-responsive">
+        <table class="table table-vcenter card-table w-100">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>密钥</th>
+                    <th>描述</th>
+                    <th>过期时间</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>最后使用</th>
+                    <th class="w-1">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="apiKeys.length === 0">
+                    <td colspan="8" class="text-center text-muted py-4">
+                      暂无 API Key，点击上方按钮创建
+                    </td>
+                  </tr>
+                   <tr v-else v-for="key in apiKeys" :key="key.id">
+                     <td>{{ key.id }}</td>
+                     <td>
+                       <div class="d-flex align-items-center">
+                         <code class="text-muted flex-grow-1 me-2">{{ key.key }}</code>
+                         <button 
+                           class="btn btn-sm btn-icon"
+                           @click.stop="copyKeyFromList(key.id)"
+                           :title="hasFullKey(key.id) ? '点击复制完整密钥' : '点击复制密钥（将从服务器获取）'"
+                         >
+                           <IconCopy :size="16" />
+                         </button>
+                       </div>
+                     </td>
+                     <td>{{ key.description }}</td>
+                    <td>
+                      <span v-if="key.expires_at">
+                        {{ formatDateTime(key.expires_at) }}
+                      </span>
+                      <span v-else class="text-muted">永不过期</span>
+                    </td>
+                    <td>
+                      <span v-if="key.is_expired" class="badge bg-red">已过期</span>
+                      <span v-else-if="!key.is_active" class="badge bg-secondary">已禁用</span>
+                      <span v-else class="badge bg-success">正常</span>
+                    </td>
+                    <td>{{ formatDateTime(key.created_at) }}</td>
+                    <td>
+                      <span v-if="key.last_used_at">{{ formatDateTime(key.last_used_at) }}</span>
+                      <span v-else class="text-muted">从未使用</span>
+                    </td>
+                    <td>
+                      <div class="btn-list flex-nowrap">
+                        <button 
+                          class="btn btn-sm" 
+                          @click="editKey(key)"
+                          :disabled="key.is_expired"
+                        >
+                          编辑
+                        </button>
+                        <button 
+                          class="btn btn-sm" 
+                          @click="deleteKey(key)"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+        </table>
       </div>
     </div>
 
@@ -242,13 +224,9 @@
                 <button 
                   class="btn btn-outline-secondary" 
                   type="button"
-                  @click="copyKey"
+                  @click.stop="copyKey"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" />
-                    <path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" />
-                  </svg>
+                  <IconCopy :size="16" class="me-1" />
                   复制
                 </button>
               </div>
@@ -257,9 +235,14 @@
               <label class="form-label">使用方式</label>
               <div class="card">
                 <div class="card-body">
-                  <code class="text-muted">
-                    Authorization: Bearer {{ createdKeyData?.key }}
-                  </code>
+                  <div class="mb-2">
+                    <strong>Header 认证</strong>
+                    <div class="mt-1">
+                      <code class="text-muted">
+                        Authorization: Bearer {{ createdKeyData?.key }}
+                      </code>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -273,11 +256,11 @@
      <div v-if="showKeyDialog" class="modal-backdrop fade show" @click="showKeyDialog = false"></div>
 
      <!-- 提示消息 -->
-     <div v-if="toastMessage" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
-       <div class="toast show" :class="toastType === 'success' ? 'bg-success' : 'bg-danger'" role="alert">
-         <div class="toast-body text-white">
-           {{ toastMessage }}
-         </div>
+     <div v-if="toastMessage" class="position-fixed top-0 end-0 p-3" style="z-index: 1050; min-width: 300px;">
+       <div class="alert alert-dismissible" :class="toastType === 'success' ? 'alert-success' : 'alert-danger'" role="alert">
+         <h4 class="alert-title">{{ toastType === 'success' ? '成功' : '错误' }}</h4>
+         <div>{{ toastMessage }}</div>
+         <a class="btn-close" @click="closeToast" aria-label="close"></a>
        </div>
      </div>
    </div>
@@ -285,6 +268,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { IconPlus, IconCopy } from '@tabler/icons-vue'
 import { apiKeysApi } from '@/api/apiKeys'
 
 const apiKeys = ref([])
@@ -359,6 +343,32 @@ const hasFullKey = (id) => {
   return !!(localStorage.getItem(numKey) || localStorage.getItem(strKey))
 }
 
+// 复制文本到剪贴板的辅助函数
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch (error) {
+    // 降级方案：使用临时输入框
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const success = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return success
+    } catch (err) {
+      console.error('复制失败:', err)
+      return false
+    }
+  }
+}
+
 // 从列表复制密钥
 const copyKeyFromList = async (id) => {
   const idNum = Number(id)
@@ -368,9 +378,24 @@ const copyKeyFromList = async (id) => {
   // 尝试从 localStorage 获取完整密钥
   let fullKey = localStorage.getItem(numKey) || localStorage.getItem(strKey)
   
+  // 如果 localStorage 中没有，尝试通过 API 获取
   if (!fullKey) {
-    showToast('密钥已不可见，无法复制。如需使用，请重新创建密钥。', 'error')
-    return
+    try {
+      const result = await apiKeysApi.getFullKey(idNum)
+      if (result && result.key) {
+        fullKey = result.key
+        // 保存到 localStorage 以便下次使用
+        localStorage.setItem(numKey, fullKey)
+        localStorage.setItem(strKey, fullKey)
+      } else {
+        showToast('无法获取完整密钥，该密钥可能是在加密功能添加之前创建的', 'error')
+        return
+      }
+    } catch (error) {
+      console.error('获取完整密钥失败:', error)
+      showToast('获取密钥失败: ' + (error.response?.data?.detail || error.message || '未知错误'), 'error')
+      return
+    }
   }
   
   // 确保复制的是密钥字符串，而不是 ID
@@ -378,7 +403,7 @@ const copyKeyFromList = async (id) => {
   
   // 验证：如果获取到的是 ID（数字且长度短），说明存储有问题
   if (keyToCopy === String(idNum) || (keyToCopy.length < 20 && !isNaN(keyToCopy) && keyToCopy.length < 10)) {
-    console.error('错误：localStorage 中存储的是 ID 而不是密钥', {
+    console.error('错误：存储的是 ID 而不是密钥', {
       id: idNum,
       storedValue: fullKey,
       keyToCopy,
@@ -401,44 +426,42 @@ const copyKeyFromList = async (id) => {
     })
   }
   
-  try {
-    await navigator.clipboard.writeText(keyToCopy)
+  // 复制到剪贴板
+  const success = await copyToClipboard(keyToCopy)
+  if (success) {
     showToast('密钥已复制到剪贴板', 'success')
-  } catch (error) {
-    // 降级方案：使用临时输入框
-    try {
-      const textarea = document.createElement('textarea')
-      textarea.value = keyToCopy
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      textarea.style.left = '-9999px'
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const success = document.execCommand('copy')
-      document.body.removeChild(textarea)
-      
-      if (success) {
-        showToast('密钥已复制到剪贴板', 'success')
-      } else {
-        throw new Error('execCommand 失败')
-      }
-    } catch (err) {
-      console.error('复制失败:', err)
-      showToast('复制失败，请手动复制', 'error')
-    }
+  } else {
+    showToast('复制失败，请手动复制', 'error')
   }
 }
 
 // 提示消息
 const toastMessage = ref('')
 const toastType = ref('success')
+let toastTimer = null
+
 const showToast = (message, type = 'success') => {
   toastMessage.value = message
   toastType.value = type
-  setTimeout(() => {
+  
+  // 清除之前的定时器
+  if (toastTimer) {
+    clearTimeout(toastTimer)
+  }
+  
+  // 3秒后自动关闭
+  toastTimer = setTimeout(() => {
     toastMessage.value = ''
+    toastTimer = null
   }, 3000)
+}
+
+const closeToast = () => {
+  if (toastTimer) {
+    clearTimeout(toastTimer)
+    toastTimer = null
+  }
+  toastMessage.value = ''
 }
 
 // 编辑密钥
@@ -556,86 +579,19 @@ const closeDialog = () => {
 const copyKey = async () => {
   if (keyInput.value && createdKeyData.value?.key) {
     keyInput.value.select()
-    try {
-      await navigator.clipboard.writeText(createdKeyData.value.key)
+    const success = await copyToClipboard(createdKeyData.value.key)
+    if (success) {
       showToast('密钥已复制到剪贴板', 'success')
-    } catch (error) {
-      // 降级方案
-      try {
-        document.execCommand('copy')
-        showToast('密钥已复制到剪贴板', 'success')
-      } catch (err) {
-        showToast('复制失败，请手动复制', 'error')
-      }
+    } else {
+      showToast('复制失败，请手动复制', 'error')
     }
   }
 }
+
 
 onMounted(() => {
   loadApiKeys()
 })
 </script>
 
-<style scoped>
-.required::after {
-  content: ' *';
-  color: red;
-}
-
-.form-hint {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-  color: #6c757d;
-}
-
-.font-monospace {
-  font-family: 'Courier New', Courier, monospace;
-}
-
-.gap-1 {
-  gap: 0.25rem;
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-.btn-icon {
-  padding: 0.25rem 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-icon:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.toast-container {
-  animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@media (max-width: 576px) {
-  .d-flex.flex-wrap {
-    flex-direction: column;
-  }
-  
-  .d-flex.flex-wrap .btn {
-    width: 100%;
-  }
-}
-</style>
 

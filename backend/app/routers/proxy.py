@@ -21,17 +21,23 @@ async def get_proxies(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
     group_name: Optional[str] = Query(None, description="按分组过滤"),
     status_filter: Optional[str] = Query(None, description="按状态过滤"),
+    search: Optional[str] = Query(None, description="搜索代理名称或分组"),
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(10, ge=1, le=1000, description="每页数量"),
     sync_from_frps: bool = Query(False, description="是否从frps实时拉取数据进行对比"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取代理列表，可选择从frps实时拉取并对比分析
+    """获取代理列表，支持分页和搜索，可选择从frps实时拉取并对比分析
     
     本程序的数据库是最全的主数据源，frps可能会丢失数据。
     当sync_from_frps=True时，会从frps拉取数据并进行对比分析。
     """
     result: Dict[str, Any] = {
-        "proxies": [],
+        "items": [],
+        "page": page,
+        "page_size": page_size,
+        "total": 0,
         "analysis": None
     }
     
@@ -47,9 +53,15 @@ async def get_proxies(
     if status_filter:
         query = query.filter(Proxy.status == status_filter)
     
-    db_proxies = query.all()
+    # 搜索功能：搜索代理名称或分组
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Proxy.name.like(search_pattern)) | 
+            (Proxy.group_name.like(search_pattern))
+        )
     
-    # 如果需要从frps同步，进行对比分析
+    # 如果需要从frps同步，先进行同步（在分页之前）
     if sync_from_frps and frps_server_id:
         server = db.query(FrpsServer).filter(FrpsServer.id == frps_server_id).first()
         if server:
@@ -68,11 +80,14 @@ async def get_proxies(
                 
                 # 创建frps代理名称映射
                 frps_proxy_map = {p["name"]: p for p in frps_proxy_list}
-                db_proxy_map = {p.name: p for p in db_proxies}
+                
+                # 获取所有匹配的代理（不仅仅是当前页）
+                all_matching_proxies = query.all()
+                db_proxy_map = {p.name: p for p in all_matching_proxies}
                 
                 # 对比分析
                 analysis = {
-                    "total_in_db": len(db_proxies),
+                    "total_in_db": len(all_matching_proxies),
                     "total_in_frps": len(frps_proxy_list),
                     "online_proxies": [],  # frps中在线的代理
                     "missing_in_frps": [],  # 本地有但frps没有的（可能frps丢失）
@@ -80,8 +95,8 @@ async def get_proxies(
                     "status_changed": []  # 状态改变的
                 }
                 
-                # 更新本地代理状态
-                for db_proxy in db_proxies:
+                # 更新本地代理状态（更新所有匹配的代理，不仅仅是当前页）
+                for db_proxy in all_matching_proxies:
                     frps_proxy = frps_proxy_map.get(db_proxy.name)
                     
                     if frps_proxy:
@@ -146,16 +161,43 @@ async def get_proxies(
                 db.commit()
                 result["analysis"] = analysis
                 
+                # 同步后，重新构建查询（因为可能添加了新代理）
+                query = db.query(Proxy)
+                
+                if frps_server_id:
+                    query = query.filter(Proxy.frps_server_id == frps_server_id)
+                
+                if group_name:
+                    query = query.filter(Proxy.group_name == group_name)
+                
+                if status_filter:
+                    query = query.filter(Proxy.status == status_filter)
+                
+                if search:
+                    search_pattern = f"%{search}%"
+                    query = query.filter(
+                        (Proxy.name.like(search_pattern)) | 
+                        (Proxy.group_name.like(search_pattern))
+                    )
+                
             except Exception as e:
                 result["analysis"] = {
                     "error": f"从frps拉取数据失败: {str(e)}",
                     "note": "使用本地数据库数据"
                 }
     
+    # 计算总数（如果同步后，query已经重新构建）
+    total = query.count()
+    
+    # 应用分页
+    offset = (page - 1) * page_size
+    db_proxies = query.order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
+    
     # 返回代理列表（转换为响应格式）
-    result["proxies"] = [
+    result["items"] = [
         ProxyResponse.model_validate(proxy) for proxy in db_proxies
     ]
+    result["total"] = total
     
     return result
 

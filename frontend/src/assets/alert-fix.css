@@ -1,0 +1,121 @@
+/* 确保 Alert 样式正确显示，不依赖 CDN - 完全匹配 Tabler 官方样式 */
+
+/* Alert 基础样式 - 完全匹配 Tabler */
+.alert {
+  --tblr-alert-color: var(--tblr-body-color);
+  --tblr-alert-bg: color-mix(in srgb, var(--tblr-alert-color) 10%, transparent);
+  --tblr-alert-padding-x: 1rem;
+  --tblr-alert-padding-y: 0.75rem;
+  --tblr-alert-margin-bottom: 1rem;
+  --tblr-alert-border-color: color-mix(in srgb, var(--tblr-alert-color) 20%, transparent);
+  --tblr-alert-border: var(--tblr-border-width, 1px) solid var(--tblr-alert-border-color);
+  --tblr-alert-border-radius: var(--tblr-border-radius, 0.375rem);
+  --tblr-alert-link-color: inherit;
+  --tblr-alert-heading-font-weight: var(--tblr-font-weight-medium, 500);
+  position: relative;
+  padding: var(--tblr-alert-padding-y) var(--tblr-alert-padding-x);
+  margin-bottom: var(--tblr-alert-margin-bottom);
+  background-color: color-mix(in srgb, var(--tblr-alert-bg), var(--tblr-bg-surface, #ffffff));
+  border-radius: var(--tblr-alert-border-radius);
+  border: var(--tblr-border-width, 1px) var(--tblr-border-style, solid) var(--tblr-alert-border-color);
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  color: var(--tblr-alert-color);
+}
+
+/* Alert 成功样式 - 使用 Tabler 变量系统 */
+.alert-success {
+  --tblr-alert-color: var(--tblr-success, #2fb344);
+}
+
+/* Alert 错误/危险样式 - 使用 Tabler 变量系统 */
+.alert-danger {
+  --tblr-alert-color: var(--tblr-danger, #d63939);
+}
+
+/* Alert 警告样式 - 使用 Tabler 变量系统 */
+.alert-warning {
+  --tblr-alert-color: var(--tblr-warning, #f59f00);
+}
+
+/* Alert 信息样式 - 使用 Tabler 变量系统 */
+.alert-info {
+  --tblr-alert-color: var(--tblr-info, #4299e1);
+}
+
+/* Alert 标题样式 - 匹配 Tabler */
+.alert-heading,
+.alert-title,
+h4.alert-title {
+  color: inherit;
+  margin-bottom: 0.25rem;
+  font-weight: var(--tblr-alert-heading-font-weight, 500);
+}
+
+/* Alert 描述样式 - 匹配 Tabler */
+.alert-description {
+  color: var(--tblr-secondary, #6b7280);
+}
+
+/* Alert 内容区域 */
+.alert > div:not(.alert-heading):not(.alert-title):not(.alert-description) {
+  color: inherit;
+}
+
+/* Alert 可关闭按钮 - 匹配 Tabler 样式 */
+.alert-dismissible {
+  padding-right: 3rem;
+}
+
+.alert-dismissible .btn-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: var(--tblr-alert-padding-y) var(--tblr-alert-padding-x);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s ease-in-out;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.alert-dismissible .btn-close:hover {
+  opacity: 1;
+}
+
+.alert-dismissible .btn-close::before {
+  content: '×';
+  font-weight: 700;
+  display: block;
+}
+
+/* Alert 链接样式 */
+.alert a {
+  font-weight: 600;
+  text-decoration: underline;
+  color: var(--tblr-alert-link-color, inherit);
+}
+
+/* 标题颜色确保正确显示 */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--tblr-body-color, #1e293b);
+  font-weight: 600;
+}
+
+.card-title {
+  color: var(--tblr-body-color, #1e293b);
+  font-weight: 600;
+}
+
+.navbar-brand-text .text-primary {
+  color: var(--tblr-primary, #206bc4) !important;
+}
+
+.navbar-brand-text .text-muted {
+  color: var(--tblr-muted, #6c757d) !important;
+}

@@ -13,6 +13,11 @@ export const apiKeysApi = {
     return api.get(`/api-keys/${id}`, { params })
   },
 
+  // 获取完整密钥
+  getFullKey(id) {
+    return api.get(`/api-keys/${id}/full-key`)
+  },
+
   // 创建 API Key
   create(data) {
     return api.post('/api-keys', data)

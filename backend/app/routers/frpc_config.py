@@ -151,16 +151,22 @@ def get_config_by_group_quick(
     
     根据指定的分组名称获取 frpc 配置文件。
     如果分组不存在，会自动创建分组和默认代理配置（docker:9000, ssh:22, http:80）。
-    支持 API Key 认证（Bearer Token）。
+    支持 API Key 认证（URL 参数 api_key 或 Bearer Token）。
     
     参数:
     - group_name: 分组名称（路径参数）
     - server_id: 服务器 ID（可选，不提供则使用第一个激活的服务器）
     - format: 配置格式，ini 或 toml（默认 ini）
     - client_name: 客户端名称（可选）
+    - api_key: API Key（URL 参数，推荐使用）
     
     使用示例:
     ```bash
+    # 方式1：使用 URL 参数（推荐）
+    curl "http://your-api/api/frpc/config/group/test?format=toml&api_key=YOUR_API_KEY" \
+      -o frpc.toml
+    
+    # 方式2：使用 Bearer Token
     curl -H "Authorization: Bearer YOUR_API_KEY" \
       "http://your-api/api/frpc/config/group/test?format=toml" \
       -o frpc.toml

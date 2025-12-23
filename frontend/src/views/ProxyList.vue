@@ -1,31 +1,11 @@
 <template>
   <div>
     <!-- 服务器选择 -->
-    <div class="card mb-3">
-      <div class="card-header">
-        <h3 class="card-title">服务器选择</h3>
-      </div>
-      <div class="card-body">
-        <div class="row g-3 align-items-center">
-          <div class="col-auto">
-            <label class="form-label">当前服务器：</label>
-          </div>
-          <div class="col-auto">
-            <select class="form-select" v-model="currentServerId" @change="handleServerChange" :disabled="serversStore.loading">
-              <option :value="null">请选择服务器...</option>
-              <option v-for="server in serversStore.servers" :key="server.id" :value="server.id">
-                {{ server.name }}
-              </option>
-            </select>
-          </div>
-          <div class="col-auto">
-            <button class="btn btn-outline-secondary" @click="testCurrentServer" :disabled="!currentServerId">
-              测试连接
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ServerSelector 
+      v-model="currentServerId" 
+      @change="handleServerChange"
+      @test="handleTestServer"
+    />
 
     <!-- 代理列表 -->
     <div class="card">
@@ -34,7 +14,12 @@
         <div class="card-actions">
           <div class="d-flex gap-2">
             <div class="dropdown" v-if="proxiesStore.selectedCount > 0">
-              <button class="btn btn-warning btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+              <button 
+                ref="batchActionsDropdown.triggerRef"
+                class="btn btn-warning btn-sm dropdown-toggle" 
+                @click.prevent="batchActionsDropdown.toggle()"
+                :aria-expanded="batchActionsDropdown.isOpen.value"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M4 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
@@ -49,8 +34,13 @@
                 </svg>
                 批量操作
               </button>
-              <div class="dropdown-menu">
-                <a class="dropdown-item" href="#" @click.prevent="handleBatchDetectPorts">
+              <div 
+                ref="batchActionsDropdown.dropdownRef"
+                class="dropdown-menu"
+                :class="{ show: batchActionsDropdown.isOpen.value }"
+                @click.stop
+              >
+                <a class="dropdown-item" href="#" @click.prevent="handleBatchDetectPorts(); batchActionsDropdown.close()">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
@@ -58,7 +48,7 @@
                   </svg>
                   批量识别端口
                 </a>
-                <a class="dropdown-item" href="#" @click.prevent="handleGenerateConfigForSelected">
+                <a class="dropdown-item" href="#" @click.prevent="handleGenerateConfigForSelected(); batchActionsDropdown.close()">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M14 3v4a1 1 0 0 0 1 1h4" />
@@ -69,7 +59,13 @@
               </div>
             </div>
             <div class="dropdown">
-              <button class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" :disabled="!currentServerId">
+              <button 
+                ref="addActionsDropdown.triggerRef"
+                class="btn btn-success btn-sm dropdown-toggle" 
+                @click.prevent="addActionsDropdown.toggle()"
+                :aria-expanded="addActionsDropdown.isOpen.value"
+                :disabled="!currentServerId"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M12 5l0 14" />
@@ -77,8 +73,13 @@
                 </svg>
                 添加
               </button>
-              <div class="dropdown-menu">
-                <a class="dropdown-item" href="#" @click.prevent="showAddProxyDialog = true" :class="{ disabled: !currentServerId }">
+              <div 
+                ref="addActionsDropdown.dropdownRef"
+                class="dropdown-menu"
+                :class="{ show: addActionsDropdown.isOpen.value }"
+                @click.stop
+              >
+                <a class="dropdown-item" href="#" @click.prevent="showAddProxyDialog = true; addActionsDropdown.close()" :class="{ disabled: !currentServerId }">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M12 5l0 14" />
@@ -86,7 +87,7 @@
                   </svg>
                   添加代理
                 </a>
-                <a class="dropdown-item" href="#" @click.prevent="showImportConfigDialog = true" :class="{ disabled: !currentServerId }">
+                <a class="dropdown-item" href="#" @click.prevent="showImportConfigDialog = true; addActionsDropdown.close()" :class="{ disabled: !currentServerId }">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M14 3v4a1 1 0 0 0 1 1h4" />
@@ -98,6 +99,15 @@
                 </a>
               </div>
             </div>
+            <button class="btn btn-success btn-sm" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
+              <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+              </svg>
+              同步
+            </button>
             <button class="btn btn-primary btn-sm" @click="refreshProxies" :disabled="proxiesStore.loading">
               <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -110,8 +120,9 @@
           </div>
         </div>
       </div>
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <!-- 搜索和过滤区域 -->
+      <div class="card-body border-bottom">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="d-flex gap-2 flex-wrap">
             <div style="width: 250px;">
               <TableSearch
@@ -131,9 +142,10 @@
             </select>
           </div>
         </div>
-        
-        <!-- 批量操作工具栏 -->
-        <div v-if="proxiesStore.selectedCount > 0" class="alert alert-info mb-3">
+      </div>
+      <!-- 批量操作工具栏 -->
+      <div v-if="proxiesStore.selectedCount > 0" class="card-body border-bottom">
+        <div class="alert alert-info mb-0">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="fw-bold">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
             <div class="d-flex gap-2 flex-wrap">
@@ -147,10 +159,10 @@
             </div>
           </div>
         </div>
-        
-        <!-- 代理表格 -->
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table">
+      </div>
+      <!-- 表格区域 -->
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table w-100">
             <thead>
               <tr>
                 <th>
@@ -208,11 +220,21 @@
                 </td>
                 <td>
                   <div class="dropdown">
-                    <button class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                    <button 
+                      :ref="el => { if (el) getProxyDropdown(proxy.id).triggerRef.value = el }"
+                      class="btn btn-sm dropdown-toggle" 
+                      @click.prevent="getProxyDropdown(proxy.id).toggle()"
+                      :aria-expanded="getProxyDropdown(proxy.id).isOpen.value"
+                    >
                       操作
                     </button>
-                    <div class="dropdown-menu">
-                      <a class="dropdown-item" href="#" @click.prevent="editProxy(proxy)">
+                    <div 
+                      :ref="el => { if (el) getProxyDropdown(proxy.id).dropdownRef.value = el }"
+                      class="dropdown-menu"
+                      :class="{ show: getProxyDropdown(proxy.id).isOpen.value }"
+                      @click.stop
+                    >
+                      <a class="dropdown-item" href="#" @click.prevent="editProxy(proxy); getProxyDropdown(proxy.id).close()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -222,7 +244,7 @@
                         编辑
                       </a>
                       <div class="dropdown-divider"></div>
-                      <a class="dropdown-item text-danger" href="#" @click.prevent="deleteProxy(proxy)">
+                      <a class="dropdown-item text-danger" href="#" @click.prevent="deleteProxy(proxy); getProxyDropdown(proxy.id).close()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M4 7l16 0" />
@@ -239,17 +261,16 @@
               </tr>
             </tbody>
           </table>
-        </div>
-        
-        <!-- 分页 -->
-        <div class="card-footer" v-if="proxiesStore.pagination.total > 0">
-          <TablePagination
-            :total="proxiesStore.pagination.total"
-            :page="proxiesStore.pagination.page"
-            :page-size="proxiesStore.pagination.page_size"
-            @page-change="handlePageChange"
-          />
-        </div>
+      </div>
+      <!-- 分页 -->
+      <div class="card-footer" v-if="proxiesStore.pagination.total > 0">
+        <TablePagination
+          :total="proxiesStore.pagination.total"
+          :page="proxiesStore.pagination.page"
+          :page-size="proxiesStore.pagination.page_size"
+          @page-change="handlePageChange"
+          @page-size-change="handlePageSizeChange"
+        />
       </div>
     </div>
 
@@ -291,15 +312,34 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useServersStore } from '@/stores/servers'
 import { useProxiesStore } from '@/stores/proxies'
+import { useRefresh } from '@/composables/useRefresh'
+import { useDropdown } from '@/composables/useDropdown'
+import { groupApi } from '@/api/groups'
 import ProxyDialog from '@/components/ProxyDialog.vue'
 import ImportConfigDialog from '@/components/ImportConfigDialog.vue'
 import ConfigGenerateDialog from '@/components/ConfigGenerateDialog.vue'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
+import ServerSelector from '@/components/ServerSelector.vue'
 
 const route = useRoute()
 const serversStore = useServersStore()
 const proxiesStore = useProxiesStore()
+const { triggerRefresh } = useRefresh()
+
+// 下拉菜单
+const batchActionsDropdown = useDropdown()
+const addActionsDropdown = useDropdown()
+
+// 每个代理的下拉菜单（使用 Map 存储）
+const proxyDropdowns = new Map()
+
+const getProxyDropdown = (proxyId) => {
+  if (!proxyDropdowns.has(proxyId)) {
+    proxyDropdowns.set(proxyId, useDropdown())
+  }
+  return proxyDropdowns.get(proxyId)
+}
 
 const currentServerId = ref(null)
 const showAddProxyDialog = ref(false)
@@ -309,21 +349,32 @@ const showImportConfigDialog = ref(false)
 const showConfigDialog = ref(false)
 const configGroupName = ref('')
 const bulkGroupName = ref('')
+const groupOptions = ref([])
 
-const groupOptions = computed(() => {
-  const groups = new Set()
-  proxiesStore.proxies.forEach(p => {
-    if (p.group_name) groups.add(p.group_name)
-  })
-  return Array.from(groups).sort()
-})
+// 加载分组列表
+const loadGroupOptions = async () => {
+  if (!currentServerId.value) {
+    groupOptions.value = []
+    return
+  }
+  
+  try {
+    const response = await groupApi.getGroupsList(currentServerId.value)
+    groupOptions.value = response.groups || []
+  } catch (error) {
+    console.error('加载分组列表失败:', error)
+    groupOptions.value = []
+  }
+}
 
 onMounted(async () => {
+  // ServerSelector 组件会自动加载服务器列表并设置默认值
+  // 这里只需要等待服务器列表加载完成
   try {
-    await serversStore.loadServers()
-    if (serversStore.servers.length > 0) {
-      currentServerId.value = serversStore.currentServerId || serversStore.servers[0].id
+    if (serversStore.servers.length === 0) {
+      await serversStore.loadServers()
     }
+    // 如果 ServerSelector 设置了值，watch 会自动触发 loadData
   } catch (error) {
     console.error('Load servers error:', error)
   }
@@ -331,8 +382,10 @@ onMounted(async () => {
 
 watch(currentServerId, async (newId) => {
   if (newId) {
-    serversStore.setCurrentServer(newId)
+    await loadGroupOptions()
     await loadData()
+  } else {
+    groupOptions.value = []
   }
 })
 
@@ -383,6 +436,11 @@ const handlePageChange = (newPage) => {
   loadData(newPage)
 }
 
+const handlePageSizeChange = (newPageSize) => {
+  proxiesStore.setPagination({ page_size: newPageSize, page: 1 })
+  loadData(1)
+}
+
 const handleSelectAll = (event) => {
   if (event.target.checked) {
     proxiesStore.toggleSelectAll(proxiesStore.proxies.map(p => p.id))
@@ -395,16 +453,30 @@ const refreshProxies = async () => {
   await loadData()
 }
 
-const testCurrentServer = async () => {
+const syncFromFrps = async () => {
   if (!currentServerId.value) return
   
   try {
-    await serversStore.testServer(currentServerId.value)
-    alert('连接测试成功')
-    await serversStore.loadServers()
+    await proxiesStore.loadProxies(currentServerId.value, {
+      page: 1,
+      page_size: proxiesStore.pagination.page_size,
+      syncFromFrps: true, // 启用同步
+      group_name: proxiesStore.filters.group || undefined,
+      status_filter: proxiesStore.filters.status || undefined,
+      search: proxiesStore.filters.search || undefined
+    })
+    // 同步完成后触发 Dashboard 刷新
+    triggerRefresh()
+    alert('同步完成，统计数据已更新')
   } catch (error) {
-    alert('连接测试失败: ' + error.message)
+    console.error('同步失败:', error)
+    alert('同步失败: ' + (error.message || '未知错误'))
   }
+}
+
+const handleTestServer = async () => {
+  alert('连接测试成功')
+  await serversStore.loadServers()
 }
 
 const handleBatchDetectPorts = async () => {
@@ -445,6 +517,7 @@ const handleBulkAssignGroup = async () => {
       bulkGroupName.value
     )
     alert('批量分配分组成功')
+    await loadGroupOptions()
     await loadData()
     proxiesStore.clearSelection()
     bulkGroupName.value = ''
@@ -486,10 +559,12 @@ const handleProxySuccess = () => {
   showAddProxyDialog.value = false
   showEditProxyDialog.value = false
   editingProxy.value = null
+  loadGroupOptions()
   loadData()
 }
 
 const handleImportSuccess = () => {
+  loadGroupOptions()
   loadData()
 }
 </script>

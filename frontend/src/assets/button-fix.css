@@ -1,0 +1,654 @@
+/* 修复 Tabler 按钮图标在 hover 时变白的问题 */
+
+/* 修复按钮背景色在 hover 时变白的问题 */
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #1a5aa0 !important;
+  border-color: #1a5aa0 !important;
+}
+
+.btn-primary:active {
+  background-color: #164d87 !important;
+  border-color: #164d87 !important;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  background-color: #5a6268 !important;
+  border-color: #5a6268 !important;
+}
+
+.btn-secondary:active {
+  background-color: #545b62 !important;
+  border-color: #545b62 !important;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+  background-color: #269636 !important;
+  border-color: #269636 !important;
+}
+
+.btn-success:active {
+  background-color: #1f7a2b !important;
+  border-color: #1f7a2b !important;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+  background-color: #cc8500 !important;
+  border-color: #cc8500 !important;
+}
+
+.btn-warning:active {
+  background-color: #b37300 !important;
+  border-color: #b37300 !important;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+  background-color: #b02a6b !important;
+  border-color: #b02a6b !important;
+}
+
+.btn-danger:active {
+  background-color: #9a2459 !important;
+  border-color: #9a2459 !important;
+}
+
+.btn-info:hover,
+.btn-info:focus {
+  background-color: #3083c7 !important;
+  border-color: #3083c7 !important;
+}
+
+.btn-info:active {
+  background-color: #2a6fa5 !important;
+  border-color: #2a6fa5 !important;
+}
+
+.btn-dark:hover,
+.btn-dark:focus {
+  background-color: #151b2e !important;
+  border-color: #151b2e !important;
+}
+
+.btn-dark:active {
+  background-color: #0f1420 !important;
+  border-color: #0f1420 !important;
+}
+
+.btn-light:hover,
+.btn-light:focus {
+  background-color: #e9ecef !important;
+  border-color: #e9ecef !important;
+}
+
+.btn-light:active {
+  background-color: #dee2e6 !important;
+  border-color: #dee2e6 !important;
+}
+
+/* Outline 按钮 hover 时的背景色 */
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background-color: #206bc4 !important;
+  border-color: #206bc4 !important;
+  color: #fff !important;
+}
+
+.btn-outline-primary:active {
+  background-color: #1a5aa0 !important;
+  border-color: #1a5aa0 !important;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+  background-color: #6c757d !important;
+  border-color: #6c757d !important;
+  color: #fff !important;
+}
+
+.btn-outline-secondary:active {
+  background-color: #5a6268 !important;
+  border-color: #5a6268 !important;
+}
+
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+  background-color: #2fb344 !important;
+  border-color: #2fb344 !important;
+  color: #fff !important;
+}
+
+.btn-outline-success:active {
+  background-color: #269636 !important;
+  border-color: #269636 !important;
+}
+
+.btn-outline-warning:hover,
+.btn-outline-warning:focus {
+  background-color: #f59f00 !important;
+  border-color: #f59f00 !important;
+  color: #fff !important;
+}
+
+.btn-outline-warning:active {
+  background-color: #cc8500 !important;
+  border-color: #cc8500 !important;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+  background-color: #d63384 !important;
+  border-color: #d63384 !important;
+  color: #fff !important;
+}
+
+.btn-outline-danger:active {
+  background-color: #b02a6b !important;
+  border-color: #b02a6b !important;
+}
+
+.btn-outline-info:hover,
+.btn-outline-info:focus {
+  background-color: #4299e1 !important;
+  border-color: #4299e1 !important;
+  color: #fff !important;
+}
+
+.btn-outline-info:active {
+  background-color: #3083c7 !important;
+  border-color: #3083c7 !important;
+}
+
+.btn-outline-dark:hover,
+.btn-outline-dark:focus {
+  background-color: #1e293b !important;
+  border-color: #1e293b !important;
+  color: #fff !important;
+}
+
+.btn-outline-dark:active {
+  background-color: #151b2e !important;
+  border-color: #151b2e !important;
+}
+
+.btn-outline-light:hover,
+.btn-outline-light:focus {
+  background-color: #f8f9fa !important;
+  border-color: #f8f9fa !important;
+  color: #1e293b !important;
+}
+
+.btn-outline-light:active {
+  background-color: #e9ecef !important;
+  border-color: #e9ecef !important;
+}
+
+/* Ghost 按钮 hover 时的背景色 */
+.btn-ghost-primary:hover,
+.btn-ghost-primary:focus {
+  background-color: rgba(32, 107, 196, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-secondary:hover,
+.btn-ghost-secondary:focus {
+  background-color: rgba(108, 117, 125, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-success:hover,
+.btn-ghost-success:focus {
+  background-color: rgba(47, 179, 68, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-warning:hover,
+.btn-ghost-warning:focus {
+  background-color: rgba(245, 159, 0, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-danger:hover,
+.btn-ghost-danger:focus {
+  background-color: rgba(214, 51, 132, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-info:hover,
+.btn-ghost-info:focus {
+  background-color: rgba(66, 153, 225, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-dark:hover,
+.btn-ghost-dark:focus {
+  background-color: rgba(30, 41, 59, 0.1) !important;
+  border-color: transparent !important;
+}
+
+.btn-ghost-light:hover,
+.btn-ghost-light:focus {
+  background-color: rgba(248, 249, 250, 0.1) !important;
+  border-color: transparent !important;
+}
+
+/* 标准按钮 - 确保图标颜色正确 */
+/* 默认状态 */
+.btn-primary .icon,
+.btn-primary svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-primary:hover .icon,
+.btn-primary:focus .icon,
+.btn-primary:active .icon,
+.btn-primary:hover svg,
+.btn-primary:focus svg,
+.btn-primary:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-secondary .icon,
+.btn-secondary svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-secondary:hover .icon,
+.btn-secondary:focus .icon,
+.btn-secondary:active .icon,
+.btn-secondary:hover svg,
+.btn-secondary:focus svg,
+.btn-secondary:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-success .icon,
+.btn-success svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-success:hover .icon,
+.btn-success:focus .icon,
+.btn-success:active .icon,
+.btn-success:hover svg,
+.btn-success:focus svg,
+.btn-success:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-warning .icon,
+.btn-warning svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-warning:hover .icon,
+.btn-warning:focus .icon,
+.btn-warning:active .icon,
+.btn-warning:hover svg,
+.btn-warning:focus svg,
+.btn-warning:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-danger .icon,
+.btn-danger svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-danger:hover .icon,
+.btn-danger:focus .icon,
+.btn-danger:active .icon,
+.btn-danger:hover svg,
+.btn-danger:focus svg,
+.btn-danger:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-info .icon,
+.btn-info svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-info:hover .icon,
+.btn-info:focus .icon,
+.btn-info:active .icon,
+.btn-info:hover svg,
+.btn-info:focus svg,
+.btn-info:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-dark .icon,
+.btn-dark svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-dark:hover .icon,
+.btn-dark:focus .icon,
+.btn-dark:active .icon,
+.btn-dark:hover svg,
+.btn-dark:focus svg,
+.btn-dark:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+/* 默认状态 */
+.btn-light .icon,
+.btn-light svg {
+  color: #1e293b !important;
+  stroke: currentColor !important;
+}
+
+.btn-light:hover .icon,
+.btn-light:focus .icon,
+.btn-light:active .icon,
+.btn-light:hover svg,
+.btn-light:focus svg,
+.btn-light:active svg {
+  color: #1e293b !important;
+  stroke: currentColor !important;
+}
+
+/* Outline 按钮 - 默认状态图标颜色和文字一致 */
+.btn-outline-primary .icon,
+.btn-outline-primary svg {
+  color: #206bc4 !important;
+  stroke: currentColor !important;
+}
+
+/* Outline 按钮 - hover 时图标应该变白 */
+.btn-outline-primary:hover .icon,
+.btn-outline-primary:focus .icon,
+.btn-outline-primary:active .icon,
+.btn-outline-primary:hover svg,
+.btn-outline-primary:focus svg,
+.btn-outline-primary:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-secondary .icon,
+.btn-outline-secondary svg {
+  color: #6c757d !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-secondary:hover .icon,
+.btn-outline-secondary:focus .icon,
+.btn-outline-secondary:active .icon,
+.btn-outline-secondary:hover svg,
+.btn-outline-secondary:focus svg,
+.btn-outline-secondary:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-success .icon,
+.btn-outline-success svg {
+  color: #2fb344 !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-success:hover .icon,
+.btn-outline-success:focus .icon,
+.btn-outline-success:active .icon,
+.btn-outline-success:hover svg,
+.btn-outline-success:focus svg,
+.btn-outline-success:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-warning .icon,
+.btn-outline-warning svg {
+  color: #f59f00 !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-warning:hover .icon,
+.btn-outline-warning:focus .icon,
+.btn-outline-warning:active .icon,
+.btn-outline-warning:hover svg,
+.btn-outline-warning:focus svg,
+.btn-outline-warning:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-danger .icon,
+.btn-outline-danger svg {
+  color: #d63384 !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-danger:hover .icon,
+.btn-outline-danger:focus .icon,
+.btn-outline-danger:active .icon,
+.btn-outline-danger:hover svg,
+.btn-outline-danger:focus svg,
+.btn-outline-danger:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-info .icon,
+.btn-outline-info svg {
+  color: #4299e1 !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-info:hover .icon,
+.btn-outline-info:focus .icon,
+.btn-outline-info:active .icon,
+.btn-outline-info:hover svg,
+.btn-outline-info:focus svg,
+.btn-outline-info:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-dark .icon,
+.btn-outline-dark svg {
+  color: #1e293b !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-dark:hover .icon,
+.btn-outline-dark:focus .icon,
+.btn-outline-dark:active .icon,
+.btn-outline-dark:hover svg,
+.btn-outline-dark:focus svg,
+.btn-outline-dark:active svg {
+  color: #fff !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-light .icon,
+.btn-outline-light svg {
+  color: #f8f9fa !important;
+  stroke: currentColor !important;
+}
+
+.btn-outline-light:hover .icon,
+.btn-outline-light:focus .icon,
+.btn-outline-light:active .icon,
+.btn-outline-light:hover svg,
+.btn-outline-light:focus svg,
+.btn-outline-light:active svg {
+  color: #1e293b !important;
+  stroke: currentColor !important;
+}
+
+/* Ghost 按钮 - hover 时保持图标颜色 */
+.btn-ghost-primary .icon,
+.btn-ghost-primary svg {
+  color: #206bc4 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-primary:hover .icon,
+.btn-ghost-primary:focus .icon,
+.btn-ghost-primary:active .icon,
+.btn-ghost-primary:hover svg,
+.btn-ghost-primary:focus svg,
+.btn-ghost-primary:active svg {
+  color: #1a5aa0 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-secondary .icon,
+.btn-ghost-secondary svg {
+  color: #6c757d !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-secondary:hover .icon,
+.btn-ghost-secondary:focus .icon,
+.btn-ghost-secondary:active .icon,
+.btn-ghost-secondary:hover svg,
+.btn-ghost-secondary:focus svg,
+.btn-ghost-secondary:active svg {
+  color: #5a6268 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-success .icon,
+.btn-ghost-success svg {
+  color: #2fb344 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-success:hover .icon,
+.btn-ghost-success:focus .icon,
+.btn-ghost-success:active .icon,
+.btn-ghost-success:hover svg,
+.btn-ghost-success:focus svg,
+.btn-ghost-success:active svg {
+  color: #269636 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-warning .icon,
+.btn-ghost-warning svg {
+  color: #f59f00 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-warning:hover .icon,
+.btn-ghost-warning:focus .icon,
+.btn-ghost-warning:active .icon,
+.btn-ghost-warning:hover svg,
+.btn-ghost-warning:focus svg,
+.btn-ghost-warning:active svg {
+  color: #cc8500 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-danger .icon,
+.btn-ghost-danger svg {
+  color: #d63384 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-danger:hover .icon,
+.btn-ghost-danger:focus .icon,
+.btn-ghost-danger:active .icon,
+.btn-ghost-danger:hover svg,
+.btn-ghost-danger:focus svg,
+.btn-ghost-danger:active svg {
+  color: #b02a6b !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-info .icon,
+.btn-ghost-info svg {
+  color: #4299e1 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-info:hover .icon,
+.btn-ghost-info:focus .icon,
+.btn-ghost-info:active .icon,
+.btn-ghost-info:hover svg,
+.btn-ghost-info:focus svg,
+.btn-ghost-info:active svg {
+  color: #3083c7 !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-dark .icon,
+.btn-ghost-dark svg {
+  color: #1e293b !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-dark:hover .icon,
+.btn-ghost-dark:focus .icon,
+.btn-ghost-dark:active .icon,
+.btn-ghost-dark:hover svg,
+.btn-ghost-dark:focus svg,
+.btn-ghost-dark:active svg {
+  color: #151b2e !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-light .icon,
+.btn-ghost-light svg {
+  color: #f8f9fa !important;
+  stroke: currentColor !important;
+}
+
+.btn-ghost-light:hover .icon,
+.btn-ghost-light:focus .icon,
+.btn-ghost-light:active .icon,
+.btn-ghost-light:hover svg,
+.btn-ghost-light:focus svg,
+.btn-ghost-light:active svg {
+  color: #e9ecef !important;
+  stroke: currentColor !important;
+}
+
+/* 确保按钮内的所有 SVG 元素都正确继承颜色 */
+.btn svg.icon,
+.btn .icon svg {
+  transition: color 0.15s ease-in-out, stroke 0.15s ease-in-out;
+}
+
+/* 修复按钮文字和图标颜色同步 */
+.btn:hover,
+.btn:focus,
+.btn:active {
+  color: inherit;
+}
+
+/* 确保 disabled 状态的按钮图标也有正确的颜色 */
+.btn:disabled .icon,
+.btn:disabled svg,
+.btn.disabled .icon,
+.btn.disabled svg {
+  opacity: 0.65;
+}
+

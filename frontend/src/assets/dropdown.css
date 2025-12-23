@@ -1,0 +1,158 @@
+/* 统一下拉列表样式 - 基于 Tabler 设计规范 */
+
+/* Dropdown 菜单统一样式 */
+.dropdown-menu {
+  border-radius: var(--tblr-border-radius);
+  box-shadow: var(--tblr-shadow-lg);
+  border: 1px solid var(--tblr-border-color);
+  padding: 0.5rem 0;
+  min-width: 12rem;
+}
+
+/* Dropdown 菜单项统一样式 */
+.dropdown-item {
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--tblr-body-color);
+  line-height: 1.5;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--tblr-bg-surface-secondary);
+  color: var(--tblr-body-color);
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: var(--tblr-primary);
+  color: var(--tblr-primary-fg);
+}
+
+.dropdown-item.disabled,
+.dropdown-item:disabled {
+  color: var(--tblr-muted);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Dropdown 菜单项图标样式 */
+.dropdown-item-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+/* Dropdown 分隔线样式 */
+.dropdown-divider {
+  margin: 0.5rem 0;
+  border-top: 1px solid var(--tblr-border-color);
+  opacity: 1;
+}
+
+/* Dropdown 菜单标题样式 */
+.dropdown-header {
+  padding: 0.5rem 1rem;
+  margin-bottom: 0;
+  font-size: 0.75rem;
+  color: var(--tblr-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Select 选择框统一样式 */
+.form-select {
+  border-radius: var(--tblr-border-radius);
+  border: 1px solid var(--tblr-border-color);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-select:focus {
+  border-color: var(--tblr-primary);
+  box-shadow: 0 0 0 0.2rem rgba(var(--tblr-primary-rgb), 0.25);
+}
+
+.form-select:disabled {
+  background-color: var(--tblr-bg-surface-secondary);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 小尺寸 Select 选择框 */
+.form-select-sm {
+  padding: 0.25rem 2rem 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* 表格中的下拉菜单样式 */
+.table td .dropdown {
+  position: static;
+}
+
+.table td .dropdown-menu {
+  position: absolute;
+  z-index: 1050;
+}
+
+/* Dropdown 按钮统一样式 */
+.dropdown-toggle::after {
+  margin-left: 0.5rem;
+  vertical-align: 0.255em;
+}
+
+/* 确保下拉菜单在表格中正确显示 */
+.table-responsive .dropdown-menu {
+  position: absolute;
+}
+
+/* 危险操作项样式 */
+.dropdown-item.text-danger {
+  color: var(--tblr-danger) !important;
+}
+
+.dropdown-item.text-danger:hover {
+  background-color: rgba(var(--tblr-danger-rgb), 0.1);
+  color: var(--tblr-danger) !important;
+}
+
+/* Select 选择框宽度工具类 */
+.form-select-auto {
+  width: auto;
+}
+
+.form-select-fit {
+  width: fit-content;
+}
+
+/* 确保 Select 选择框在 flex 布局中正确显示 */
+.d-flex .form-select {
+  flex-shrink: 0;
+}
+
+/* Dropdown 菜单箭头样式（用于 dropdown-menu-arrow） */
+.dropdown-menu-arrow::before {
+  content: '';
+  position: absolute;
+  top: -0.5rem;
+  right: 1rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--tblr-bg-surface);
+  border: 1px solid var(--tblr-border-color);
+  border-bottom: none;
+  border-right: none;
+  transform: rotate(45deg);
+}
+
+.dropdown-menu-end.dropdown-menu-arrow::before {
+  right: auto;
+  left: 1rem;
+}
+
+

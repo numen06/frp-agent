@@ -14,7 +14,7 @@ export const useProxiesStore = defineStore('proxies', {
     loading: false,
     pagination: {
       page: 1,
-      page_size: 20,
+      page_size: 10,
       total: 0
     },
     stats: {

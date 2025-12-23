@@ -45,13 +45,62 @@ class DeleteGroupRequest(BaseModel):
     reassign_group: Optional[str] = None  # 可选：将代理重新分配到的分组
 
 
-@router.get("")
-def get_groups(
+@router.get("/list")
+def get_groups_list(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取代理分组列表及统计信息
+    """获取所有分组名称列表（用于下拉选择）
+    
+    返回所有分组的名称列表，包括：
+    1. Group 表中已创建的分组
+    2. Proxy 表中存在的分组（即使未在 Group 表中创建）
+    """
+    groups_set = set()
+    
+    # 1. 从 Group 表获取已创建的分组
+    group_query = db.query(Group.name)
+    if frps_server_id:
+        group_query = group_query.filter(Group.frps_server_id == frps_server_id)
+    
+    created_groups = group_query.all()
+    for group in created_groups:
+        groups_set.add(group.name)
+    
+    # 2. 从 Proxy 表获取存在的分组
+    proxy_query = db.query(Proxy.group_name).filter(
+        Proxy.group_name.isnot(None),
+        Proxy.group_name != ""
+    ).distinct()
+    
+    if frps_server_id:
+        proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
+    
+    proxy_groups = proxy_query.all()
+    for group in proxy_groups:
+        if group.group_name:
+            groups_set.add(group.group_name)
+    
+    # 排序并返回
+    groups_list = sorted(list(groups_set))
+    
+    return {
+        "groups": groups_list,
+        "total": len(groups_list)
+    }
+
+
+@router.get("")
+def get_groups(
+    frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
+    search: Optional[str] = Query(None, description="搜索分组名称"),
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取代理分组列表及统计信息（支持分页和搜索）
     
     返回所有分组及其代理数量、在线数量等统计信息
     合并 Group 表（已创建的空分组）和 Proxy 表（有代理的分组）的数据
@@ -130,9 +179,23 @@ def get_groups(
     # 按分组名称排序
     groups.sort(key=lambda x: x["group_name"])
     
+    # 搜索过滤
+    if search:
+        search_pattern = search.lower()
+        groups = [g for g in groups if search_pattern in g["group_name"].lower()]
+    
+    # 计算总数
+    total = len(groups)
+    
+    # 应用分页
+    offset = (page - 1) * page_size
+    paginated_groups = groups[offset:offset + page_size]
+    
     return {
-        "groups": groups,
-        "total_groups": len(groups)
+        "items": paginated_groups,
+        "page": page,
+        "page_size": page_size,
+        "total": total
     }
 
 

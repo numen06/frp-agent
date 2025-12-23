@@ -1,31 +1,11 @@
 <template>
   <div>
     <!-- 服务器选择 -->
-    <div class="card mb-3">
-      <div class="card-header">
-        <h3 class="card-title">服务器选择</h3>
-      </div>
-      <div class="card-body">
-        <div class="row g-3 align-items-center">
-          <div class="col-auto">
-            <label class="form-label">当前服务器：</label>
-          </div>
-          <div class="col-auto">
-            <select class="form-select" v-model="currentServerId" @change="handleServerChange" :disabled="serversStore.loading">
-              <option :value="null">请选择服务器...</option>
-              <option v-for="server in serversStore.servers" :key="server.id" :value="server.id">
-                {{ server.name }}
-              </option>
-            </select>
-          </div>
-          <div class="col-auto">
-            <button class="btn btn-outline-secondary" @click="testCurrentServer" :disabled="!currentServerId">
-              测试连接
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ServerSelector 
+      v-model="currentServerId" 
+      @change="handleServerChange"
+      @test="handleTestServer"
+    />
 
     <!-- 分组管理 -->
     <GroupManage
@@ -57,6 +37,7 @@ import { useServersStore } from '@/stores/servers'
 import { useProxiesStore } from '@/stores/proxies'
 import GroupManage from '@/components/GroupManage.vue'
 import ConfigGenerateDialog from '@/components/ConfigGenerateDialog.vue'
+import ServerSelector from '@/components/ServerSelector.vue'
 
 const router = useRouter()
 const serversStore = useServersStore()
@@ -67,10 +48,11 @@ const showConfigDialog = ref(false)
 const configGroupName = ref('')
 
 onMounted(async () => {
+  // ServerSelector 组件会自动加载服务器列表并设置默认值
+  // 这里只需要等待服务器列表加载完成
   try {
-    await serversStore.loadServers()
-    if (serversStore.servers.length > 0) {
-      currentServerId.value = serversStore.currentServerId || serversStore.servers[0].id
+    if (serversStore.servers.length === 0) {
+      await serversStore.loadServers()
     }
   } catch (error) {
     console.error('Load servers error:', error)
@@ -78,25 +60,17 @@ onMounted(async () => {
 })
 
 watch(currentServerId, async (newId) => {
-  if (newId) {
-    serversStore.setCurrentServer(newId)
-  }
+  // ServerSelector 组件内部已经调用了 setCurrentServer
+  // 这里不需要重复调用
 })
 
 const handleServerChange = () => {
   // 服务器变化时，GroupManage 组件会自动重新加载
 }
 
-const testCurrentServer = async () => {
-  if (!currentServerId.value) return
-  
-  try {
-    await serversStore.testServer(currentServerId.value)
-    alert('连接测试成功')
-    await serversStore.loadServers()
-  } catch (error) {
-    alert('连接测试失败: ' + error.message)
-  }
+const handleTestServer = async () => {
+  alert('连接测试成功')
+  await serversStore.loadServers()
 }
 
 const handleViewGroup = (groupName) => {
