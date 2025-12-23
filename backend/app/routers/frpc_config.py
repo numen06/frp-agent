@@ -610,4 +610,117 @@ def get_config_direct(
         raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
 
 
+@router.get("/config/{server}/{group}", response_class=PlainTextResponse)
+def get_config_by_server_and_group(
+    server: str,
+    group: str,
+    format: str = Query("ini", description="配置格式：ini 或 toml"),
+    client_name: str = Query(None, description="客户端名称（可选）"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """根据服务器和分组获取 frpc 配置文件（支持 API Key 认证）
+    
+    根据指定的服务器名称/ID 和分组名称获取 frpc 配置文件。
+    支持 API Key 认证（URL 参数 api_key 或 Bearer Token）。
+    
+    参数:
+    - server: 服务器名称或 ID（路径参数）
+    - group: 分组名称（路径参数）
+    - format: 配置格式，ini 或 toml（默认 ini）
+    - client_name: 客户端名称（可选）
+    - api_key: API Key（URL 参数，推荐使用）
+    
+    使用示例:
+    ```bash
+    # 方式1：使用 URL 参数 api_key（推荐）
+    curl "http://your-api/api/frpc/config/test_server/my_group?format=toml&api_key=YOUR_API_KEY" \
+      -o frpc.toml
+    
+    # 方式2：使用 Bearer Token
+    curl -H "Authorization: Bearer YOUR_API_KEY" \
+      "http://your-api/api/frpc/config/test_server/my_group?format=toml" \
+      -o frpc.toml
+    
+    # 方式3：使用 Basic Auth
+    curl -u username:password \
+      "http://your-api/api/frpc/config/test_server/my_group?format=toml" \
+      -o frpc.toml
+    ```
+    """
+    try:
+        # 验证分组名称
+        group = group.strip()
+        if not group:
+            raise HTTPException(status_code=400, detail="分组名称不能为空")
+        
+        if group == "其他":
+            raise HTTPException(status_code=400, detail="不能使用'其他'作为分组名称")
+        
+        # 查找服务器（先尝试按名称查找，如果失败再尝试按ID）
+        server_obj = db.query(FrpsServer).filter(FrpsServer.name == server).first()
+        if not server_obj:
+            # 尝试将 server 作为 ID
+            try:
+                server_id = int(server)
+                server_obj = db.query(FrpsServer).filter(
+                    FrpsServer.id == server_id,
+                    FrpsServer.is_active == True
+                ).first()
+            except ValueError:
+                pass
+        
+        if not server_obj:
+            raise HTTPException(status_code=404, detail=f"服务器 '{server}' 不存在")
+        
+        if not server_obj.is_active:
+            raise HTTPException(status_code=404, detail=f"服务器 '{server}' 未激活")
+        
+        server_id = server_obj.id
+        
+        # 检查分组是否存在（查询 Group 表或 Proxy 表）
+        group_exists = False
+        
+        # 先检查 Group 表
+        group_record = db.query(Group).filter(
+            Group.frps_server_id == server_id,
+            Group.name == group
+        ).first()
+        
+        if group_record:
+            group_exists = True
+        else:
+            # 检查 Proxy 表中是否有该分组的代理
+            proxy_count = db.query(Proxy).filter(
+                Proxy.frps_server_id == server_id,
+                Proxy.group_name == group
+            ).count()
+            
+            if proxy_count > 0:
+                group_exists = True
+        
+        if not group_exists:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"分组 '{group}' 在服务器 '{server}' 中不存在"
+            )
+        
+        # 生成并返回配置文件
+        service = FrpcConfigService(db)
+        config = service.generate_config_for_group(
+            group_name=group,
+            frps_server_id=server_id,
+            client_name=client_name,
+            format=format
+        )
+        return config
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
+
+
 

@@ -27,15 +27,15 @@
         </p>
         <div class="mb-2">
           <strong>接口地址：</strong>
-          <code class="ms-2">GET /api/frpc/config/group/{group_name}</code>
+          <code class="ms-2">GET /api/frpc/config/{server}/{group}</code>
         </div>
         <div class="mb-2">
           <strong>功能特点：</strong>
           <ul class="mb-0 mt-1">
             <li>支持 API Key 认证（URL 参数 <code>api_key</code>）</li>
-            <li>如果分组不存在，自动创建分组和默认代理配置（docker:9000, ssh:22, http:80）</li>
-            <li>如果分组已存在，直接返回该分组的配置</li>
-            <li>支持可选参数：<code>server_id</code>（服务器ID）、<code>format</code>（ini/toml）、<code>client_name</code>（客户端名称）</li>
+            <li>服务器和分组都在路径中，更直观易用</li>
+            <li>支持可选参数：<code>format</code>（ini/toml，默认ini）、<code>client_name</code>（客户端名称）</li>
+            <li>服务器参数可以是服务器名称或服务器ID</li>
           </ul>
         </div>
         <div class="mb-2">
@@ -263,6 +263,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
+import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
 import { useDropdown } from '@/composables/useDropdown'
 import { apiKeysApi } from '@/api/apiKeys'
@@ -279,6 +280,7 @@ const props = defineProps({
 })
 
 const groupsStore = useGroupsStore()
+const serversStore = useServersStore()
 
 // 每个分组的下拉菜单（使用 Map 存储）
 const groupDropdowns = new Map()
@@ -306,7 +308,15 @@ const loadGroups = async (page = 1) => {
 }
 
 // 组件挂载时加载数据
-onMounted(() => {
+onMounted(async () => {
+  // 确保服务器列表已加载
+  if (serversStore.servers.length === 0) {
+    try {
+      await serversStore.loadServers()
+    } catch (error) {
+      console.error('加载服务器列表失败:', error)
+    }
+  }
   loadGroups()
 })
 
@@ -316,6 +326,11 @@ watch(() => props.serverId, (newId) => {
     loadGroups()
   }
 })
+
+// 监听服务器列表变化，确保示例命令能正确获取服务器名称
+watch(() => serversStore.servers, () => {
+  // 当服务器列表更新时，computed 属性会自动重新计算
+}, { deep: true })
 
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
@@ -415,6 +430,28 @@ const handleApiKeyChange = () => {
   updateFullKey()
 }
 
+// 获取当前服务器名称或ID
+const currentServerName = computed(() => {
+  if (!props.serverId) {
+    return 'server_name'
+  }
+  // 从 stores 获取服务器信息
+  const server = serversStore.servers.find(s => s.id === props.serverId)
+  if (server && server.name) {
+    return encodeURIComponent(server.name)
+  }
+  // 如果没有找到，返回服务器ID
+  return String(props.serverId)
+})
+
+// 获取示例分组名称（使用第一个分组或默认值）
+const exampleGroupName = computed(() => {
+  if (groupsStore.groups.length > 0) {
+    return encodeURIComponent(groupsStore.groups[0].group_name)
+  }
+  return 'test'
+})
+
 // 计算示例命令 - 从 localStorage 读取的密钥或使用占位符
 const exampleCommand = computed(() => {
   // 使用从 localStorage 读取的密钥，如果没有则使用占位符
@@ -428,8 +465,10 @@ const exampleCommand = computed(() => {
     }
   }
   const baseUrl = apiBaseUrl.value
-  // 生成单行命令（更易复制执行）- 使用 URL 参数传递 API Key
-  return `curl "${baseUrl}/frpc/config/group/test?format=toml&api_key=${apiKey}" -o frpc.toml`
+  const serverName = currentServerName.value
+  const groupName = exampleGroupName.value
+  // 生成单行命令（更易复制执行）- 使用新的端点格式，服务器和分组都在路径中
+  return `curl "${baseUrl}/frpc/config/${serverName}/${groupName}?format=toml&api_key=${apiKey}" -o frpc.toml`
 })
 
 // 获取选中的 API Key 描述

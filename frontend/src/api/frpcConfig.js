@@ -1,6 +1,14 @@
 import api from './index'
 
 export const frpcConfigApi = {
+  // 根据服务器和分组生成配置（推荐，服务器和分组都在路径中）
+  getConfigByServerAndGroup(server, group, params = {}) {
+    return api.get(`/frpc/config/${encodeURIComponent(server)}/${encodeURIComponent(group)}`, {
+      params,
+      responseType: 'text'
+    })
+  },
+  
   // 根据分组生成配置（快捷方式，支持自动创建分组）
   getConfigByGroupQuick(groupName, params = {}) {
     return api.get(`/frpc/config/group/${encodeURIComponent(groupName)}`, {
