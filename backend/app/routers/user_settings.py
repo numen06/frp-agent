@@ -22,6 +22,53 @@ class UserSettings(BaseModel):
     username: str
 
 
+class PasswordCheckResponse(BaseModel):
+    """密码检查响应"""
+    require_password_change: bool
+    reason: str = ""
+
+
+@router.get("/check-password", response_model=PasswordCheckResponse)
+def check_password_requirement(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """检查是否需要强制修改密码"""
+    settings = get_settings()
+    
+    # 默认用户名和密码
+    default_username = "admin"
+    default_password = "admin"
+    
+    # 检查用户名是否为默认用户名
+    if current_user.username != default_username:
+        return {
+            "require_password_change": False,
+            "reason": "用户名不是默认用户名"
+        }
+    
+    # 如果是数据库用户（id != 0），检查密码哈希是否匹配默认密码
+    if current_user.id != 0:
+        if verify_password(default_password, current_user.password_hash):
+            return {
+                "require_password_change": True,
+                "reason": "检测到使用默认密码，为了安全起见，请立即修改密码"
+            }
+    else:
+        # 如果是临时用户（id=0），检查是否使用的是配置中的默认密码
+        if (settings.auth_username == default_username and 
+            settings.auth_password == default_password):
+            return {
+                "require_password_change": True,
+                "reason": "检测到使用默认密码，为了安全起见，请立即修改密码"
+            }
+    
+    return {
+        "require_password_change": False,
+        "reason": "密码已修改"
+    }
+
+
 @router.get("/user", response_model=UserSettings)
 def get_user_settings(current_user: User = Depends(get_current_user)):
     """获取用户设置"""

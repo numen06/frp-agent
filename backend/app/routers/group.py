@@ -516,7 +516,19 @@ def auto_analyze_groups(
     analysis_result["unchanged"] = len(proxies) - updated_count - skipped_count
     analysis_result["new_groups"] = list(new_groups)
     
-    db.commit()
+    # 确保数据持久化保存
+    try:
+        # 先刷新更改到数据库（但不提交事务）
+        db.flush()
+        # 提交事务，持久化保存所有更改
+        db.commit()
+    except Exception as e:
+        # 如果保存失败，回滚所有更改
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"保存分组数据失败: {str(e)}"
+        )
     
     return {
         "success": True,

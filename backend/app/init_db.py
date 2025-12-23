@@ -3,7 +3,7 @@ import sys
 from sqlalchemy.orm import Session
 
 from app.database import engine, SessionLocal, Base
-from app.models import User, FrpsServer, Proxy, PortAllocation, ProxyHistory
+from app.models import User, FrpsServer, Proxy, PortAllocation, ProxyHistory, ApiKey
 from app.auth import get_password_hash
 from app.config import get_settings
 

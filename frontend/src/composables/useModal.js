@@ -12,8 +12,24 @@ const globalEscapeHandler = (event) => {
     for (let i = activeModals.length - 1; i >= 0; i--) {
       const handler = activeModals[i]
       if (handler.visible && handler.visible.value && handler.onClose) {
-        handler.onClose()
-        break
+        // 检查是否禁用ESC退出
+        let isDisabled = false
+        if (handler.disabled !== false) {
+          if (typeof handler.disabled === 'function') {
+            isDisabled = handler.disabled()
+          } else if (typeof handler.disabled === 'object' && handler.disabled && 'value' in handler.disabled) {
+            // 是响应式引用
+            isDisabled = handler.disabled.value
+          } else {
+            isDisabled = !!handler.disabled
+          }
+        }
+        
+        // 如果未禁用，则关闭模态框
+        if (!isDisabled) {
+          handler.onClose()
+          break
+        }
       }
     }
   }
@@ -25,12 +41,15 @@ const globalEscapeHandler = (event) => {
  * 
  * @param {Ref} visible - 模态框可见性状态
  * @param {Function} onClose - 关闭回调函数
+ * @param {Object} options - 选项配置
+ * @param {Boolean|Ref|Function} options.disabled - 是否禁用ESC退出，可以是布尔值、响应式引用或返回布尔值的函数
  */
-export function useModal(visible, onClose) {
+export function useModal(visible, onClose, options = {}) {
   // 创建模态框处理器对象
   const modalHandler = {
     visible,
-    onClose
+    onClose,
+    disabled: options.disabled || false
   }
 
   // 监听 visible 变化，动态添加/移除 ESC 监听器

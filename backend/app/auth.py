@@ -1,6 +1,7 @@
 """认证模块"""
 import secrets
 import base64
+import hashlib
 from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
+from app.models.api_key import ApiKey
 
 settings = get_settings()
 security = HTTPBasic(auto_error=False)  # 不自动报错，避免浏览器弹窗
@@ -53,11 +55,40 @@ def get_auth_from_header(authorization: Optional[str]) -> Optional[tuple[str, st
         return None
 
 
+def hash_api_key(key: str) -> str:
+    """对 API Key 进行哈希"""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def verify_api_key(db: Session, api_key: str) -> Optional[ApiKey]:
+    """验证 API Key"""
+    key_hash = hash_api_key(api_key)
+    api_key_obj = db.query(ApiKey).filter(ApiKey.key == key_hash).first()
+    
+    if not api_key_obj:
+        return None
+    
+    # 检查是否激活
+    if not api_key_obj.is_active:
+        return None
+    
+    # 检查是否过期
+    if api_key_obj.is_expired():
+        return None
+    
+    # 更新最后使用时间
+    from datetime import datetime
+    api_key_obj.last_used_at = datetime.utcnow()
+    db.commit()
+    
+    return api_key_obj
+
+
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db)
 ) -> User:
-    """获取当前认证用户（自定义 Token 验证）"""
+    """获取当前认证用户（支持 Basic Auth 和 API Key）"""
     # 从 Header 中获取 Authorization
     authorization = request.headers.get('Authorization')
     
@@ -67,7 +98,26 @@ def get_current_user(
             detail="未提供认证信息",
         )
     
-    # 解析认证信息
+    # 尝试 API Key 认证（Bearer token）
+    if authorization.startswith('Bearer '):
+        api_key = authorization[7:].strip()
+        api_key_obj = verify_api_key(db, api_key)
+        if api_key_obj:
+            # API Key 验证成功，返回一个临时用户对象
+            # 使用 API Key 的描述作为用户名标识
+            temp_user = User(
+                id=-api_key_obj.id,  # 使用负数 ID 标识 API Key 用户
+                username=f"api_key_{api_key_obj.id}",
+                password_hash=""
+            )
+            return temp_user
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API Key 无效或已过期",
+            )
+    
+    # 尝试 Basic Auth 认证
     auth_info = get_auth_from_header(authorization)
     if not auth_info:
         raise HTTPException(

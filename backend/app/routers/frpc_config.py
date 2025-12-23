@@ -10,6 +10,8 @@ from app.auth import get_current_user, get_auth_from_header, authenticate_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
 from app.models.temp_config import TempConfig
+from app.models.group import Group
+from app.models.proxy import Proxy
 from app.services.frpc_config_service import FrpcConfigService
 from app.config import get_settings
 from datetime import datetime
@@ -38,13 +40,15 @@ class GenerateConfigByProxiesRequest(BaseModel):
     format: str = "ini"  # 配置格式：ini 或 toml
 
 
-@router.post("/config/by-group", response_class=PlainTextResponse)
+@router.post("/config/by-group", response_class=PlainTextResponse, deprecated=True)
 def generate_config_by_group(
     request: GenerateConfigByGroupRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """根据分组生成 frpc 配置文件
+    
+    [已弃用] 推荐使用 GET /api/frpc/config/group/{group_name} 接口，支持 API Key 和自动创建分组。
     
     根据指定的分组名称和服务器，生成包含该分组所有代理的 frpc 配置文件。
     """
@@ -134,7 +138,157 @@ def generate_config_by_proxies(
         raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
 
 
-@router.get("/config/by-group/{group_name}", response_class=PlainTextResponse)
+@router.get("/config/group/{group_name}", response_class=PlainTextResponse)
+def get_config_by_group_quick(
+    group_name: str,
+    server_id: int = Query(None, description="frps 服务器 ID（可选，不提供则使用第一个激活的服务器）"),
+    client_name: str = Query(None, description="客户端名称（可选）"),
+    format: str = Query("ini", description="配置格式：ini 或 toml"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """快捷获取分组配置（支持 API Key，自动创建分组）
+    
+    根据指定的分组名称获取 frpc 配置文件。
+    如果分组不存在，会自动创建分组和默认代理配置（docker:9000, ssh:22, http:80）。
+    支持 API Key 认证（Bearer Token）。
+    
+    参数:
+    - group_name: 分组名称（路径参数）
+    - server_id: 服务器 ID（可选，不提供则使用第一个激活的服务器）
+    - format: 配置格式，ini 或 toml（默认 ini）
+    - client_name: 客户端名称（可选）
+    
+    使用示例:
+    ```bash
+    curl -H "Authorization: Bearer YOUR_API_KEY" \
+      "http://your-api/api/frpc/config/group/test?format=toml" \
+      -o frpc.toml
+    ```
+    """
+    try:
+        # 验证分组名称
+        group_name = group_name.strip()
+        if not group_name:
+            raise HTTPException(status_code=400, detail="分组名称不能为空")
+        
+        if group_name == "其他":
+            raise HTTPException(status_code=400, detail="不能使用'其他'作为分组名称")
+        
+        # 确定目标服务器
+        if server_id:
+            server = db.query(FrpsServer).filter(
+                FrpsServer.id == server_id,
+                FrpsServer.is_active == True
+            ).first()
+            if not server:
+                raise HTTPException(status_code=404, detail=f"服务器 ID {server_id} 不存在或未激活")
+        else:
+            # 使用第一个激活的服务器
+            server = db.query(FrpsServer).filter(FrpsServer.is_active == True).first()
+            if not server:
+                raise HTTPException(status_code=404, detail="没有可用的激活服务器")
+            server_id = server.id
+        
+        # 检查分组是否存在（查询 Group 表或 Proxy 表）
+        group_exists = False
+        
+        # 先检查 Group 表
+        group_record = db.query(Group).filter(
+            Group.frps_server_id == server_id,
+            Group.name == group_name
+        ).first()
+        
+        if group_record:
+            group_exists = True
+        else:
+            # 检查 Proxy 表中是否有该分组的代理
+            proxy_count = db.query(Proxy).filter(
+                Proxy.frps_server_id == server_id,
+                Proxy.group_name == group_name
+            ).count()
+            
+            if proxy_count > 0:
+                group_exists = True
+        
+        # 如果分组不存在，创建分组和默认代理
+        if not group_exists:
+            # 创建分组记录
+            new_group = Group(
+                frps_server_id=server_id,
+                name=group_name
+            )
+            db.add(new_group)
+            db.flush()  # 获取 ID 但不提交
+            
+            # 创建默认代理配置
+            default_configs = [
+                {
+                    "name": f"{group_name}_docker",
+                    "proxy_type": "tcp",
+                    "local_ip": "127.0.0.1",
+                    "local_port": 9000,
+                    "remote_port": None,
+                },
+                {
+                    "name": f"{group_name}_ssh",
+                    "proxy_type": "tcp",
+                    "local_ip": "127.0.0.1",
+                    "local_port": 22,
+                    "remote_port": None,
+                },
+                {
+                    "name": f"{group_name}_http",
+                    "proxy_type": "tcp",
+                    "local_ip": "127.0.0.1",
+                    "local_port": 80,
+                    "remote_port": None,
+                }
+            ]
+            
+            # 检查已存在的代理名称
+            existing_proxies = db.query(Proxy).filter(
+                Proxy.frps_server_id == server_id,
+                Proxy.group_name == group_name
+            ).all()
+            existing_names = set([p.name for p in existing_proxies])
+            
+            # 创建不存在的代理
+            for config in default_configs:
+                if config["name"] not in existing_names:
+                    new_proxy = Proxy(
+                        frps_server_id=server_id,
+                        name=config["name"],
+                        group_name=group_name,
+                        proxy_type=config["proxy_type"],
+                        local_ip=config["local_ip"],
+                        local_port=config["local_port"],
+                        remote_port=config["remote_port"],
+                        status="offline"
+                    )
+                    db.add(new_proxy)
+            
+            db.commit()
+        
+        # 生成并返回配置文件
+        service = FrpcConfigService(db)
+        config = service.generate_config_for_group(
+            group_name=group_name,
+            frps_server_id=server_id,
+            client_name=client_name,
+            format=format
+        )
+        return config
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成配置失败: {str(e)}")
+
+
+@router.get("/config/by-group/{group_name}", response_class=PlainTextResponse, deprecated=True)
 def get_config_by_group(
     group_name: str,
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
@@ -144,6 +298,8 @@ def get_config_by_group(
     current_user: User = Depends(get_current_user)
 ):
     """根据分组获取 frpc 配置文件（GET 方法）
+    
+    [已弃用] 推荐使用 /api/frpc/config/group/{group_name} 接口，支持 API Key 和自动创建分组。
     
     根据指定的分组名称和服务器，生成包含该分组所有代理的 frpc 配置文件。
     支持 ini 和 toml 两种格式。

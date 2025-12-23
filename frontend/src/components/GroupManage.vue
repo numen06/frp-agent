@@ -1,8 +1,80 @@
 <template>
   <div>
+    <!-- 快捷新建分组功能说明（可展开/收起） -->
+    <div v-if="showQuickSetupHelp" class="card mb-3 border-info">
+      <div class="card-header bg-info bg-opacity-10">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-info me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M12 9v2m0 4v.01" />
+              <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+            </svg>
+            <h5 class="card-title mb-0 text-info">快捷新建分组功能</h5>
+          </div>
+          <button class="btn btn-sm btn-ghost-primary" @click="showQuickSetupHelp = false">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M18 6l-12 12" />
+              <path d="M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="mb-2">
+          <strong>功能说明：</strong>客户机器可以通过 API Key 认证，直接访问接口自动创建分组并获取默认配置。
+        </p>
+        <div class="mb-2">
+          <strong>接口地址：</strong>
+          <code class="ms-2">GET /api/frpc/config/group/{group_name}</code>
+        </div>
+        <div class="mb-2">
+          <strong>功能特点：</strong>
+          <ul class="mb-0 mt-1">
+            <li>支持 API Key 认证（Bearer Token）</li>
+            <li>如果分组不存在，自动创建分组和默认代理配置（docker:9000, ssh:22, http:80）</li>
+            <li>如果分组已存在，直接返回该分组的配置</li>
+            <li>支持可选参数：<code>server_id</code>（服务器ID）、<code>format</code>（ini/toml）、<code>client_name</code>（客户端名称）</li>
+          </ul>
+        </div>
+        <div class="mb-2">
+          <strong>选择 API Key（可选）：</strong>
+          <select class="form-select form-select-sm mt-1" v-model="selectedApiKeyId" style="max-width: 300px;" @change="handleApiKeyChange">
+            <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
+            <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
+              {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
+            </option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong>使用示例（可直接复制执行）：</strong>
+            <button class="btn btn-sm btn-primary" @click="copyExampleCommand">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
+                <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
+              </svg>
+              复制命令
+            </button>
+          </div>
+          <pre class="bg-dark text-light p-2 rounded mt-1 mb-0" style="font-size: 0.875rem; position: relative;"><code class="text-light" id="exampleCommand">{{ exampleCommand }}</code></pre>
+        </div>
+      </div>
+    </div>
+
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <p class="text-muted mb-0">管理所有代理分组，支持重命名和快速生成配置</p>
       <div class="d-flex gap-2">
+        <button class="btn btn-info btn-sm" @click="showQuickSetupHelp = !showQuickSetupHelp">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 9v2m0 4v.01" />
+            <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+          </svg>
+          {{ showQuickSetupHelp ? '隐藏' : '快捷功能' }}
+        </button>
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -154,9 +226,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useModal } from '@/composables/useModal'
+import { apiKeysApi } from '@/api/apiKeys'
 
 const emit = defineEmits(['view-group', 'generate-config'])
 
@@ -169,9 +242,199 @@ const props = defineProps({
 
 const groupsStore = useGroupsStore()
 
+// 加载分组数据
+const loadGroups = async () => {
+  if (props.serverId) {
+    try {
+      await groupsStore.loadGroups(props.serverId)
+    } catch (error) {
+      console.error('加载分组数据失败:', error)
+    }
+  }
+}
+
+// 组件挂载时加载数据
+onMounted(() => {
+  loadGroups()
+})
+
+// 监听 serverId 变化，重新加载数据
+watch(() => props.serverId, (newId) => {
+  if (newId) {
+    loadGroups()
+  }
+})
+
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
+const showQuickSetupHelp = ref(false)
 const currentGroup = ref(null)
+const apiKeys = ref([])
+const selectedApiKeyId = ref(null)
+const loadingApiKeys = ref(false)
+
+// 计算当前 API 基础 URL
+const apiBaseUrl = computed(() => {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  // 如果是相对路径，则使用当前域名
+  if (baseURL.startsWith('/')) {
+    return `${window.location.origin}${baseURL}`
+  }
+  // 如果是绝对路径，直接返回
+  return baseURL
+})
+
+// 存储选中的 API Key 完整密钥
+const selectedApiKeyFullKey = ref(null)
+
+// 获取选中的 API Key 信息
+const selectedApiKey = computed(() => {
+  if (!selectedApiKeyId.value) {
+    return null
+  }
+  const selectedKey = apiKeys.value.find(k => k.id === selectedApiKeyId.value)
+  if (!selectedKey) {
+    return null
+  }
+  
+  return selectedKey
+})
+
+// 更新完整密钥的函数 - 先从 localStorage 读取，如果没有则从后端接口获取
+const updateFullKey = async () => {
+  if (selectedApiKeyId.value) {
+    // 先尝试从 localStorage 读取
+    const id = selectedApiKeyId.value
+    const possibleKeys = [
+      `api_key_${id}`,
+      `api_key_${Number(id)}`,
+      `api_key_${String(id)}`
+    ]
+    
+    let fullKey = null
+    for (const key of possibleKeys) {
+      const value = localStorage.getItem(key)
+      if (value && value.trim()) {
+        // 验证：确保不是 ID 本身（API Key 应该是一个长字符串，不会是单个数字）
+        // API Key 通常是 64 字符（32字节的 base64url 编码），至少应该大于 20 字符
+        const trimmedValue = value.trim()
+        if (trimmedValue !== String(id) && trimmedValue !== String(Number(id)) && trimmedValue.length > 20) {
+          fullKey = trimmedValue
+          break
+        }
+      }
+    }
+    
+    // 如果 localStorage 中没有，尝试从后端接口获取
+    if (!fullKey) {
+      try {
+        const response = await apiKeysApi.get(id, { include_full_key: true })
+        if (response.key && response.key.length > 20) {
+          fullKey = response.key
+          // 保存到 localStorage 以便下次使用
+          const storageKey = `api_key_${Number(id)}`
+          localStorage.setItem(storageKey, fullKey)
+          localStorage.setItem(`api_key_${String(id)}`, fullKey)
+        }
+      } catch (error) {
+        console.warn('无法从后端获取完整密钥:', error)
+      }
+    }
+    
+    if (fullKey) {
+      // 找到了有效的完整密钥
+      selectedApiKeyFullKey.value = fullKey
+    } else {
+      // 没找到或无效，清空
+      selectedApiKeyFullKey.value = null
+    }
+  } else {
+    selectedApiKeyFullKey.value = null
+  }
+}
+
+// 监听 selectedApiKeyId 变化，更新完整密钥
+watch(selectedApiKeyId, (newId) => {
+  updateFullKey()
+}, { immediate: true })
+
+// 处理 API Key 选择变化
+const handleApiKeyChange = () => {
+  updateFullKey()
+}
+
+// 计算示例命令 - 从 localStorage 读取的密钥或使用占位符
+const exampleCommand = computed(() => {
+  // 使用从 localStorage 读取的密钥，如果没有则使用占位符
+  // 确保响应式更新：直接使用 selectedApiKeyFullKey.value
+  let apiKey = 'YOUR_API_KEY'
+  if (selectedApiKeyFullKey.value) {
+    const trimmed = selectedApiKeyFullKey.value.trim()
+    // 确保不是空字符串且长度足够
+    if (trimmed && trimmed.length > 20) {
+      apiKey = trimmed
+    }
+  }
+  const baseUrl = apiBaseUrl.value
+  // 生成单行命令（更易复制执行）
+  return `curl -H "Authorization: Bearer ${apiKey}" "${baseUrl}/frpc/config/group/test?format=toml" -o frpc.toml`
+})
+
+// 获取选中的 API Key 描述
+const selectedApiKeyDescription = computed(() => {
+  return selectedApiKey.value ? selectedApiKey.value.description : null
+})
+
+// 加载 API Key 列表
+const loadApiKeys = async () => {
+  loadingApiKeys.value = true
+  try {
+    const keys = await apiKeysApi.list(0, 100)
+    // 只显示激活的密钥
+    apiKeys.value = keys.filter(k => k.is_active && !k.is_expired)
+    
+    // 如果已经有选中的密钥，重新加载完整密钥
+    if (selectedApiKeyId.value) {
+      updateFullKey()
+    }
+  } catch (error) {
+    console.error('加载 API Key 列表失败:', error)
+    apiKeys.value = []
+  } finally {
+    loadingApiKeys.value = false
+  }
+}
+
+// 复制示例命令到剪贴板
+const copyExampleCommand = async () => {
+  if (!exampleCommand.value) return
+  
+  try {
+    await navigator.clipboard.writeText(exampleCommand.value)
+    // 静默复制，不显示提示
+  } catch (error) {
+    // 降级方案：使用传统方法
+    const textArea = document.createElement('textarea')
+    textArea.value = exampleCommand.value
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+    } catch (err) {
+      // 静默失败
+    }
+    document.body.removeChild(textArea)
+  }
+}
+
+// 当展开说明时加载 API Key 列表
+watch(showQuickSetupHelp, (newVal) => {
+  if (newVal && apiKeys.value.length === 0) {
+    loadApiKeys()
+  }
+})
 
 const createForm = reactive({
   group_name: ''
@@ -195,6 +458,8 @@ const handleCreateGroup = async () => {
     alert('创建分组成功')
     showCreateDialog.value = false
     createForm.group_name = ''
+    // 刷新分组列表
+    await loadGroups()
   } catch (error) {
     alert('创建分组失败: ' + error.message)
   }
@@ -220,6 +485,8 @@ const handleRenameGroup = async () => {
     )
     alert('重命名成功')
     showRenameDialog.value = false
+    // 刷新分组列表
+    await loadGroups()
   } catch (error) {
     alert('重命名失败: ' + error.message)
   }
@@ -243,10 +510,38 @@ const deleteGroup = async (group) => {
 }
 
 const handleAutoAnalyze = async () => {
+  if (!confirm('将从代理名称中自动分析分组。\n\n注意：仅对分组为"其他"或空的代理进行分析，不会覆盖已有的分组。\n\n是否继续？')) {
+    return
+  }
+  
   try {
-    await groupsStore.autoAnalyzeGroups(props.serverId)
-    alert('自动分析分组成功')
-    await groupsStore.loadGroups(props.serverId)
+    const result = await groupsStore.autoAnalyzeGroups(props.serverId)
+    // 显示详细结果
+    if (result && result.analysis) {
+      const analysis = result.analysis
+      let message = `✓ 分析完成！\n\n`
+      message += `总代理数: ${analysis.total}\n`
+      message += `更新数量: ${analysis.updated}\n`
+      message += `跳过数量: ${analysis.skipped} (已有分组)\n`
+      message += `未变化: ${analysis.unchanged}\n\n`
+      
+      if (Object.keys(analysis.groups_found).length > 0) {
+        message += `发现的分组:\n`
+        Object.entries(analysis.groups_found).sort().forEach(([group, count]) => {
+          message += `  • ${group}: ${count} 个代理\n`
+        })
+      }
+      
+      if (analysis.new_groups && analysis.new_groups.length > 0) {
+        message += `\n新识别的分组: ${analysis.new_groups.join(', ')}`
+      }
+      
+      alert(message)
+    } else {
+      alert('自动分析分组成功')
+    }
+    // 刷新分组列表
+    await loadGroups()
   } catch (error) {
     alert('自动分析失败: ' + error.message)
   }

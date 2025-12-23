@@ -159,12 +159,18 @@ const handleGenerate = async () => {
   
   try {
     if (props.groupName) {
-      const content = await frpcConfigApi.generateConfigByGroup({
-        group_name: props.groupName,
-        frps_server_id: props.serverId,
-        client_name: form.client_name || props.groupName,
+      // 优先使用新接口（支持自动创建分组）
+      const params = {
         format: form.format
-      })
+      }
+      if (props.serverId) {
+        params.server_id = props.serverId
+      }
+      if (form.client_name) {
+        params.client_name = form.client_name
+      }
+      
+      const content = await frpcConfigApi.getConfigByGroupQuick(props.groupName, params)
       configContent.value = content
     } else if (props.selectedProxies.length > 0) {
       const result = await frpcConfigApi.generateConfigByProxies({

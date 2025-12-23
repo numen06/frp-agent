@@ -35,7 +35,30 @@ export const useAuthStore = defineStore('auth', {
         localStorage.setItem('auth_token', token)
         localStorage.setItem('username', username)
         
-        return true
+        // 检查是否需要强制修改密码
+        try {
+          const passwordCheck = await axiosInstance.get('/settings/check-password', {
+            headers: {
+              'Authorization': `Basic ${token}`
+            }
+          })
+          
+          if (passwordCheck.data?.require_password_change) {
+            return {
+              success: true,
+              requirePasswordChange: true,
+              reason: passwordCheck.data.reason || '检测到使用默认密码，请立即修改'
+            }
+          }
+        } catch (checkError) {
+          // 如果检查失败，不影响登录流程
+          console.warn('检查密码要求失败:', checkError)
+        }
+        
+        return {
+          success: true,
+          requirePasswordChange: false
+        }
       } catch (error) {
         console.error('Login error:', error)
         if (error.response?.status === 401) {
