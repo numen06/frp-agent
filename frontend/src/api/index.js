@@ -49,6 +49,8 @@ api.interceptors.request.use(
 // 响应拦截器 - 处理错误
 api.interceptors.response.use(
   (response) => {
+    // 对于 text/plain 响应，直接返回 data（已经是字符串）
+    // 对于 JSON 响应，返回解析后的对象
     return response.data
   },
   (error) => {
@@ -72,6 +74,11 @@ api.interceptors.response.use(
         ).join('\n')
         return Promise.reject(new Error(errorMsg))
       }
+    }
+    
+    // 处理文本响应错误（如 PlainTextResponse）
+    if (error.response?.data && typeof error.response.data === 'string') {
+      return Promise.reject(new Error(error.response.data))
     }
     
     const errorMessage = error.response?.data?.detail || error.message || '请求失败'

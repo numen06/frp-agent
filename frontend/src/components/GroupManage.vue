@@ -1,80 +1,8 @@
 <template>
   <div>
-    <!-- 快捷新建分组功能说明（可展开/收起） -->
-    <div v-if="showQuickSetupHelp" class="card mb-3 border-info">
-      <div class="card-header bg-info bg-opacity-10">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="d-flex align-items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-info me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M12 9v2m0 4v.01" />
-              <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
-            </svg>
-            <h5 class="card-title mb-0 text-info">快捷新建分组功能</h5>
-          </div>
-          <button class="btn btn-sm btn-ghost-primary" @click="showQuickSetupHelp = false">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M18 6l-12 12" />
-              <path d="M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="mb-2">
-          <strong>功能说明：</strong>客户机器可以通过 API Key 认证，直接访问接口自动创建分组并获取默认配置。
-        </p>
-        <div class="mb-2">
-          <strong>接口地址：</strong>
-          <code class="ms-2">GET /api/frpc/config/{server}/{group}</code>
-        </div>
-        <div class="mb-2">
-          <strong>功能特点：</strong>
-          <ul class="mb-0 mt-1">
-            <li>支持 API Key 认证（URL 参数 <code>api_key</code>）</li>
-            <li>服务器和分组都在路径中，更直观易用</li>
-            <li>支持可选参数：<code>format</code>（ini/toml，默认ini）、<code>client_name</code>（客户端名称）</li>
-            <li>服务器参数可以是服务器名称或服务器ID</li>
-          </ul>
-        </div>
-        <div class="mb-2">
-          <strong>选择 API Key（可选）：</strong>
-          <select class="form-select form-select-sm mt-1" v-model="selectedApiKeyId" style="max-width: 300px;" @change="handleApiKeyChange">
-            <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
-            <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
-              {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
-            </option>
-          </select>
-        </div>
-        <div class="mb-0">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <strong>使用示例（可直接复制执行）：</strong>
-            <button class="btn btn-sm btn-primary" @click="copyExampleCommand">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
-                <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
-              </svg>
-              复制命令
-            </button>
-          </div>
-          <pre class="bg-dark text-light p-2 rounded mt-1 mb-0" style="font-size: 0.875rem; position: relative; background-color: #1a1a1a !important; color: #ffffff !important; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"><code class="text-light" id="exampleCommand" style="color: #ffffff !important;">{{ exampleCommand }}</code></pre>
-        </div>
-      </div>
-    </div>
-
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <p class="text-muted mb-0">管理所有代理分组，支持重命名和快速生成配置</p>
       <div class="d-flex gap-2">
-        <button class="btn btn-info btn-sm" @click="showQuickSetupHelp = !showQuickSetupHelp">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M12 9v2m0 4v.01" />
-            <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
-          </svg>
-          {{ showQuickSetupHelp ? '隐藏' : '快捷功能' }}
-        </button>
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -95,21 +23,52 @@
     </div>
     
     <div class="card">
-      <!-- 搜索和过滤区域 -->
-      <div class="card-body border-bottom">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div style="width: 250px;">
-            <TableSearch
-              v-model="groupsStore.filters.search"
-              placeholder="搜索分组名称..."
-              @search="handleSearch"
-            />
-          </div>
-        </div>
+      <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs">
+          <li class="nav-item">
+            <a href="#" class="nav-link" :class="{ active: activeTab === 'groups' }" @click.prevent="activeTab = 'groups'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+                <path d="M9 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M9 15m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M15 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M15 15m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+              </svg>
+              分组列表
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" :class="{ active: activeTab === 'quick' }" @click.prevent="activeTab = 'quick'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 9v2m0 4v.01" />
+                <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+              </svg>
+              快捷功能
+            </a>
+          </li>
+        </ul>
       </div>
-      <!-- 表格区域 -->
-      <div class="table-responsive">
-        <table class="table table-vcenter card-table w-100">
+      <div class="card-body">
+        <div class="tab-content">
+          <!-- 分组列表 Tab -->
+          <div class="tab-pane" :class="{ active: activeTab === 'groups', show: activeTab === 'groups' }" id="groups-tab">
+            <!-- 搜索和过滤区域 -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div style="width: 250px;">
+                  <TableSearch
+                    v-model="groupsStore.filters.search"
+                    placeholder="搜索分组名称..."
+                    @search="handleSearch"
+                  />
+                </div>
+              </div>
+            </div>
+            <!-- 表格区域 -->
+            <div class="table-responsive">
+              <table class="table table-vcenter card-table w-100">
         <thead>
           <tr>
             <th>分组名称</th>
@@ -197,18 +156,90 @@
               </div>
             </td>
           </tr>
-          </tbody>
-        </table>
-      </div>
-      <!-- 分页 -->
-      <div class="card-footer" v-if="groupsStore.pagination.total > 0">
-        <TablePagination
-          :total="groupsStore.pagination.total"
-          :page="groupsStore.pagination.page"
-          :page-size="groupsStore.pagination.page_size"
-          @page-change="handlePageChange"
-          @page-size-change="handlePageSizeChange"
-        />
+        </tbody>
+      </table>
+            </div>
+            <!-- 分页 -->
+            <div v-if="groupsStore.pagination.total > 0" class="mt-3">
+              <TablePagination
+                :total="groupsStore.pagination.total"
+                :page="groupsStore.pagination.page"
+                :page-size="groupsStore.pagination.page_size"
+                @page-change="handlePageChange"
+                @page-size-change="handlePageSizeChange"
+              />
+            </div>
+          </div>
+          
+          <!-- 快捷功能 Tab -->
+          <div class="tab-pane" :class="{ active: activeTab === 'quick', show: activeTab === 'quick' }" id="quick-tab">
+            <!-- CURL 命令 -->
+            <div class="mb-4">
+              <h4 class="mb-3">CURL 命令</h4>
+              <div class="alert alert-info mb-3">
+                <div class="d-flex align-items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-info-circle me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+                    <path d="M12 9h.01" />
+                    <path d="M11 12h1v4h1" />
+                  </svg>
+                  <div class="flex-fill">
+                    <strong>通过 curl 命令行工具获取配置：</strong>
+                    <p class="text-muted mb-0 mt-1">选择 API Key 后，复制下方命令即可在终端执行</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label">选择 API Key（可选）</label>
+                <select class="form-select" v-model="selectedApiKeyId" @change="handleApiKeyChange">
+                  <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
+                  <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
+                    {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
+                  </option>
+                </select>
+                <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
+              </div>
+              
+              <div class="mb-0">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label mb-0">使用示例（可直接复制执行）</label>
+                  <button class="btn btn-sm btn-primary" @click="copyExampleCommand">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
+                      <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
+                    </svg>
+                    复制命令
+                  </button>
+                </div>
+                <pre class="bg-dark text-light p-3 rounded" style="font-size: 0.875rem; background-color: #1a1a1a !important; color: #ffffff !important; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; margin: 0;"><code class="text-light" style="color: #ffffff !important;">{{ exampleCommand }}</code></pre>
+              </div>
+            </div>
+            
+            <!-- 功能说明 -->
+            <div>
+              <h4 class="mb-3">功能说明</h4>
+              <p class="mb-2">
+                客户机器可以通过 API Key 认证，直接访问接口自动创建分组并获取默认配置。
+              </p>
+              <div class="mb-2">
+                <strong>接口地址：</strong>
+                <code class="ms-2">GET /api/frpc/config/{server}/{group}</code>
+              </div>
+              <div class="mb-0">
+                <strong>功能特点：</strong>
+                <ul class="mb-0 mt-1">
+                  <li>支持 API Key 认证（URL 参数 <code>api_key</code>）</li>
+                  <li>服务器和分组都在路径中，更直观易用</li>
+                  <li>支持可选参数：<code>format</code>（ini/toml，默认ini）、<code>client_name</code>（客户端名称）</li>
+                  <li>服务器参数可以是服务器名称或服务器ID</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -334,7 +365,7 @@ watch(() => serversStore.servers, () => {
 
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
-const showQuickSetupHelp = ref(false)
+const activeTab = ref('groups') // 主tab: 'groups' 或 'quick'
 const currentGroup = ref(null)
 const apiKeys = ref([])
 const selectedApiKeyId = ref(null)
@@ -520,9 +551,9 @@ const copyExampleCommand = async () => {
   }
 }
 
-// 当展开说明时加载 API Key 列表
-watch(showQuickSetupHelp, (newVal) => {
-  if (newVal && apiKeys.value.length === 0) {
+// 当切换到快捷功能tab时加载 API Key 列表
+watch(activeTab, (newVal) => {
+  if (newVal === 'quick' && apiKeys.value.length === 0) {
     loadApiKeys()
   }
 })

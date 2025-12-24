@@ -449,6 +449,20 @@ def convert_ini_to_toml(
         raise HTTPException(status_code=500, detail=f"转换失败: {str(e)}")
 
 
+@router.get("/convert/test-auth")
+async def test_auth(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """测试认证是否成功（用于调试）"""
+    return {
+        "success": True,
+        "message": "认证成功",
+        "user_id": current_user.id,
+        "username": current_user.username
+    }
+
+
 @router.post("/convert/ini-to-toml/direct", response_class=PlainTextResponse)
 async def convert_ini_to_toml_direct(
     request: Request,
@@ -457,19 +471,29 @@ async def convert_ini_to_toml_direct(
 ):
     """将INI格式的frpc配置转换为TOML格式（直接接收原始文本）
     
+    仅支持 API Key 认证。
+    
     使用方法（通过curl）:
     ```bash
-    # 从文件转换
-    curl -u username:password -X POST \
+    # 方式1：使用 API Key（URL 参数，推荐）
+    curl -X POST \
       -H "Content-Type: text/plain" \
+      --data-binary "@frpc.ini" \
+      "http://your-api/api/frpc/convert/ini-to-toml/direct?api_key=YOUR_API_KEY" -o frpc.toml
+    
+    # 方式2：使用 API Key（Bearer Token）
+    curl -X POST \
+      -H "Content-Type: text/plain" \
+      -H "Authorization: Bearer YOUR_API_KEY" \
       --data-binary "@frpc.ini" \
       http://your-api/api/frpc/convert/ini-to-toml/direct -o frpc.toml
     
-    # 或者从管道输入
-    cat frpc.ini | curl -u username:password -X POST \
+    # 从管道输入
+    cat frpc.ini | curl -X POST \
       -H "Content-Type: text/plain" \
+      -H "Authorization: Bearer YOUR_API_KEY" \
       --data-binary @- \
-      http://your-api/api/frpc/convert/ini-to-toml/direct
+      http://your-api/api/frpc/convert/ini-to-toml/direct -o frpc.toml
     ```
     """
     try:
@@ -477,13 +501,83 @@ async def convert_ini_to_toml_direct(
         ini_content = await request.body()
         ini_text = ini_content.decode('utf-8')
         
+        # 检查是否是 HTML 响应（可能是认证失败或路由错误）
+        if ini_text.strip().startswith('<!DOCTYPE') or ini_text.strip().startswith('<html'):
+            raise HTTPException(
+                status_code=400,
+                detail="请求体内容无效：收到的是 HTML 页面而不是 INI 配置。请检查认证信息是否正确，或确认请求是否被重定向。"
+            )
+        
+        # 检查内容是否为空
+        if not ini_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="请求体为空，请提供有效的 INI 配置内容"
+            )
+        
         service = FrpcConfigService(db)
         toml_content = service.convert_ini_to_toml(ini_text)
         return toml_content
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"转换失败: {str(e)}")
+        import traceback
+        error_detail = f"转换失败: {str(e)}"
+        # 记录详细错误信息用于调试
+        print(f"转换错误详情: {error_detail}")
+        print(f"错误堆栈: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)
+
+
+@router.post("/convert/to-toml/direct", response_class=PlainTextResponse)
+async def convert_to_toml_direct_alias(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """将INI格式的frpc配置转换为TOML格式（直接接收原始文本）- 简短别名
+    
+    这是 /convert/ini-to-toml/direct 的简短别名，功能完全相同。
+    仅支持 API Key 认证。
+    """
+    # 直接调用主函数
+    return await convert_ini_to_toml_direct(request, db, current_user)
+
+
+@router.post("/convert/to-toml/{api_key}", response_class=PlainTextResponse)
+async def convert_to_toml_with_path_key(
+    api_key: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """将INI格式的frpc配置转换为TOML格式（支持路径参数形式的 API Key）
+    
+    这是为了方便使用而提供的兼容路由，API Key 可以作为路径参数。
+    推荐使用查询参数形式：/convert/to-toml/direct?api_key=YOUR_API_KEY
+    """
+    from app.auth import verify_api_key
+    from app.models.user import User
+    from fastapi import HTTPException, status
+    
+    # 验证 API Key
+    api_key_obj = verify_api_key(db, api_key)
+    if not api_key_obj:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key 无效或已过期"
+        )
+    
+    # 创建临时用户对象
+    temp_user = User(
+        id=-api_key_obj.id,
+        username=f"api_key_{api_key_obj.id}",
+        password_hash="",
+    )
+    
+    # 调用主函数
+    return await convert_ini_to_toml_direct(request, db, temp_user)
 
 
 @router.get("/config/direct/{server_name}/{group_name}/{filename}", response_class=PlainTextResponse)

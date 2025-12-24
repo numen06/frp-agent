@@ -34,7 +34,8 @@ export const configApi = {
     return api.post('/frpc/convert/ini-to-toml/direct', iniContent, {
       headers: {
         'Content-Type': 'text/plain'
-      }
+      },
+      responseType: 'text' // 确保正确处理文本响应
     })
   }
 }
