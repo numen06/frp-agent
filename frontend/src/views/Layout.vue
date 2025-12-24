@@ -266,6 +266,5 @@ const handleLogout = async () => {
   }
 }
 </style>
-</script>
 
 

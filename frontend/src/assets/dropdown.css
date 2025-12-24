@@ -140,7 +140,7 @@
   content: '';
   position: absolute;
   top: -0.5rem;
-  right: 1rem;
+  left: 1rem;
   width: 0.75rem;
   height: 0.75rem;
   background: var(--tblr-bg-surface);
@@ -150,9 +150,10 @@
   transform: rotate(45deg);
 }
 
+/* 右对齐的下拉菜单，箭头应该在右侧指向触发按钮 */
 .dropdown-menu-end.dropdown-menu-arrow::before {
-  right: auto;
-  left: 1rem;
+  left: auto;
+  right: 1rem;
 }
 
 
