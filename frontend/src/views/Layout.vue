@@ -229,4 +229,42 @@ const handleLogout = async () => {
 }
 </script>
 
+<style scoped>
+/* 确保导航栏下拉菜单不被裁剪 */
+.navbar {
+  overflow: visible;
+}
+
+.navbar .container-xl {
+  overflow: visible;
+  position: relative;
+}
+
+.navbar-nav {
+  overflow: visible;
+}
+
+.navbar-nav .nav-item.dropdown {
+  position: relative;
+}
+
+.navbar-nav .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  z-index: 1050;
+  margin-top: 0.5rem;
+  min-width: 10rem;
+}
+
+/* 确保下拉菜单在页面边缘时也能正确显示 */
+@media (max-width: 768px) {
+  .navbar-nav .dropdown-menu {
+    right: auto;
+    left: 0;
+  }
+}
+</style>
+
 
