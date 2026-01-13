@@ -24,6 +24,8 @@
             "source.organizeImports": "explicit"
         },
         "editor.rulers": [120]
-    }
+    },
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.typeCheckingMode": "basic"
 }
 

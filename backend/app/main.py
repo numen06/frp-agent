@@ -12,9 +12,10 @@ import logging
 import os
 
 from app.config import get_settings
-from app.database import init_db, get_db
+from app.database import init_db, get_db, SessionLocal
 from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key
 from app.scheduler import start_scheduler, shutdown_scheduler
+from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
@@ -34,6 +35,17 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     logger.info("初始化数据库...")
     init_db()
+    
+    # 创建默认用户和 API Key（如果不存在）
+    logger.info("检查并创建默认用户和 API Key...")
+    db = SessionLocal()
+    try:
+        create_default_user(db)
+        create_default_api_key(db)
+    except Exception as e:
+        logger.error(f"创建默认用户或 API Key 失败: {e}")
+    finally:
+        db.close()
     
     # 启动定时任务
     logger.info("启动定时同步任务...")

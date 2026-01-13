@@ -1,5 +1,8 @@
 """数据库初始化脚本"""
 import sys
+import secrets
+import hashlib
+import base64
 from sqlalchemy.orm import Session
 
 from app.database import engine, SessionLocal, Base
@@ -8,6 +11,25 @@ from app.auth import get_password_hash
 from app.config import get_settings
 
 settings = get_settings()
+
+
+def generate_api_key() -> str:
+    """生成 API Key（32字节，64字符）"""
+    return secrets.token_urlsafe(32)
+
+
+def hash_api_key(key: str) -> str:
+    """对 API Key 进行哈希"""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def encrypt_key(key: str) -> str:
+    """加密 API Key（使用 base64 编码，简单但足够）"""
+    # 使用应用密钥作为盐值
+    salt = f"{settings.auth_username}{settings.auth_password}".encode()
+    # 简单的 XOR 加密 + base64 编码
+    encoded = base64.b64encode(bytes([ord(c) ^ salt[i % len(salt)] for i, c in enumerate(key)])).decode()
+    return encoded
 
 
 def init_database():
@@ -69,6 +91,43 @@ def create_default_server(db: Session):
     print(f"✓ 创建默认服务器配置: {settings.default_frps_name}")
 
 
+def create_default_api_key(db: Session):
+    """创建默认 API Key（如果不存在任何密钥）"""
+    # 检查是否已存在任何密钥
+    existing_key = db.query(ApiKey).first()
+    
+    if existing_key:
+        print("API Key 已存在，跳过默认密钥创建")
+        return
+    
+    # 生成密钥
+    raw_key = generate_api_key()
+    key_hash = hash_api_key(raw_key)
+    
+    # 检查哈希是否已存在（极小概率）
+    existing_hash = db.query(ApiKey).filter(ApiKey.key == key_hash).first()
+    if existing_hash:
+        # 如果冲突，重新生成
+        raw_key = generate_api_key()
+        key_hash = hash_api_key(raw_key)
+    
+    # 创建 API Key 记录
+    # 加密存储原始密钥（用于后续获取）
+    encrypted_key = encrypt_key(raw_key)
+    api_key = ApiKey(
+        key=key_hash,
+        key_encrypted=encrypted_key,  # 存储加密后的原始密钥
+        description="默认密钥",
+        expires_at=None,  # 无过期时间
+        is_active=True
+    )
+    
+    db.add(api_key)
+    db.commit()
+    
+    print("✓ 创建默认 API Key")
+
+
 def main():
     """主函数"""
     print("=" * 50)
@@ -88,6 +147,9 @@ def main():
             
             # 创建默认服务器
             create_default_server(db)
+            
+            # 创建默认 API Key
+            create_default_api_key(db)
             
             print("\n" + "=" * 50)
             print("初始化完成！")

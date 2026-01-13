@@ -273,6 +273,11 @@ const loadApiKeys = async () => {
     // 只显示激活的密钥
     apiKeys.value = keys.filter(k => k.is_active && !k.is_expired)
     
+    // 如果列表不为空且当前没有选中密钥，默认选择第一个
+    if (apiKeys.value.length > 0 && selectedApiKeyId.value === null) {
+      selectedApiKeyId.value = apiKeys.value[0].id
+    }
+    
     // 如果已经有选中的密钥，重新加载完整密钥
     if (selectedApiKeyId.value) {
       updateFullKey()
