@@ -201,6 +201,28 @@
                 </select>
                 <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
               </div>
+
+              <div class="mb-3">
+                <label class="form-label">指定分组（可选）</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <select class="form-select" v-model="quickSelectedGroup" style="max-width: 220px;">
+                    <option value="">不选择（使用默认分组）</option>
+                    <option v-for="group in groupsStore.groups" :key="group.group_name" :value="group.group_name">
+                      {{ group.group_name }}
+                    </option>
+                  </select>
+                  <input
+                    type="text"
+                    class="form-control"
+                    v-model="quickCustomGroup"
+                    placeholder="或手动输入分组名称"
+                    style="max-width: 220px;"
+                  />
+                </div>
+                <small class="form-hint">
+                  如果下拉和输入都留空，则命令中使用默认分组（优先使用第一个分组，否则使用 test）。
+                </small>
+              </div>
               
               <div class="mb-0">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -371,6 +393,10 @@ const apiKeys = ref([])
 const selectedApiKeyId = ref(null)
 const loadingApiKeys = ref(false)
 
+// 快捷功能 Tab 中的分组选择/输入
+const quickSelectedGroup = ref('')
+const quickCustomGroup = ref('')
+
 // 计算当前 API 基础 URL
 const apiBaseUrl = computed(() => {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -483,6 +509,21 @@ const exampleGroupName = computed(() => {
   return 'test'
 })
 
+// 实际用于命令中的分组名称：
+// 1. 优先使用手动输入的分组
+// 2. 其次使用下拉选择的分组
+// 3. 都没有时，使用默认分组（第一个分组或 test）
+const effectiveGroupName = computed(() => {
+  const custom = quickCustomGroup.value && quickCustomGroup.value.trim()
+  if (custom) {
+    return encodeURIComponent(custom)
+  }
+  if (quickSelectedGroup.value) {
+    return encodeURIComponent(quickSelectedGroup.value)
+  }
+  return exampleGroupName.value
+})
+
 // 计算示例命令 - 从 localStorage 读取的密钥或使用占位符
 const exampleCommand = computed(() => {
   // 使用从 localStorage 读取的密钥，如果没有则使用占位符
@@ -497,7 +538,7 @@ const exampleCommand = computed(() => {
   }
   const baseUrl = apiBaseUrl.value
   const serverName = currentServerName.value
-  const groupName = exampleGroupName.value
+  const groupName = effectiveGroupName.value
   // 生成单行命令（更易复制执行）- 使用新的端点格式，服务器和分组都在路径中
   return `curl "${baseUrl}/frpc/config/${serverName}/${groupName}?format=toml&api_key=${apiKey}" -o frpc.toml`
 })
@@ -616,6 +657,12 @@ const handleRenameGroup = async () => {
 }
 
 const deleteGroup = async (group) => {
+  // 确保 serverId 存在且有效
+  if (!props.serverId) {
+    alert('服务器ID无效，无法删除分组')
+    return
+  }
+  
   const reassignGroup = prompt(
     `确定要删除分组 "${group.group_name}" 吗？该分组下有 ${group.total_count} 个代理。\n请输入目标分组名称（留空则移动到"其他"分组）：`
   )

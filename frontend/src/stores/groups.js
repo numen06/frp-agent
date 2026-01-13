@@ -85,10 +85,15 @@ export const useGroupsStore = defineStore('groups', {
     
     // 删除分组
     async deleteGroup(groupName, reassignGroup, frpsServerId) {
-      await groupApi.deleteGroup(groupName, reassignGroup)
+      // 确保 frpsServerId 是数字类型
+      const serverId = Number(frpsServerId)
+      if (!serverId || isNaN(serverId)) {
+        throw new Error('服务器ID无效')
+      }
+      await groupApi.deleteGroup(groupName, serverId, reassignGroup)
       this.groups = this.groups.filter(g => g.group_name !== groupName)
       // 重新加载分组列表以更新统计
-      await this.loadGroups(frpsServerId)
+      await this.loadGroups(serverId)
     },
     
     // 自动分析分组
