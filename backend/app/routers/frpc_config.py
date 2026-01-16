@@ -226,7 +226,14 @@ def get_config_by_group_quick(
             )
             db.add(new_group)
             db.flush()  # 获取 ID 但不提交
-            
+        
+        # 检查分组是否有代理，如果没有则创建默认代理
+        proxy_count = db.query(Proxy).filter(
+            Proxy.frps_server_id == server_id,
+            Proxy.group_name == group_name
+        ).count()
+        
+        if proxy_count == 0:
             # 创建默认代理配置
             default_configs = [
                 {
