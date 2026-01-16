@@ -220,10 +220,13 @@ class PortService:
     ) -> Optional[int]:
         """获取下一个可用端口
         
+        优先从已分配的最大端口号+1开始查找，如果没有已分配的端口则从start_port开始。
+        这样可以保证端口号连续递增。
+        
         Args:
             frps_server_id: frps 服务器 ID
-            start_port: 起始端口
-            end_port: 结束端口
+            start_port: 起始端口（默认6000）
+            end_port: 结束端口（默认7000）
             
         Returns:
             可用端口号，如果没有可用端口返回 None
@@ -232,9 +235,30 @@ class PortService:
             alloc.port for alloc in self.get_allocated_ports(frps_server_id)
         )
         
-        for port in range(start_port, end_port + 1):
+        # 如果没有已分配的端口，从start_port开始
+        if not allocated_ports:
+            # 确保start_port在范围内
+            if start_port <= end_port:
+                return start_port
+            return None
+        
+        # 找到已分配的最大端口号
+        max_allocated_port = max(allocated_ports)
+        
+        # 从最大端口号+1开始查找（但不能小于start_port）
+        search_start = max(max_allocated_port + 1, start_port)
+        
+        # 从最大端口号+1开始往后查找
+        for port in range(search_start, end_port + 1):
             if port not in allocated_ports:
                 return port
+        
+        # 如果从最大端口号+1开始找不到，再从start_port开始查找（处理中间有空隙的情况）
+        # 但只查找小于最大端口号的端口
+        if max_allocated_port > start_port:
+            for port in range(start_port, max_allocated_port):
+                if port not in allocated_ports:
+                    return port
         
         return None
 

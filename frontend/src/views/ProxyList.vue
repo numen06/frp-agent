@@ -204,7 +204,15 @@
                   <div class="text-truncate" :title="proxy.name">{{ proxy.name }}</div>
                 </td>
                 <td>
-                  <span class="badge text-bg-primary" v-if="proxy.group_name">{{ proxy.group_name }}</span>
+                  <a 
+                    v-if="proxy.group_name" 
+                    href="#" 
+                    class="badge text-bg-primary text-decoration-none"
+                    @click.prevent="navigateToGroupManage(proxy.group_name)"
+                    :title="`点击查看分组 ${proxy.group_name} 的详细信息`"
+                  >
+                    {{ proxy.group_name }}
+                  </a>
                   <span class="text-muted" v-else>-</span>
                 </td>
                 <td>
@@ -309,7 +317,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useServersStore } from '@/stores/servers'
 import { useProxiesStore } from '@/stores/proxies'
 import { useRefresh } from '@/composables/useRefresh'
@@ -323,6 +331,7 @@ import TableSearch from '@/components/TableSearch.vue'
 import ServerSelector from '@/components/ServerSelector.vue'
 
 const route = useRoute()
+const router = useRouter()
 const serversStore = useServersStore()
 const proxiesStore = useProxiesStore()
 const { triggerRefresh } = useRefresh()
@@ -566,6 +575,21 @@ const handleProxySuccess = () => {
 const handleImportSuccess = () => {
   loadGroupOptions()
   loadData()
+}
+
+const navigateToGroupManage = (groupName) => {
+  if (!currentServerId.value) {
+    alert('请先选择服务器')
+    return
+  }
+  
+  router.push({
+    path: '/groups',
+    query: {
+      server_id: currentServerId.value,
+      group: groupName
+    }
+  })
 }
 </script>
 
