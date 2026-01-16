@@ -571,8 +571,9 @@ const exampleCommand = computed(() => {
   const baseUrl = apiBaseUrl.value
   const serverName = currentServerName.value
   const groupName = effectiveGroupName.value
-  // 生成单行命令（更易复制执行）- 使用新的端点格式，服务器和分组都在路径中
-  return `curl "${baseUrl}/frpc/config/${serverName}/${groupName}?format=toml&api_key=${apiKey}" -o frpc.toml`
+  // 生成命令（更易复制执行）- 使用新的端点格式，服务器和分组都在路径中
+  // 默认下载到 /opt/frp/ 目录，包含创建目录的命令
+  return `mkdir -p /opt/frp && curl "${baseUrl}/frpc/config/${serverName}/${groupName}?format=toml&api_key=${apiKey}" -o /opt/frp/frpc.toml`
 })
 
 // 获取选中的 API Key 描述
