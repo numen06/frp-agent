@@ -116,6 +116,8 @@ class PortService:
     ) -> bool:
         """检查端口是否可用
         
+        会同时检查PortAllocation表和Proxy表中的端口使用情况。
+        
         Args:
             frps_server_id: frps 服务器 ID
             port: 端口号
@@ -123,13 +125,23 @@ class PortService:
         Returns:
             端口是否可用
         """
+        # 检查PortAllocation表中是否已分配
         allocation = self.db.query(PortAllocation).filter(
             PortAllocation.frps_server_id == frps_server_id,
             PortAllocation.port == port,
             PortAllocation.is_allocated == True
         ).first()
         
-        return allocation is None
+        if allocation:
+            return False
+        
+        # 检查Proxy表中是否有代理使用该端口
+        proxy = self.db.query(Proxy).filter(
+            Proxy.frps_server_id == frps_server_id,
+            Proxy.remote_port == port
+        ).first()
+        
+        return proxy is None
     
     def get_allocated_ports(
         self,
@@ -223,6 +235,8 @@ class PortService:
         优先从已分配的最大端口号+1开始查找，如果没有已分配的端口则从start_port开始。
         这样可以保证端口号连续递增。
         
+        会同时查询PortAllocation表和Proxy表中的端口使用情况，确保找到真正的最大端口号。
+        
         Args:
             frps_server_id: frps 服务器 ID
             start_port: 起始端口（默认6000）
@@ -231,22 +245,34 @@ class PortService:
         Returns:
             可用端口号，如果没有可用端口返回 None
         """
+        # 获取PortAllocation表中已分配的端口
         allocated_ports = set(
             alloc.port for alloc in self.get_allocated_ports(frps_server_id)
         )
         
-        # 如果没有已分配的端口，从start_port开始
+        # 获取Proxy表中所有代理使用的remote_port
+        proxy_ports = self.db.query(Proxy.remote_port).filter(
+            Proxy.frps_server_id == frps_server_id,
+            Proxy.remote_port.isnot(None)
+        ).all()
+        
+        # 将Proxy表中的端口也加入已使用端口集合
+        for (port,) in proxy_ports:
+            if port is not None:
+                allocated_ports.add(port)
+        
+        # 如果没有已使用的端口，从start_port开始
         if not allocated_ports:
             # 确保start_port在范围内
             if start_port <= end_port:
                 return start_port
             return None
         
-        # 找到已分配的最大端口号
-        max_allocated_port = max(allocated_ports)
+        # 找到已使用的最大端口号
+        max_used_port = max(allocated_ports)
         
         # 从最大端口号+1开始查找（但不能小于start_port）
-        search_start = max(max_allocated_port + 1, start_port)
+        search_start = max(max_used_port + 1, start_port)
         
         # 从最大端口号+1开始往后查找
         for port in range(search_start, end_port + 1):
@@ -255,8 +281,8 @@ class PortService:
         
         # 如果从最大端口号+1开始找不到，再从start_port开始查找（处理中间有空隙的情况）
         # 但只查找小于最大端口号的端口
-        if max_allocated_port > start_port:
-            for port in range(start_port, max_allocated_port):
+        if max_used_port > start_port:
+            for port in range(start_port, max_used_port):
                 if port not in allocated_ports:
                     return port
         
