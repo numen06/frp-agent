@@ -583,19 +583,14 @@ const navigateToGroupManage = (groupName) => {
     return
   }
   
-  // 直接在当前页面过滤该分组，而不是跳转到分组管理页面
-  proxiesStore.setFilters({ group: groupName })
-  proxiesStore.setPagination({ page: 1 })
-  loadData(1)
-  
-  // 可选：也可以跳转到分组管理页面查看分组详情
-  // router.push({
-  //   path: '/groups',
-  //   query: {
-  //     server_id: currentServerId.value,
-  //     group: groupName
-  //   }
-  // })
+  // 跳转到分组管理页面，并传递服务器ID和分组名称
+  router.push({
+    path: '/groups',
+    query: {
+      server_id: currentServerId.value,
+      group: groupName
+    }
+  })
 }
 </script>
 

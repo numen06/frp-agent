@@ -278,6 +278,11 @@ class PortService:
         # 找到已使用的最大端口号
         max_used_port = max(allocated_ports)
         
+        # 如果最大端口超过了end_port，自动扩展end_port（但不超过65535）
+        # 这样可以处理端口已经超过默认范围的情况
+        if max_used_port >= end_port:
+            end_port = min(max_used_port + 1000, 65535)
+        
         # 从最大端口号+1开始查找（但不能小于start_port）
         search_start = max(max_used_port + 1, start_port)
         

@@ -719,12 +719,12 @@ def generate_default_proxies(
             skipped_names.append(config["name"])
             continue
         
-        # 自动分配远端端口
+        # 自动分配远端端口（端口范围会自动根据现有端口扩展）
         remote_port = port_service.get_next_available_port(frps_server_id, 6000, 7000)
         if remote_port is None:
             raise HTTPException(
                 status_code=500,
-                detail=f"无法为代理 {config['name']} 分配可用端口（6000-7000 范围内已满）"
+                detail=f"无法为代理 {config['name']} 分配可用端口（端口范围已满）"
             )
         
         # 分配端口
@@ -800,6 +800,30 @@ def regenerate_group_ports(
     # 先收集所有旧端口信息
     old_ports_map = {p.name: p.remote_port for p in proxies_to_regenerate}
     
+    # 查询当前服务器的最大端口号（排除正在重新分配的代理）
+    proxy_names_to_exclude = [p.name for p in proxies_to_regenerate]
+    
+    # 查询所有其他代理的端口（排除正在重新分配的）
+    other_proxies_query = db.query(Proxy.remote_port).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.remote_port.isnot(None)
+    )
+    if proxy_names_to_exclude:
+        other_proxies_query = other_proxies_query.filter(~Proxy.name.in_(proxy_names_to_exclude))
+    
+    other_proxy_ports = [port[0] for port in other_proxies_query.all() if port[0] is not None]
+    
+    # 查询PortAllocation表中的端口
+    allocated_ports = [alloc.port for alloc in port_service.get_allocated_ports(frps_server_id)]
+    
+    # 合并所有端口，找到最大端口号
+    all_ports = set(other_proxy_ports + allocated_ports)
+    max_port = max(all_ports) if all_ports else 6000
+    
+    # 设置合理的端口范围：从6000开始，到最大端口+1000或65535（取较小值）
+    start_port = 6000
+    end_port = min(max_port + 1000, 65535)
+    
     # 先释放所有旧端口（但不更新代理记录，等新端口分配成功后再更新）
     for proxy in proxies_to_regenerate:
         if proxy.remote_port:
@@ -813,22 +837,19 @@ def regenerate_group_ports(
     failed_proxies = []
     
     # 逐个分配新端口（这样可以保证连续递增）
-    # 收集所有正在重新分配的代理名称，用于排除它们的旧端口
-    proxy_names_to_exclude = [p.name for p in proxies_to_regenerate]
-    
     for proxy in proxies_to_regenerate:
         try:
             # 获取新的可用端口（排除当前分组中正在重新分配的代理的旧端口）
             new_port = port_service.get_next_available_port(
                 frps_server_id, 
-                6000, 
-                7000,
+                start_port, 
+                end_port,
                 exclude_proxy_names=proxy_names_to_exclude
             )
             if new_port is None:
                 failed_proxies.append({
                     "name": proxy.name,
-                    "error": "无法分配可用端口（6000-7000 范围内已满）"
+                    "error": f"无法分配可用端口（{start_port}-{end_port} 范围内已满）"
                 })
                 continue
             

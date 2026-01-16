@@ -389,20 +389,19 @@ watch(() => serversStore.servers, () => {
   // 当服务器列表更新时，computed 属性会自动重新计算
 }, { deep: true })
 
-// 监听高亮分组变化，滚动到对应位置
+// 监听高亮分组变化，自动设置搜索框并滚动到对应位置
 watch(() => props.highlightGroup, async (groupName) => {
-  if (groupName && groupsStore.groups.length > 0) {
+  if (groupName) {
+    // 自动设置搜索框的值，这样就能筛选到对应的分组
+    groupsStore.setFilters({ search: groupName })
+    groupsStore.setPagination({ page: 1 })
+    await loadGroups(1)
+    
     await nextTick()
     // 查找对应的表格行并滚动到该位置
     const row = document.querySelector(`tr[data-group-name="${groupName}"]`)
     if (row) {
       row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      // 3秒后移除高亮
-      setTimeout(() => {
-        if (props.highlightGroup === groupName) {
-          // 如果仍然是同一个分组，清除高亮（通过父组件清除）
-        }
-      }, 3000)
     }
   }
 }, { immediate: true })

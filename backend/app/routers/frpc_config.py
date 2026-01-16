@@ -270,12 +270,12 @@ def get_config_by_group_quick(
             # 创建不存在的代理
             for config in default_configs:
                 if config["name"] not in existing_names:
-                    # 自动分配远端端口
+                    # 自动分配远端端口（端口范围会自动根据现有端口扩展）
                     remote_port = port_service.get_next_available_port(server_id, 6000, 7000)
                     if remote_port is None:
                         raise HTTPException(
                             status_code=500,
-                            detail=f"无法为代理 {config['name']} 分配可用端口（6000-7000 范围内已满）"
+                            detail=f"无法为代理 {config['name']} 分配可用端口（端口范围已满）"
                         )
                     
                     # 分配端口

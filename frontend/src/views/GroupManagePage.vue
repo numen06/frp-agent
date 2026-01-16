@@ -78,10 +78,7 @@ watch(currentServerId, async (newId) => {
   // 如果 URL 中有 group 参数，设置要高亮的分组
   if (newId && route.query.group) {
     highlightGroupName.value = route.query.group
-    // 清除 group 查询参数，保留其他参数
-    const newQuery = { ...route.query }
-    delete newQuery.group
-    router.replace({ query: newQuery })
+    // 不清除 group 查询参数，保留在URL中以便刷新时仍然有效
   }
 })
 
