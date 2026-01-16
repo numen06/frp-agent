@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
+from app.services.port_service import PortService
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -680,7 +681,6 @@ def generate_default_proxies(
             "proxy_type": "tcp",
             "local_ip": "127.0.0.1",
             "local_port": 9000,
-            "remote_port": None,
             "description": "Docker 管理面板"
         },
         {
@@ -688,7 +688,6 @@ def generate_default_proxies(
             "proxy_type": "tcp",
             "local_ip": "127.0.0.1",
             "local_port": 22,
-            "remote_port": None,
             "description": "SSH 远程终端"
         },
         {
@@ -696,7 +695,6 @@ def generate_default_proxies(
             "proxy_type": "tcp",
             "local_ip": "127.0.0.1",
             "local_port": 80,
-            "remote_port": None,
             "description": "HTTP Web 服务"
         }
     ]
@@ -708,6 +706,9 @@ def generate_default_proxies(
     ).all()
     existing_names = set([p.name for p in existing_proxies])
     
+    # 使用端口服务自动分配远端端口
+    port_service = PortService(db)
+    
     # 创建不存在的代理
     created_proxies = []
     skipped_names = []
@@ -718,6 +719,20 @@ def generate_default_proxies(
             skipped_names.append(config["name"])
             continue
         
+        # 自动分配远端端口
+        remote_port = port_service.get_next_available_port(frps_server_id, 6000, 7000)
+        if remote_port is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"无法为代理 {config['name']} 分配可用端口（6000-7000 范围内已满）"
+            )
+        
+        # 分配端口
+        try:
+            port_service.allocate_port(frps_server_id, remote_port, config["name"])
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=f"分配端口失败: {str(e)}")
+        
         # 创建新代理
         new_proxy = Proxy(
             frps_server_id=frps_server_id,
@@ -726,7 +741,7 @@ def generate_default_proxies(
             proxy_type=config["proxy_type"],
             local_ip=config["local_ip"],
             local_port=config["local_port"],
-            remote_port=config["remote_port"],
+            remote_port=remote_port,
             status="offline"
         )
         db.add(new_proxy)
@@ -734,6 +749,7 @@ def generate_default_proxies(
             "name": new_proxy.name,
             "local_ip": new_proxy.local_ip,
             "local_port": new_proxy.local_port,
+            "remote_port": new_proxy.remote_port,
             "description": config["description"]
         })
     
@@ -748,5 +764,93 @@ def generate_default_proxies(
         "skipped": len(skipped_names),
         "proxies": created_proxies,
         "skipped_names": skipped_names
+    }
+
+
+@router.post("/{group_name}/regenerate-ports")
+def regenerate_group_ports(
+    group_name: str,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """重新生成分组中所有代理的远端端口
+    
+    为分组中所有 TCP/UDP 类型的代理重新分配远端端口
+    会释放旧端口并分配新端口
+    """
+    # 查询该分组下的所有代理
+    proxies = db.query(Proxy).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.group_name == group_name
+    ).all()
+    
+    if not proxies:
+        raise HTTPException(status_code=404, detail=f"分组 '{group_name}' 中没有代理")
+    
+    # 使用端口服务
+    port_service = PortService(db)
+    
+    # 重新分配端口的代理列表
+    regenerated_proxies = []
+    failed_proxies = []
+    
+    for proxy in proxies:
+        # 只处理 TCP/UDP 类型的代理
+        if proxy.proxy_type not in ["tcp", "udp"]:
+            continue
+        
+        try:
+            # 释放旧端口
+            if proxy.remote_port:
+                try:
+                    port_service.release_port(frps_server_id, proxy.remote_port)
+                except:
+                    pass  # 忽略释放失败
+            
+            # 获取新的可用端口
+            new_port = port_service.get_next_available_port(frps_server_id, 6000, 7000)
+            if new_port is None:
+                failed_proxies.append({
+                    "name": proxy.name,
+                    "error": "无法分配可用端口（6000-7000 范围内已满）"
+                })
+                continue
+            
+            # 分配新端口
+            try:
+                port_service.allocate_port(frps_server_id, new_port, proxy.name)
+            except ValueError as e:
+                failed_proxies.append({
+                    "name": proxy.name,
+                    "error": str(e)
+                })
+                continue
+            
+            # 更新代理的远端端口
+            old_port = proxy.remote_port
+            proxy.remote_port = new_port
+            regenerated_proxies.append({
+                "name": proxy.name,
+                "old_port": old_port,
+                "new_port": new_port
+            })
+        
+        except Exception as e:
+            failed_proxies.append({
+                "name": proxy.name,
+                "error": str(e)
+            })
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"已为分组 '{group_name}' 重新分配 {len(regenerated_proxies)} 个代理的远端端口",
+        "group_name": group_name,
+        "regenerated": len(regenerated_proxies),
+        "failed": len(failed_proxies),
+        "proxies": regenerated_proxies,
+        "failed_proxies": failed_proxies
     }
 

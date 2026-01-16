@@ -45,6 +45,15 @@ export const groupApi = {
   // 自动分析分组
   autoAnalyzeGroups(frpsServerId) {
     return api.post('/groups/auto-analyze', { frps_server_id: frpsServerId })
+  },
+
+  // 重新生成分组中所有代理的远端端口
+  regenerateGroupPorts(groupName, frpsServerId) {
+    return api.post(`/groups/${encodeURIComponent(groupName)}/regenerate-ports`, null, {
+      params: {
+        frps_server_id: frpsServerId
+      }
+    })
   }
 }
 

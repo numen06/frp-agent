@@ -50,16 +50,32 @@
         <div v-if="configContent" class="modal-body border-top">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <label class="form-label mb-0">配置内容</label>
-            <button class="btn btn-sm btn-secondary" @click="downloadConfig">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                <path d="M12 11v6" />
-                <path d="M9 14l3 -3l3 3" />
-              </svg>
-              下载配置
-            </button>
+            <div class="d-flex gap-2">
+              <button 
+                v-if="props.groupName" 
+                class="btn btn-sm btn-warning" 
+                @click="handleRegeneratePorts"
+                :disabled="regeneratingPorts"
+              >
+                <span v-if="regeneratingPorts" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                  <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                </svg>
+                重新生成远端端口
+              </button>
+              <button class="btn btn-sm btn-secondary" @click="downloadConfig">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                  <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                  <path d="M12 11v6" />
+                  <path d="M9 14l3 -3l3 3" />
+                </svg>
+                下载配置
+              </button>
+            </div>
           </div>
           <textarea
             class="form-control"
@@ -90,6 +106,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { frpcConfigApi } from '@/api/frpcConfig'
+import { groupApi } from '@/api/groups'
 import { useModal } from '@/composables/useModal'
 
 const props = defineProps({
@@ -115,6 +132,7 @@ const emit = defineEmits(['update:modelValue'])
 
 const dialogVisible = ref(false)
 const generating = ref(false)
+const regeneratingPorts = ref(false)
 const configContent = ref('')
 
 const form = reactive({
@@ -211,6 +229,46 @@ const downloadConfig = () => {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+const handleRegeneratePorts = async () => {
+  if (!props.groupName) {
+    alert('仅支持为分组重新生成远端端口')
+    return
+  }
+  
+  if (!confirm('确定要重新生成该分组中所有代理的远端端口吗？\n\n这将释放旧端口并分配新端口。')) {
+    return
+  }
+  
+  regeneratingPorts.value = true
+  
+  try {
+    const result = await groupApi.regenerateGroupPorts(props.groupName, props.serverId)
+    
+    let message = result.message || '重新生成远端端口成功'
+    if (result.proxies && result.proxies.length > 0) {
+      message += '\n\n已重新分配的代理：\n'
+      result.proxies.forEach(p => {
+        message += `  • ${p.name}: ${p.old_port || '无'} → ${p.new_port}\n`
+      })
+    }
+    if (result.failed_proxies && result.failed_proxies.length > 0) {
+      message += '\n\n失败的代理：\n'
+      result.failed_proxies.forEach(p => {
+        message += `  • ${p.name}: ${p.error}\n`
+      })
+    }
+    
+    alert(message)
+    
+    // 重新生成配置以显示新的端口
+    await handleGenerate()
+  } catch (error) {
+    alert('重新生成远端端口失败: ' + error.message)
+  } finally {
+    regeneratingPorts.value = false
+  }
 }
 
 const handleClose = () => {

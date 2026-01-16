@@ -13,6 +13,7 @@ from app.models.temp_config import TempConfig
 from app.models.group import Group
 from app.models.proxy import Proxy
 from app.services.frpc_config_service import FrpcConfigService
+from app.services.port_service import PortService
 from app.config import get_settings
 from datetime import datetime
 
@@ -241,21 +242,18 @@ def get_config_by_group_quick(
                     "proxy_type": "tcp",
                     "local_ip": "127.0.0.1",
                     "local_port": 9000,
-                    "remote_port": None,
                 },
                 {
                     "name": f"{group_name}_ssh",
                     "proxy_type": "tcp",
                     "local_ip": "127.0.0.1",
                     "local_port": 22,
-                    "remote_port": None,
                 },
                 {
                     "name": f"{group_name}_http",
                     "proxy_type": "tcp",
                     "local_ip": "127.0.0.1",
                     "local_port": 80,
-                    "remote_port": None,
                 }
             ]
             
@@ -266,9 +264,26 @@ def get_config_by_group_quick(
             ).all()
             existing_names = set([p.name for p in existing_proxies])
             
+            # 使用端口服务自动分配远端端口
+            port_service = PortService(db)
+            
             # 创建不存在的代理
             for config in default_configs:
                 if config["name"] not in existing_names:
+                    # 自动分配远端端口
+                    remote_port = port_service.get_next_available_port(server_id, 6000, 7000)
+                    if remote_port is None:
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"无法为代理 {config['name']} 分配可用端口（6000-7000 范围内已满）"
+                        )
+                    
+                    # 分配端口
+                    try:
+                        port_service.allocate_port(server_id, remote_port, config["name"])
+                    except ValueError as e:
+                        raise HTTPException(status_code=500, detail=f"分配端口失败: {str(e)}")
+                    
                     new_proxy = Proxy(
                         frps_server_id=server_id,
                         name=config["name"],
@@ -276,7 +291,7 @@ def get_config_by_group_quick(
                         proxy_type=config["proxy_type"],
                         local_ip=config["local_ip"],
                         local_port=config["local_port"],
-                        remote_port=config["remote_port"],
+                        remote_port=remote_port,
                         status="offline"
                     )
                     db.add(new_proxy)
