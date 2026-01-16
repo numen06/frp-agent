@@ -228,7 +228,8 @@ class PortService:
         self,
         frps_server_id: int,
         start_port: int = 6000,
-        end_port: int = 7000
+        end_port: int = 7000,
+        exclude_proxy_names: List[str] = None
     ) -> Optional[int]:
         """获取下一个可用端口
         
@@ -251,10 +252,16 @@ class PortService:
         )
         
         # 获取Proxy表中所有代理使用的remote_port
-        proxy_ports = self.db.query(Proxy.remote_port).filter(
+        # 如果指定了要排除的代理名称（用于重新生成端口时排除旧端口），则排除这些代理
+        proxy_query = self.db.query(Proxy.remote_port).filter(
             Proxy.frps_server_id == frps_server_id,
             Proxy.remote_port.isnot(None)
-        ).all()
+        )
+        
+        if exclude_proxy_names:
+            proxy_query = proxy_query.filter(~Proxy.name.in_(exclude_proxy_names))
+        
+        proxy_ports = proxy_query.all()
         
         # 将Proxy表中的端口也加入已使用端口集合
         for (port,) in proxy_ports:

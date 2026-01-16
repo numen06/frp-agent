@@ -791,25 +791,40 @@ def regenerate_group_ports(
     # 使用端口服务
     port_service = PortService(db)
     
+    # 筛选出需要重新分配端口的代理（只处理 TCP/UDP 类型）
+    proxies_to_regenerate = [p for p in proxies if p.proxy_type in ["tcp", "udp"]]
+    
+    if not proxies_to_regenerate:
+        raise HTTPException(status_code=400, detail=f"分组 '{group_name}' 中没有需要重新分配端口的代理（TCP/UDP类型）")
+    
+    # 先收集所有旧端口信息
+    old_ports_map = {p.name: p.remote_port for p in proxies_to_regenerate}
+    
+    # 先释放所有旧端口（但不更新代理记录，等新端口分配成功后再更新）
+    for proxy in proxies_to_regenerate:
+        if proxy.remote_port:
+            try:
+                port_service.release_port(frps_server_id, proxy.remote_port)
+            except:
+                pass  # 忽略释放失败
+    
     # 重新分配端口的代理列表
     regenerated_proxies = []
     failed_proxies = []
     
-    for proxy in proxies:
-        # 只处理 TCP/UDP 类型的代理
-        if proxy.proxy_type not in ["tcp", "udp"]:
-            continue
-        
+    # 逐个分配新端口（这样可以保证连续递增）
+    # 收集所有正在重新分配的代理名称，用于排除它们的旧端口
+    proxy_names_to_exclude = [p.name for p in proxies_to_regenerate]
+    
+    for proxy in proxies_to_regenerate:
         try:
-            # 释放旧端口
-            if proxy.remote_port:
-                try:
-                    port_service.release_port(frps_server_id, proxy.remote_port)
-                except:
-                    pass  # 忽略释放失败
-            
-            # 获取新的可用端口
-            new_port = port_service.get_next_available_port(frps_server_id, 6000, 7000)
+            # 获取新的可用端口（排除当前分组中正在重新分配的代理的旧端口）
+            new_port = port_service.get_next_available_port(
+                frps_server_id, 
+                6000, 
+                7000,
+                exclude_proxy_names=proxy_names_to_exclude
+            )
             if new_port is None:
                 failed_proxies.append({
                     "name": proxy.name,
@@ -828,7 +843,7 @@ def regenerate_group_ports(
                 continue
             
             # 更新代理的远端端口
-            old_port = proxy.remote_port
+            old_port = old_ports_map[proxy.name]
             proxy.remote_port = new_port
             regenerated_proxies.append({
                 "name": proxy.name,
