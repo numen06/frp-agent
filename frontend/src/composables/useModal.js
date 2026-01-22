@@ -4,6 +4,8 @@ import { onUnmounted, watch } from 'vue'
 let modalCount = 0
 // 存储所有活动的模态框处理器
 const activeModals = []
+// 保存原始的 body overflow 值
+let originalBodyOverflow = null
 
 // 全局 ESC 键监听器（所有模态框共享同一个）
 const globalEscapeHandler = (event) => {
@@ -62,10 +64,11 @@ export function useModal(visible, onClose, options = {}) {
       // 只在第一个模态框打开时添加全局监听器
       if (modalCount === 1) {
         document.addEventListener('keydown', globalEscapeHandler)
+        // 保存原始的 overflow 值
+        originalBodyOverflow = document.body.style.overflow || ''
+        // 防止背景滚动
+        document.body.style.overflow = 'hidden'
       }
-      
-      // 防止背景滚动
-      document.body.style.overflow = 'hidden'
     } else {
       modalCount--
       // 移除当前处理器
@@ -77,7 +80,13 @@ export function useModal(visible, onClose, options = {}) {
       // 当所有模态框都关闭时，移除全局监听器并恢复滚动
       if (modalCount === 0) {
         document.removeEventListener('keydown', globalEscapeHandler)
-        document.body.style.overflow = ''
+        // 恢复原始的 overflow 值
+        if (originalBodyOverflow !== null) {
+          document.body.style.overflow = originalBodyOverflow
+          originalBodyOverflow = null
+        } else {
+          document.body.style.overflow = ''
+        }
       }
     }
   }, { immediate: true })
@@ -93,7 +102,13 @@ export function useModal(visible, onClose, options = {}) {
       
       if (modalCount === 0) {
         document.removeEventListener('keydown', globalEscapeHandler)
-        document.body.style.overflow = ''
+        // 恢复原始的 overflow 值
+        if (originalBodyOverflow !== null) {
+          document.body.style.overflow = originalBodyOverflow
+          originalBodyOverflow = null
+        } else {
+          document.body.style.overflow = ''
+        }
       }
     }
   })
