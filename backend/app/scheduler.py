@@ -90,7 +90,9 @@ async def sync_server(db: Session, server: FrpsServer):
             db_proxy = db_proxy_map[proxy_name]
             old_status = db_proxy.status
             db_proxy.status = proxy_info["status"]
-            db_proxy.remote_port = proxy_info["remote_port"]
+            # 只有当远程端口存在且与现有值不同时才更新，避免清除现有端口
+            if proxy_info.get("remote_port") is not None:
+                db_proxy.remote_port = proxy_info["remote_port"]
             
             # 如果分组信息为空，自动设置分组
             if not db_proxy.group_name:

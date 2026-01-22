@@ -67,7 +67,9 @@ async def compare_proxies(
             db_proxy = db_proxy_map[proxy_name]
             old_status = db_proxy.status
             db_proxy.status = proxy_info["status"]
-            db_proxy.remote_port = proxy_info["remote_port"]
+            # 只有当远程端口存在且与现有值不同时才更新，避免清除现有端口
+            if proxy_info.get("remote_port") is not None:
+                db_proxy.remote_port = proxy_info["remote_port"]
             
             # 如果状态改变，记录历史
             if old_status != proxy_info["status"]:
