@@ -187,15 +187,24 @@ async def get_proxies(
                 }
     
     # 计算总数（如果同步后，query已经重新构建）
-    total = query.count()
+    # 使用 distinct 避免 OR 条件或 relationship 导致的重复行
+    total = query.distinct().count()
     
     # 应用分页
     offset = (page - 1) * page_size
-    db_proxies = query.order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
+    db_proxies = query.distinct().order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
+    
+    # 按 id 去重（防止重复返回）
+    seen_ids = set()
+    unique_proxies = []
+    for proxy in db_proxies:
+        if proxy.id not in seen_ids:
+            seen_ids.add(proxy.id)
+            unique_proxies.append(proxy)
     
     # 返回代理列表（转换为响应格式）
     result["items"] = [
-        ProxyResponse.model_validate(proxy) for proxy in db_proxies
+        ProxyResponse.model_validate(proxy) for proxy in unique_proxies
     ]
     result["total"] = total
     
