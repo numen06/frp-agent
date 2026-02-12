@@ -55,16 +55,28 @@ export const useProxiesStore = defineStore('proxies', {
         
         // 处理分页响应格式
         if (response.items !== undefined) {
-          // 新的分页格式
-          this.proxies = response.items || []
+          // 新的分页格式，按 id 去重（防止后端返回重复）
+          const items = response.items || []
+          const seen = new Set()
+          this.proxies = items.filter(p => {
+            if (seen.has(p.id)) return false
+            seen.add(p.id)
+            return true
+          })
           this.pagination = {
             page: response.page || page,
             page_size: response.page_size || page_size,
             total: response.total || 0
           }
         } else {
-          // 兼容旧格式（无分页）
-          this.proxies = response.proxies || []
+          // 兼容旧格式（无分页），按 id 去重
+          const items = response.proxies || []
+          const seen = new Set()
+          this.proxies = items.filter(p => {
+            if (seen.has(p.id)) return false
+            seen.add(p.id)
+            return true
+          })
           this.pagination = {
             page: 1,
             page_size: this.proxies.length,

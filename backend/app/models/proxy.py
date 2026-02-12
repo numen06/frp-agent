@@ -1,6 +1,6 @@
 """代理记录模型"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -8,7 +8,11 @@ from app.database import Base
 class Proxy(Base):
     """代理记录表"""
     __tablename__ = "proxies"
-    
+
+    __table_args__ = (
+        UniqueConstraint('frps_server_id', 'name', name='uq_proxy_server_name'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     frps_server_id = Column(Integer, ForeignKey("frps_servers.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False, index=True)
