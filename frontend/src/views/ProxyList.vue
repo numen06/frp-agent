@@ -117,6 +117,9 @@
               </svg>
               刷新
             </button>
+            <button class="btn btn-outline-warning btn-sm" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
+              清理重复
+            </button>
           </div>
         </div>
       </div>
@@ -323,6 +326,7 @@ import { useProxiesStore } from '@/stores/proxies'
 import { useRefresh } from '@/composables/useRefresh'
 import { useDropdown } from '@/composables/useDropdown'
 import { groupApi } from '@/api/groups'
+import { proxyApi } from '@/api/proxies'
 import ProxyDialog from '@/components/ProxyDialog.vue'
 import ImportConfigDialog from '@/components/ImportConfigDialog.vue'
 import ConfigGenerateDialog from '@/components/ConfigGenerateDialog.vue'
@@ -460,6 +464,18 @@ const handleSelectAll = (event) => {
 
 const refreshProxies = async () => {
   await loadData()
+}
+
+const handleCleanDuplicates = async () => {
+  if (!currentServerId.value) return
+  if (!confirm('确定要清理当前服务器下的重复代理吗？同名代理只保留最新的一条。')) return
+  try {
+    const res = await proxyApi.cleanDuplicates(currentServerId.value)
+    alert(res.message || '清理完成')
+    await loadData()
+  } catch (error) {
+    alert('清理失败: ' + (error.message || '未知错误'))
+  }
 }
 
 const syncFromFrps = async () => {

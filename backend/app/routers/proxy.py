@@ -2,6 +2,7 @@
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 
 from app.database import get_db
@@ -185,30 +186,77 @@ async def get_proxies(
                     "error": f"从frps拉取数据失败: {str(e)}",
                     "note": "使用本地数据库数据"
                 }
-    
-    # 计算总数（如果同步后，query已经重新构建）
-    # 使用 distinct 避免 OR 条件或 relationship 导致的重复行
-    total = query.distinct().count()
-    
+
+    # 按 (frps_server_id, name) 去重：同一服务器下代理名称唯一，只保留每组中 id 最大的记录
+    keep_ids_subq = db.query(func.max(Proxy.id).label('keep_id')).group_by(
+        Proxy.frps_server_id, Proxy.name
+    )
+    if frps_server_id:
+        keep_ids_subq = keep_ids_subq.filter(Proxy.frps_server_id == frps_server_id)
+    if group_name:
+        keep_ids_subq = keep_ids_subq.filter(Proxy.group_name == group_name)
+    if status_filter:
+        keep_ids_subq = keep_ids_subq.filter(Proxy.status == status_filter)
+    if search:
+        keep_ids_subq = keep_ids_subq.filter(
+            (Proxy.name.like(search_pattern)) | (Proxy.group_name.like(search_pattern))
+        )
+    keep_ids_subq = keep_ids_subq.subquery()
+    query = query.filter(Proxy.id.in_(db.query(keep_ids_subq.c.keep_id)))
+
+    # 计算总数
+    total = query.count()
+
     # 应用分页
     offset = (page - 1) * page_size
-    db_proxies = query.distinct().order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
-    
-    # 按 id 去重（防止重复返回）
-    seen_ids = set()
-    unique_proxies = []
-    for proxy in db_proxies:
-        if proxy.id not in seen_ids:
-            seen_ids.add(proxy.id)
-            unique_proxies.append(proxy)
-    
+    db_proxies = query.order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
+
     # 返回代理列表（转换为响应格式）
     result["items"] = [
-        ProxyResponse.model_validate(proxy) for proxy in unique_proxies
+        ProxyResponse.model_validate(proxy) for proxy in db_proxies
     ]
     result["total"] = total
     
     return result
+
+
+@router.post("/clean-duplicates", status_code=status.HTTP_200_OK)
+def clean_duplicate_proxies(
+    frps_server_id: Optional[int] = Query(None, description="只清理指定服务器，不传则清理全部"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """清理重复代理：同一服务器下同一名称的代理只保留 id 最大的一条"""
+    base_query = db.query(Proxy)
+    if frps_server_id:
+        base_query = base_query.filter(Proxy.frps_server_id == frps_server_id)
+
+    # 找出每组 (frps_server_id, name) 要保留的 id
+    keep_ids_subq = db.query(func.max(Proxy.id).label('keep_id')).group_by(
+        Proxy.frps_server_id, Proxy.name
+    )
+    if frps_server_id:
+        keep_ids_subq = keep_ids_subq.filter(Proxy.frps_server_id == frps_server_id)
+    keep_ids = {row[0] for row in keep_ids_subq.all()}
+    if not keep_ids:
+        return {"message": "没有需要清理的重复记录", "deleted_count": 0}
+
+    # 删除不在保留列表中的代理
+    to_delete = base_query.filter(~Proxy.id.in_(keep_ids)).all()
+    deleted_count = len(to_delete)
+    for proxy in to_delete:
+        if proxy.remote_port:
+            try:
+                port_service = PortService(db)
+                port_service.release_port(proxy.frps_server_id, proxy.remote_port)
+            except Exception:
+                pass
+        db.delete(proxy)
+    db.commit()
+    return {
+        "message": f"已清理 {deleted_count} 条重复代理记录",
+        "deleted_count": deleted_count
+    }
 
 
 @router.get("/{proxy_id}", response_model=ProxyResponse)

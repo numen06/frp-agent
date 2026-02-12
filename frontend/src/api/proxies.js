@@ -38,5 +38,11 @@ export const proxyApi = {
   // 批量识别端口
   batchDetectPorts(proxyIds) {
     return api.post('/proxies/batch-detect-ports', { proxy_ids: proxyIds })
+  },
+
+  // 清理重复代理（同一服务器下同名代理只保留一条）
+  cleanDuplicates(frpsServerId = null) {
+    const params = frpsServerId ? { frps_server_id: frpsServerId } : {}
+    return api.post('/proxies/clean-duplicates', null, { params })
   }
 }
