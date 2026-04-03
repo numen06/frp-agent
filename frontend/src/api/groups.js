@@ -54,8 +54,23 @@ export const groupApi = {
         frps_server_id: frpsServerId
       }
     })
+  },
+
+  // 一键安装脚本 URL
+  getQuickInstallUrl(params) {
+    const query = new URLSearchParams()
+    query.set('server_name', params.server_name)
+    if (params.api_key) query.set('api_key', params.api_key)
+    if (params.install_path) query.set('install_path', params.install_path)
+    return `/api/groups/${encodeURIComponent(params.group_name)}/quick-install?${query.toString()}`
+  },
+
+  // 一键下载脚本 URL
+  getQuickDownloadUrl(params) {
+    const query = new URLSearchParams()
+    query.set('server_name', params.server_name)
+    if (params.api_key) query.set('api_key', params.api_key)
+    if (params.install_path) query.set('install_path', params.install_path)
+    return `/api/groups/${encodeURIComponent(params.group_name)}/quick-download?${query.toString()}`
   }
 }
-
-
-

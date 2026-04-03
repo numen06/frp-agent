@@ -99,35 +99,23 @@
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
-                      title="重命名"
-                      aria-label="重命名"
-                      @click="editGroup(group)"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                        <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
-                        <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
-                        <path d="M16 5l3 3" />
-                      </svg>
-                    </button>
-                    <button
                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100"
-                      title="生成配置"
-                      aria-label="生成配置"
-                      @click="generateGroupConfig(group.group_name)"
+                      title="一键安装"
+                      aria-label="一键安装"
+                      @click="handleOneClickInstall(group, $event)"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                        <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                        <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                        <path d="M12 3l0 18" />
+                        <path d="M8 7l4 -4l4 4" />
+                        <path d="M8 17l4 4l4 -4" />
                       </svg>
                     </button>
                     <button
                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-700 transition-colors hover:bg-purple-100"
-                      title="复制命令"
-                      aria-label="复制命令"
-                      @click="copyGroupCommand(group.group_name, $event)"
+                      title="一键下载"
+                      aria-label="一键下载"
+                      @click="handleOneClickDownload(group, $event)"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
@@ -135,21 +123,69 @@
                         <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
                       </svg>
                     </button>
-                    <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
-                      title="删除"
-                      aria-label="删除"
-                      @click="deleteGroup(group)"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                        <path d="M4 7l16 0" />
-                        <path d="M10 11l0 6" />
-                        <path d="M14 11l0 6" />
-                        <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-                        <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-                      </svg>
-                    </button>
+                    <div class="relative">
+                      <button
+                        type="button"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                        title="更多"
+                        aria-label="更多操作"
+                        @click.stop="toggleGroupMore(group.group_name)"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                          <circle cx="5" cy="12" r="1" fill="currentColor" />
+                          <circle cx="12" cy="12" r="1" fill="currentColor" />
+                          <circle cx="19" cy="12" r="1" fill="currentColor" />
+                        </svg>
+                      </button>
+                      <div
+                        v-if="openMoreGroupName === group.group_name"
+                        class="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                        @click.stop
+                      >
+                        <a
+                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                          href="#"
+                          @click.prevent="editGroup(group); openMoreGroupName = ''"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                            <path d="M16 5l3 3" />
+                          </svg>
+                          修改
+                        </a>
+                        <a
+                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                          href="#"
+                          @click.prevent="generateGroupConfig(group.group_name); openMoreGroupName = ''"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                          </svg>
+                          生成配置
+                        </a>
+                        <div class="my-1 border-t border-gray-100"></div>
+                        <a
+                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+                          href="#"
+                          @click.prevent="deleteGroup(group); openMoreGroupName = ''"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                            <path d="M4 7l16 0" />
+                            <path d="M10 11l0 6" />
+                            <path d="M14 11l0 6" />
+                            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                          </svg>
+                          删除
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -296,12 +332,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { copyWithTooltip } from '@/composables/useCopyTooltip'
+import { groupApi } from '@/api/groups'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
 import GroupProxiesDialog from '@/components/GroupProxiesDialog.vue'
@@ -322,6 +359,9 @@ const props = defineProps({
 const groupsStore = useGroupsStore()
 const serversStore = useServersStore()
 const apiKeysStore = useApiKeysStore()
+
+// 更多下拉菜单状态
+const openMoreGroupName = ref('')
 
 // 加载分组数据
 const loadGroups = async (page = 1) => {
@@ -628,6 +668,78 @@ const closeCreateDialog = () => {
 const closeRenameDialog = () => {
   showRenameDialog.value = false
   renameForm.new_name = ''
+}
+
+// 一键安装：后端生成完整安装脚本，前端只复制一条短命令
+const handleOneClickInstall = async (group, event) => {
+  try {
+    let apiKey = selectedApiKeyFullKey.value
+    if (!apiKey) {
+      await updateFullKey()
+      apiKey = selectedApiKeyFullKey.value
+    }
+    if (!apiKey) {
+      alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
+      return
+    }
+
+    const serverName = currentServerName.value
+    const url = groupApi.getQuickInstallUrl({
+      group_name: group.group_name,
+      server_name: serverName,
+      api_key: apiKey,
+      install_path: '/opt/frp'
+    })
+    const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+
+    await copyWithTooltip(cmd, event)
+  } catch (error) {
+    console.error('一键安装失败:', error)
+    alert('一键安装失败: ' + error.message)
+  }
+}
+
+// 更多下拉菜单切换
+const toggleGroupMore = (groupName) => {
+  openMoreGroupName.value = openMoreGroupName.value === groupName ? '' : groupName
+}
+
+// 点击页面其他区域关闭更多菜单
+const closeMoreOnOutsideClick = (e) => {
+  if (openMoreGroupName.value && !e.target.closest('.relative')) {
+    openMoreGroupName.value = ''
+  }
+}
+onMounted(() => document.addEventListener('click', closeMoreOnOutsideClick))
+onUnmounted(() => document.removeEventListener('click', closeMoreOnOutsideClick))
+
+// 一键下载：后端生成完整下载脚本，前端只复制一条短命令
+const handleOneClickDownload = async (group, event) => {
+  try {
+    let apiKey = selectedApiKeyFullKey.value
+    if (!apiKey) {
+      await updateFullKey()
+      apiKey = selectedApiKeyFullKey.value
+    }
+    if (!apiKey) {
+      alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
+      return
+    }
+
+    const serverName = currentServerName.value
+    const url = groupApi.getQuickDownloadUrl({
+      group_name: group.group_name,
+      server_name: serverName,
+      api_key: apiKey,
+      install_path: '/opt/frp'
+    })
+    const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+
+    await copyWithTooltip(cmd, event)
+  } catch (error) {
+    console.error('一键下载失败:', error)
+    alert('一键下载失败: ' + error.message)
+  }
 }
 
 // 使用统一的模态框功能

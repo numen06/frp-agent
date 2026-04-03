@@ -1,16 +1,20 @@
 """代理分组管理路由"""
+import json
+import os
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, verify_api_key
 from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
+from app.models.frp_package import FrpPackage
 from app.services.port_service import PortService
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
@@ -890,3 +894,196 @@ def regenerate_group_ports(
         "failed_proxies": failed_proxies
     }
 
+
+# ── 一键安装/下载脚本 ──────────────────────────────────────────────
+
+def _ensure_packages_dir() -> str:
+    d = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "packages")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _load_versions_cache() -> dict:
+    path = os.path.join(_ensure_packages_dir(), "versions_cache.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _load_script_templates() -> dict:
+    path = os.path.join(_ensure_packages_dir(), "install_scripts.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _default_install_template(platform: str) -> str:
+    if platform.startswith("windows_"):
+        return (
+            "mkdir -Force \"$env:FRP_DIR\" 2>$null\n"
+            "Write-Host \"Downloading {{filename}} ...\"\n"
+            "Invoke-WebRequest -Uri \"{{download_url}}\" -OutFile \"$env:TEMP\\{{filename}}\"\n"
+            "tar -xf \"$env:TEMP\\{{filename}}\" -C \"$env:TEMP\"\n"
+            "Copy-Item \"$env:TEMP\\frp_*\\frpc.exe\" \"$FRP_DIR\\frpc.exe\" -Force\n"
+            "Remove-Item \"$env:TEMP\\{{filename}}\" -Force -ErrorAction SilentlyContinue\n"
+            "{{config_line}}\n"
+        )
+    return (
+        "#!/bin/bash\n"
+        "set -e\n"
+        "FRP_DIR=\"{{install_path}}\"\n"
+        "mkdir -p \"$FRP_DIR\"\n"
+        "echo \"Downloading {{filename}} ...\"\n"
+        "cd /tmp && curl -fSL -o \"{{filename}}\" \"{{download_url}}\" \\\n"
+        "  && tar -xzf \"{{filename}}\" \\\n"
+        "  && cp -f frp_*/frpc \"$FRP_DIR/\" \\\n"
+        "  && rm -f \"{{filename}}\" \\\n"
+        "  && rm -rf frp_*\n"
+        "{{config_line}}\n"
+        "echo \"Done. frpc installed to $FRP_DIR\"\n"
+    )
+
+
+def _get_latest_linux_amd64_package(db: Session):
+    """查找最新版本 linux_amd64 平台的激活安装包"""
+    cache = _load_versions_cache()
+    latest_version = cache.get("latest_version")
+    if not latest_version:
+        # 没有 cache 时，从数据库取最新版本号
+        row = db.query(FrpPackage.version).filter(
+            FrpPackage.is_active == True,
+            FrpPackage.platform == "linux_amd64"
+        ).order_by(FrpPackage.id.desc()).first()
+        if not row:
+            return None, None
+        latest_version = row.version
+
+    pkg = db.query(FrpPackage).filter(
+        FrpPackage.is_active == True,
+        FrpPackage.platform == "linux_amd64",
+        FrpPackage.version == latest_version
+    ).first()
+    if not pkg:
+        return None, None
+    return pkg, latest_version
+
+
+def _build_install_script(db, pkg, api_key, install_path, server_name, group_name, server_base):
+    """构建安装+配置脚本"""
+    download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
+    config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
+    config_line = f"\ncurl -sL \"{config_url}\" -o \"$FRP_DIR/frpc.toml\"\n"
+
+    templates = _load_script_templates()
+    template = templates.get(pkg.platform) or _default_install_template(pkg.platform)
+    script = (
+        template.replace("{{filename}}", pkg.filename)
+        .replace("{{download_url}}", download_url)
+        .replace("{{install_path}}", install_path)
+        .replace("{{config_line}}", config_line)
+        .replace("{{platform}}", pkg.platform)
+        .replace("{{version}}", pkg.version)
+    )
+    return script
+
+
+def _build_download_script(db, pkg, api_key, install_path, server_name, group_name, server_base):
+    """构建下载+配置的 shell 命令"""
+    download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
+    config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
+    return (
+        f"#!/bin/bash\n"
+        f"set -e\n"
+        f"FRP_DIR=\"{install_path}\"\n"
+        f"mkdir -p \"$FRP_DIR\"\n"
+        f"echo \"Downloading {pkg.filename} ...\"\n"
+        f"cd /tmp && curl -fSL -o \"{pkg.filename}\" \"{download_url}\" \\\n"
+        f"  && tar -xzf \"{pkg.filename}\" \\\n"
+        f"  && cp -f frp_*/frpc \"$FRP_DIR/\" \\\n"
+        f"  && rm -f \"{pkg.filename}\" \\\n"
+        f"  && rm -rf frp_*\n"
+        f"curl -sL \"{config_url}\" -o \"$FRP_DIR/frpc.toml\"\n"
+        f"echo \"Done. frpc downloaded to $FRP_DIR\"\n"
+    )
+
+
+def _auth_for_script(request: Request, db: Session = Depends(get_db)):
+    """脚本端点的认证：支持 API Key 或已登录用户"""
+    api_key = request.query_params.get("api_key")
+    if not api_key:
+        api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.startswith("Bearer "):
+            api_key = authorization[7:].strip()
+    if api_key:
+        obj = verify_api_key(db, api_key)
+        if obj:
+            return {"type": "api_key", "obj": obj, "key": api_key}
+    try:
+        user = get_current_user(request, db)
+        return {"type": "user", "obj": user, "key": None}
+    except HTTPException:
+        pass
+    raise HTTPException(status_code=401, detail="认证失败，请提供有效的 API Key 或登录凭证")
+
+
+@router.get("/{group_name}/quick-install", response_class=PlainTextResponse)
+def quick_install(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称"),
+    platform: str = Query("linux_amd64", description="目标平台"),
+    install_path: str = Query("/opt/frp", description="安装路径"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """一键安装脚本：自动下载最新 frpc 并拉取分组配置
+
+    用法：
+      curl -sL "http://host/api/groups/mygroup/quick-install?server_name=xxx&api_key=xxx" | bash
+    """
+    api_key = request.query_params.get("api_key") or ""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    pkg, version = _get_latest_linux_amd64_package(db)
+    if not pkg:
+        raise HTTPException(status_code=404, detail="未找到可用的 linux_amd64 安装包，请先同步安装包")
+
+    script = _build_install_script(db, pkg, api_key, install_path, server_name, group_name, server_base)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.get("/{group_name}/quick-download", response_class=PlainTextResponse)
+def quick_download(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称"),
+    install_path: str = Query("/opt/frp", description="安装路径"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """一键下载脚本：下载最新 frpc 压缩包并拉取分组配置到指定目录
+
+    用法：
+      curl -sL "http://host/api/groups/mygroup/quick-download?server_name=xxx&api_key=xxx" | bash
+    """
+    api_key = request.query_params.get("api_key") or ""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    pkg, version = _get_latest_linux_amd64_package(db)
+    if not pkg:
+        raise HTTPException(status_code=404, detail="未找到可用的 linux_amd64 安装包，请先同步安装包")
+
+    script = _build_download_script(db, pkg, api_key, install_path, server_name, group_name, server_base)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
