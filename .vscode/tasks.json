@@ -19,6 +19,9 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
             }
         },
         {
@@ -94,6 +97,9 @@
             "presentation": {
                 "reveal": "always",
                 "panel": "new"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
             }
         },
         {

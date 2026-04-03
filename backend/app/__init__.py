@@ -1,3 +1,6 @@
 """frp-agent 管理系统"""
-__version__ = "1.0.0"
+
+from .version import get_version
+
+__version__ = get_version()
 

@@ -87,7 +87,25 @@ api.interceptors.response.use(
   }
 )
 
+/** 公开版本（登录页等，无需认证） */
+export function getPublicVersion() {
+  return api.get('/public/version', { skipAuthRedirect: true })
+}
+
+/** 当前应用版本（需认证） */
+export function getSystemVersion() {
+  return api.get('/system/version')
+}
+
+/**
+ * 检查 Gitee Release 更新（需认证）
+ * @param {boolean} [force] 为 true 时跳过服务端缓存
+ */
+export function checkVersionUpdate(force = false) {
+  return api.get('/system/version/check-update', {
+    params: force ? { force: true } : undefined
+  })
+}
+
 export default api
-
-
 

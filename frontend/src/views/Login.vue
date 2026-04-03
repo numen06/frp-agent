@@ -51,19 +51,26 @@
         </form>
       </div>
 
-      <div class="mt-4 text-center text-sm text-gray-500">FRP-AGENT v1.0 &copy; 2025</div>
+      <div class="mt-4 text-center text-sm text-gray-500">
+        FRP-AGENT
+        <template v-if="appVersion"> v{{ appVersion }}</template>
+        <template v-else> …</template>
+        &copy; 2025
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import FrpLogo from '@/components/FrpLogo.vue'
+import { getPublicVersion } from '@/api/index'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const appVersion = ref('')
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -71,6 +78,17 @@ const errorMessage = ref('')
 const loginForm = reactive({
   username: '',
   password: ''
+})
+
+onMounted(async () => {
+  try {
+    const res = await getPublicVersion()
+    if (res?.success && res.version) {
+      appVersion.value = res.version
+    }
+  } catch {
+    // 版本展示非关键
+  }
 })
 
 const handleLogin = async () => {

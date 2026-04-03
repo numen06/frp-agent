@@ -22,6 +22,25 @@
             </router-link>
           </div>
           <div class="flex items-center gap-3">
+            <button
+              type="button"
+              class="relative inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              title="版本与更新"
+              @click="openVersionModal"
+            >
+              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                />
+              </svg>
+              <span class="hidden sm:inline">v{{ appVersion || '…' }}</span>
+              <span
+                v-if="updateStatus.hasUpdate"
+                class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
+              ></span>
+            </button>
             <div class="hidden lg:flex items-center gap-2">
               <label class="text-xs text-gray-500 whitespace-nowrap">默认APPKey</label>
               <select
@@ -130,10 +149,114 @@
     </div>
 
     <footer class="border-t border-gray-200 bg-white py-4">
-      <div class="max-w-7xl mx-auto px-4 text-sm text-gray-500">
-        FRP-AGENT v1.0 | Copyright &copy; 2025
+      <div class="max-w-7xl mx-auto px-4 text-sm text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>FRP-AGENT v{{ appVersion || '…' }}</span>
+        <span class="text-gray-300">|</span>
+        <span>Copyright &copy; 2025</span>
+        <span class="text-gray-300">|</span>
+        <button
+          type="button"
+          class="text-blue-600 hover:underline p-0 border-0 bg-transparent cursor-pointer text-sm"
+          @click="openVersionModal"
+        >
+          检查更新与发行说明
+        </button>
       </div>
     </footer>
+
+    <!-- 新版本提示 -->
+    <div
+      v-if="updateToastVisible"
+      class="fixed bottom-4 left-1/2 z-1100 w-[min(92vw,28rem)] -translate-x-1/2 rounded-lg border border-gray-200 bg-gray-900 px-4 py-3 text-sm text-white shadow-lg"
+      role="status"
+    >
+      <div class="flex gap-3">
+        <p class="flex-1 whitespace-pre-wrap">{{ updateToastText }}</p>
+        <button
+          type="button"
+          class="shrink-0 text-gray-400 hover:text-white"
+          aria-label="关闭"
+          @click="updateToastVisible = false"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+
+    <!-- 版本与更新 -->
+    <div v-if="showVersionModal" class="modal-backdrop fade show" @click="closeVersionModal"></div>
+    <div
+      class="modal modal-blur fade"
+      :class="{ show: showVersionModal }"
+      tabindex="-1"
+      role="dialog"
+      @click.self="closeVersionModal"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">版本与更新</h5>
+            <button type="button" class="btn-close" aria-label="关闭" @click="closeVersionModal"></button>
+          </div>
+          <div class="modal-body text-sm">
+            <dl class="row mb-3">
+              <dt class="col-sm-4 text-gray-600">当前版本</dt>
+              <dd class="col-sm-8">{{ displayCurrentVersion }}</dd>
+              <dt class="col-sm-4 text-gray-600">Gitee 最新</dt>
+              <dd class="col-sm-8">{{ updateStatus.latestVersion || '—' }}</dd>
+              <dt v-if="updateStatus.releaseName" class="col-sm-4 text-gray-600">Release</dt>
+              <dd v-if="updateStatus.releaseName" class="col-sm-8">{{ updateStatus.releaseName }}</dd>
+            </dl>
+            <div v-if="!updateStatus.checkSuccess" class="alert alert-warning py-2 small mb-2" role="alert">
+              {{ updateStatus.checkMessage || '检查更新失败' }}
+            </div>
+            <div v-else-if="updateStatus.hasUpdate" class="alert alert-danger py-2 small mb-2" role="alert">
+              <strong>发现新版本</strong>，请前往 Gitee Release 拉取镜像或按说明升级。
+            </div>
+            <div v-else-if="updateStatus.latestVersion" class="alert alert-success py-2 small mb-2" role="alert">
+              当前已是最新版本。
+            </div>
+            <div v-if="updateStatus.releaseBody" class="mb-2">
+              <div class="text-gray-600 mb-1">发行说明</div>
+              <pre class="small bg-light p-2 rounded border overflow-auto max-h-48 whitespace-pre-wrap mb-0">{{
+                updateStatus.releaseBody
+              }}</pre>
+            </div>
+            <div
+              v-else-if="updateStatus.checkSuccess && updateStatus.latestVersion"
+              class="small text-muted mb-2"
+            >
+              本 Release 暂无正文，可点击「在 Gitee 查看」。
+            </div>
+            <div class="mt-2 flex flex-wrap gap-3 small">
+              <a
+                v-if="updateStatus.releaseUrl"
+                :href="updateStatus.releaseUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link-primary"
+                >在 Gitee 查看</a
+              >
+              <a :href="GITEE_RELEASES_URL" target="_blank" rel="noopener noreferrer" class="link-primary"
+                >全部发行版</a
+              >
+              <a :href="GITEE_RELEASE_NOTES_URL" target="_blank" rel="noopener noreferrer" class="link-primary"
+                >仓库内版本说明（release-notes）</a
+              >
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="checkLoading" @click="closeVersionModal">
+              关闭
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" :disabled="checkLoading" @click="refreshVersionCheck">
+              <span v-if="checkLoading" class="spinner-border spinner-border-sm me-1" role="status"></span>
+              刷新检查
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <UserManageDialog
       :show="showUserManageDialog"
@@ -153,8 +276,15 @@ import { useApiKeysStore } from '@/stores/apiKeys'
 import FrpLogo from '@/components/FrpLogo.vue'
 import UserManageDialog from '@/components/UserManageDialog.vue'
 import { settingsApi } from '@/api/settings'
+import { getSystemVersion, checkVersionUpdate } from '@/api/index'
 import { useDropdown } from '@/composables/useDropdown'
 import { useCollapse } from '@/composables/useCollapse'
+import { useModal } from '@/composables/useModal'
+
+/** 与后端 app/version.py 中 Gitee 仓库一致 */
+const GITEE_REPO_URL = 'https://gitee.com/numen06/frp-agent'
+const GITEE_RELEASES_URL = `${GITEE_REPO_URL}/releases`
+const GITEE_RELEASE_NOTES_URL = `${GITEE_REPO_URL}/tree/master/release-notes`
 
 const router = useRouter()
 const route = useRoute()
@@ -179,6 +309,106 @@ const navItems = [
 const userDropdown = useDropdown()
 const notifyDropdown = useDropdown()
 const navCollapse = useCollapse()
+
+const appVersion = ref('')
+const showVersionModal = ref(false)
+const checkLoading = ref(false)
+const updateToastVisible = ref(false)
+const updateToastText = ref('')
+let updateToastTimer = null
+
+const updateStatus = ref({
+  hasUpdate: false,
+  latestVersion: null,
+  releaseUrl: null,
+  releaseName: null,
+  releaseBodySummary: null,
+  currentVersion: null,
+  releaseBody: null,
+  checkSuccess: true,
+  checkMessage: ''
+})
+
+const displayCurrentVersion = computed(() => {
+  return updateStatus.value.currentVersion || appVersion.value || '—'
+})
+
+async function loadSystemVersion() {
+  if (!authStore.isAuthenticated) return
+  try {
+    const res = await getSystemVersion()
+    if (res?.success && res.version) {
+      appVersion.value = res.version
+    }
+  } catch (e) {
+    console.error('获取系统版本失败:', e)
+  }
+}
+
+function showUpdateToastOnce(resData) {
+  const key = `frp-agent-update-notified-${resData.latest_version || 'unknown'}`
+  if (sessionStorage.getItem(key)) return
+  sessionStorage.setItem(key, '1')
+  const summary = resData.release_body_summary ? `\n${resData.release_body_summary}` : ''
+  updateToastText.value = `当前 ${resData.current_version || '-'}，最新 ${resData.latest_version || '-'}${summary}`
+  updateToastVisible.value = true
+  if (updateToastTimer) clearTimeout(updateToastTimer)
+  updateToastTimer = setTimeout(() => {
+    updateToastVisible.value = false
+  }, 12000)
+}
+
+async function loadUpdateCheck({ showLoading = false, force = false } = {}) {
+  if (!authStore.isAuthenticated) return
+  if (showLoading) checkLoading.value = true
+  try {
+    const d = await checkVersionUpdate(force)
+    updateStatus.value = {
+      hasUpdate: !!d.has_update,
+      latestVersion: d.latest_version || null,
+      releaseUrl: d.release_url || null,
+      releaseName: d.release_name || null,
+      releaseBodySummary: d.release_body_summary || null,
+      currentVersion: d.current_version || null,
+      releaseBody: d.release_body || null,
+      checkSuccess: !!d.success,
+      checkMessage: d.message || ''
+    }
+    if (d.success && d.has_update) {
+      showUpdateToastOnce(d)
+    }
+  } catch (e) {
+    const prev = updateStatus.value.currentVersion
+    updateStatus.value = {
+      hasUpdate: false,
+      latestVersion: null,
+      releaseUrl: null,
+      releaseName: null,
+      releaseBodySummary: null,
+      currentVersion: prev || appVersion.value || null,
+      releaseBody: null,
+      checkSuccess: false,
+      checkMessage: e?.message || '检查失败'
+    }
+  } finally {
+    if (showLoading) checkLoading.value = false
+  }
+}
+
+function openVersionModal() {
+  showVersionModal.value = true
+  loadUpdateCheck({ showLoading: true })
+}
+
+function closeVersionModal() {
+  showVersionModal.value = false
+}
+
+function refreshVersionCheck() {
+  loadUpdateCheck({ showLoading: true, force: true })
+}
+
+useModal(showVersionModal, closeVersionModal)
 
 const notifications = computed(() => {
   const items = []
@@ -225,11 +455,13 @@ watch(() => route.query, (newQuery) => {
 }, { immediate: true })
 
 // 组件挂载时检查
-onMounted(() => {
+onMounted(async () => {
   apiKeysStore.init()
   if (route.query.forcePasswordChange === 'true') {
     checkPasswordRequirement()
   }
+  await loadSystemVersion()
+  await loadUpdateCheck()
 })
 
 const handleDefaultKeyChange = (event) => {

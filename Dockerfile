@@ -50,7 +50,7 @@ WORKDIR /app
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 # 复制依赖文件
-COPY requirements.txt .
+COPY backend/requirements.txt .
 # 安装 Python 依赖
 # 可选：为 pip 配置阿里云镜像源以加速下载
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \

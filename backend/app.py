@@ -9,8 +9,6 @@ frp-agent 主入口文件
    python app.py
 
 2. 从项目根目录运行：
-   python run.py
-   或
    python backend/app.py
 
 3. 使用 uvicorn 直接运行（需要在 backend 目录下）：

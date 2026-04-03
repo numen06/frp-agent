@@ -2,11 +2,10 @@
 
 后端提供 RESTful API，前端由 Vue + Vite 构建，构建后的静态文件由 FastAPI 服务。
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import os
@@ -17,7 +16,9 @@ from app.routers import frps_server, proxy, port, config, sync, user_settings, g
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy.orm import Session
-from fastapi import Depends
+from app.version import get_version, check_gitee_update
+from app.auth import get_current_user
+from app.models.user import User
 
 # 配置日志
 logging.basicConfig(
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="frp-agent 管理系统",
     description="frp 代理管理系统，提供端口管理、冲突检测、配置生成等功能",
-    version="1.0.0",
+    version=get_version(),
     lifespan=lifespan,
     docs_url=None,  # 禁用 /docs
     redoc_url=None  # 禁用 /redoc
@@ -96,17 +97,54 @@ app.include_router(frpc_config.router)
 app.include_router(api_key.router)
 app.include_router(frp_package.router)
 
+
+@app.get("/api/public/version")
+async def api_public_version():
+    """当前应用版本（无需登录，供登录页等展示）。"""
+    return JSONResponse({"success": True, "version": get_version()})
+
+
+@app.get("/api/system/version")
+async def api_get_system_version(current_user: User = Depends(get_current_user)):
+    """获取当前应用版本号（来自 backend/VERSION）。"""
+    return JSONResponse({"success": True, "version": get_version()})
+
+
+@app.get("/api/system/version/check-update")
+async def api_check_system_version_update(
+    current_user: User = Depends(get_current_user),
+    force: bool = Query(False, description="跳过服务端缓存，直接请求 Gitee"),
+):
+    """检查 Gitee Release 是否有新版本。"""
+    update_info = check_gitee_update(force_refresh=force)
+    return JSONResponse(
+        {
+            "success": update_info.get("success", False),
+            "current_version": update_info.get("current_version"),
+            "latest_version": update_info.get("latest_version"),
+            "has_update": update_info.get("has_update", False),
+            "release_url": update_info.get("release_url"),
+            "release_name": update_info.get("release_name"),
+            "release_body": update_info.get("release_body"),
+            "release_body_summary": update_info.get("release_body_summary"),
+            "message": update_info.get("message", ""),
+        }
+    )
+
+
 # 健康检查端点
 @app.get("/api/health")
 async def health_check(db: Session = Depends(get_db)):
     """健康检查端点"""
+    ver = get_version()
     try:
         # 测试数据库连接
         db.execute("SELECT 1")
         return {
             "status": "healthy",
             "service": "frp-agent",
-            "database": "connected"
+            "database": "connected",
+            "version": ver,
         }
     except Exception as e:
         logger.error(f"健康检查失败: {e}")
@@ -114,6 +152,7 @@ async def health_check(db: Session = Depends(get_db)):
             "status": "unhealthy",
             "service": "frp-agent",
             "database": "disconnected",
+            "version": ver,
             "error": str(e)
         }
 
@@ -181,7 +220,7 @@ else:
         """API 根路径"""
         return {
             "service": "frp-agent API",
-            "version": "1.0.0",
+            "version": get_version(),
             "status": "running",
             "note": "前端文件未构建"
         }
