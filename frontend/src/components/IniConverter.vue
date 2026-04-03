@@ -119,14 +119,13 @@
             </div>
             
             <div class="mb-3">
-              <label class="form-label">选择 API Key（可选）</label>
+              <label class="form-label">选择 API Key</label>
               <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
-                <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
-                <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
+                <option v-for="apiKey in apiKeysStore.availableKeys" :key="apiKey.id" :value="apiKey.id">
                   {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
                 </option>
               </AppSelect>
-              <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
+              <small class="form-hint">默认使用全局 APPKey，可按需临时切换</small>
             </div>
             
             <div class="mb-3">
@@ -174,7 +173,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { FwbFileInput } from 'flowbite-vue'
 import { configApi } from '@/api/config'
-import { apiKeysApi } from '@/api/apiKeys'
+import { useApiKeysStore } from '@/stores/apiKeys'
 import AppSelect from '@/components/AppSelect.vue'
 
 const activeTab = ref('web') // 当前激活的 tab: 'web' 或 'command'
@@ -182,10 +181,12 @@ const iniContent = ref('')
 const tomlContent = ref('')
 const converting = ref(false)
 const errorMessage = ref('')
-const apiKeys = ref([])
-const selectedApiKeyId = ref(null)
+const apiKeysStore = useApiKeysStore()
+const selectedApiKeyId = computed({
+  get: () => apiKeysStore.selectedKeyId,
+  set: (id) => apiKeysStore.setDefaultKey(id)
+})
 const selectedApiKeyFullKey = ref(null)
-const loadingApiKeys = ref(false)
 const copySuccess = ref(false) // 复制成功提示
 const uploadedIniFile = ref(null)
 
@@ -202,41 +203,8 @@ const apiBaseUrl = computed(() => {
 // 更新完整密钥的函数
 const updateFullKey = async () => {
   if (selectedApiKeyId.value) {
-    // 先尝试从 localStorage 读取
     const id = selectedApiKeyId.value
-    const possibleKeys = [
-      `api_key_${id}`,
-      `api_key_${Number(id)}`,
-      `api_key_${String(id)}`
-    ]
-    
-    let fullKey = null
-    for (const key of possibleKeys) {
-      const value = localStorage.getItem(key)
-      if (value && value.trim()) {
-        const trimmedValue = value.trim()
-        if (trimmedValue !== String(id) && trimmedValue !== String(Number(id)) && trimmedValue.length > 20) {
-          fullKey = trimmedValue
-          break
-        }
-      }
-    }
-    
-    // 如果 localStorage 中没有，尝试从后端接口获取
-    if (!fullKey) {
-      try {
-        const response = await apiKeysApi.get(id, { include_full_key: true })
-        if (response.key && response.key.length > 20) {
-          fullKey = response.key
-          // 保存到 localStorage 以便下次使用
-          const storageKey = `api_key_${Number(id)}`
-          localStorage.setItem(storageKey, fullKey)
-          localStorage.setItem(`api_key_${String(id)}`, fullKey)
-        }
-      } catch (error) {
-        console.warn('无法从后端获取完整密钥:', error)
-      }
-    }
+    const fullKey = await apiKeysStore.resolveFullKey(id)
     
     if (fullKey) {
       selectedApiKeyFullKey.value = fullKey
@@ -255,6 +223,7 @@ watch(selectedApiKeyId, (newId) => {
 
 // 处理 API Key 选择变化
 const handleApiKeyChange = () => {
+  apiKeysStore.setDefaultKey(selectedApiKeyId.value)
   updateFullKey()
 }
 
@@ -275,26 +244,12 @@ const exampleCommand = computed(() => {
 
 // 加载 API Key 列表
 const loadApiKeys = async () => {
-  loadingApiKeys.value = true
-  try {
-    const keys = await apiKeysApi.list(0, 100)
-    // 只显示激活的密钥
-    apiKeys.value = keys.filter(k => k.is_active && !k.is_expired)
-    
-    // 如果列表不为空且当前没有选中密钥，默认选择第一个
-    if (apiKeys.value.length > 0 && selectedApiKeyId.value === null) {
-      selectedApiKeyId.value = apiKeys.value[0].id
-    }
-    
-    // 如果已经有选中的密钥，重新加载完整密钥
-    if (selectedApiKeyId.value) {
-      updateFullKey()
-    }
-  } catch (error) {
-    console.error('加载 API Key 列表失败:', error)
-    apiKeys.value = []
-  } finally {
-    loadingApiKeys.value = false
+  if (apiKeysStore.selectedKeyId === null) {
+    apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
+  }
+  await apiKeysStore.loadKeys()
+  if (selectedApiKeyId.value) {
+    await updateFullKey()
   }
 }
 

@@ -56,7 +56,12 @@
                          </button>
                        </div>
                      </td>
-                     <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ key.description }}</td>
+                     <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                      <div class="inline-flex items-center gap-2">
+                        <span>{{ key.description }}</span>
+                        <span v-if="apiKeysStore.selectedKeyId === key.id" class="badge bg-blue">默认</span>
+                      </div>
+                     </td>
                     <td class="px-4 py-3 border-b border-gray-100 align-middle">
                       <span v-if="key.expires_at">
                         {{ formatDateTime(key.expires_at) }}
@@ -75,6 +80,15 @@
                     </td>
                     <td class="px-4 py-3 border-b border-gray-100 align-middle">
                       <div class="btn-list flex-nowrap">
+                        <button
+                          class="inline-flex h-8 items-center justify-center rounded-lg border border-blue-200 px-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                          @click="setDefaultKey(key)"
+                          :disabled="!key.is_active || key.is_expired || apiKeysStore.selectedKeyId === key.id"
+                          title="设为默认"
+                          aria-label="设为默认"
+                        >
+                          默认
+                        </button>
                         <button 
                           class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50" 
                           @click="editKey(key)"
@@ -289,8 +303,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { apiKeysApi } from '@/api/apiKeys'
+import { useApiKeysStore } from '@/stores/apiKeys'
 import { useModal } from '@/composables/useModal'
 
+const apiKeysStore = useApiKeysStore()
 const apiKeys = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -311,8 +327,11 @@ const formData = ref({
 const loadApiKeys = async () => {
   loading.value = true
   try {
-    const data = await apiKeysApi.list()
-    apiKeys.value = data || []
+    if (apiKeysStore.selectedKeyId === null) {
+      apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
+    }
+    await apiKeysStore.loadKeys()
+    apiKeys.value = apiKeysStore.keys || []
     // 检查每个密钥是否在 localStorage 中有完整密钥
     apiKeys.value.forEach(key => {
       key.hasFullKey = hasFullKey(key.id)
@@ -323,6 +342,15 @@ const loadApiKeys = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const setDefaultKey = (key) => {
+  if (!key?.is_active || key?.is_expired) {
+    alert('只能将激活且未过期的 API Key 设为默认')
+    return
+  }
+  apiKeysStore.setDefaultKey(key.id)
+  showToast(`已将 "${key.description}" 设为默认 API Key`, 'success')
 }
 
 // 格式化日期时间
@@ -574,6 +602,11 @@ const saveKey = async () => {
       })
       closeDialog()
       showKeyDialog.value = true
+      if (confirm('是否将该密钥设为全局默认 APPKey？')) {
+        apiKeysStore.setDefaultKey(idValue)
+        showToast('默认 APPKey 已更新', 'success')
+      }
+      await loadApiKeys()
     }
   } catch (error) {
     console.error('保存失败:', error)

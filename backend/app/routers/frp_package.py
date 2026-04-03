@@ -48,7 +48,10 @@ def _ensure_packages_dir() -> str:
 def _require_api_key_only(request: Request, db: Session = Depends(get_db)):
     authorization = request.headers.get("Authorization", "")
     api_key = request.query_params.get("api_key")
-    if authorization.startswith("Bearer "):
+    # 优先使用显式传入的 api_key（query/header），避免被登录态 Bearer token 覆盖。
+    if not api_key:
+        api_key = request.headers.get("X-API-Key")
+    if not api_key and authorization.startswith("Bearer "):
         api_key = authorization[7:].strip()
     if not api_key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="仅支持 API Key 认证")
@@ -60,6 +63,120 @@ def _require_api_key_only(request: Request, db: Session = Depends(get_db)):
 
 def _scripts_file_path() -> str:
     return os.path.join(_ensure_packages_dir(), "install_scripts.json")
+
+
+def _platforms_cache_file_path() -> str:
+    return os.path.join(_ensure_packages_dir(), "platforms_cache.json")
+
+
+def _load_platforms_cache() -> dict:
+    path = _platforms_cache_file_path()
+    if not os.path.exists(path):
+        return {"platforms": [], "version": None, "synced_at": None}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return {"platforms": [], "version": None, "synced_at": None}
+            return {
+                "platforms": data.get("platforms") or [],
+                "version": data.get("version"),
+                "synced_at": data.get("synced_at"),
+            }
+    except Exception:
+        return {"platforms": [], "version": None, "synced_at": None}
+
+
+def _save_platforms_cache(platforms: List[str], version: Optional[str]) -> dict:
+    payload = {
+        "platforms": sorted(list({x for x in (platforms or []) if x})),
+        "version": version,
+        "synced_at": datetime.utcnow().isoformat(),
+    }
+    with open(_platforms_cache_file_path(), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return payload
+
+
+def _versions_cache_file_path() -> str:
+    return os.path.join(_ensure_packages_dir(), "versions_cache.json")
+
+
+def _load_versions_cache() -> dict:
+    path = _versions_cache_file_path()
+    if not os.path.exists(path):
+        return {"latest_version": None, "recent_versions": [], "synced_at": None}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return {"latest_version": None, "recent_versions": [], "synced_at": None}
+            return {
+                "latest_version": data.get("latest_version"),
+                "recent_versions": data.get("recent_versions") or [],
+                "synced_at": data.get("synced_at"),
+            }
+    except Exception:
+        return {"latest_version": None, "recent_versions": [], "synced_at": None}
+
+
+def _save_versions_cache(latest: Optional[str], recent: List[str]) -> dict:
+    payload = {
+        "latest_version": latest,
+        "recent_versions": [x for x in (recent or []) if x][:20],
+        "synced_at": datetime.utcnow().isoformat(),
+    }
+    with open(_versions_cache_file_path(), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return payload
+
+
+def _version_sort_key(tag: str):
+    if not tag:
+        return (0,)
+    s = tag.strip().lstrip("vV")
+    parts = []
+    for part in re.split(r"[.\-]", s):
+        if part.isdigit():
+            parts.append(int(part))
+        else:
+            parts.append(0)
+    return tuple(parts)
+
+
+def _sort_versions_desc(versions: List[str]) -> List[str]:
+    return sorted({x for x in versions if x}, key=_version_sort_key, reverse=True)
+
+
+def _merge_versions_local_and_cache(db: Session, cache: dict) -> List[str]:
+    rows = db.query(FrpPackage.version).distinct().all()
+    local = [r[0] for r in rows if r[0]]
+    all_v = set(local)
+    for v in cache.get("recent_versions") or []:
+        if v:
+            all_v.add(v)
+    lv = cache.get("latest_version")
+    if lv:
+        all_v.add(lv)
+    return _sort_versions_desc(list(all_v))
+
+
+def _refresh_versions_cache_from_releases(releases: List[dict]) -> dict:
+    if not releases:
+        return _load_versions_cache()
+    latest = releases[0].get("tag_name")
+    recent: List[str] = []
+    for x in releases[:15]:
+        tag = x.get("tag_name")
+        if tag and tag not in recent:
+            recent.append(tag)
+    return _save_versions_cache(latest, recent)
+
+
+def _merge_cached_with_local(db: Session, cached_platforms: List[str]) -> List[str]:
+    local_rows = db.query(FrpPackage.platform).distinct().all()
+    local_platforms = [r[0] for r in local_rows if r[0]]
+    return _merge_platform_lists(cached_platforms, local_platforms)
 
 
 def _default_template_for_platform(platform: str) -> str:
@@ -278,28 +395,68 @@ async def list_releases(
 
 
 @router.get("/platforms")
-async def get_supported_platforms(
-    version: Optional[str] = Query(
-        None,
-        description="Release tag，如 v0.61.1；不传则取 GitHub 最新 Release",
-    ),
+def get_supported_platforms(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 只返回后台缓存 + 本地平台，不主动请求 GitHub
+    cache = _load_platforms_cache()
+    merged = _merge_cached_with_local(db, cache.get("platforms") or [])
+    return {
+        "platforms": merged,
+        "version": cache.get("version"),
+        "synced_at": cache.get("synced_at"),
+        "source": "backend-cache",
+    }
+
+
+@router.get("/versions")
+def get_supported_versions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """与 platforms 类似：合并 GitHub 同步缓存与本地库中的版本；提供最新与最近若干版本。"""
+    cache = _load_versions_cache()
+    merged = _merge_versions_local_and_cache(db, cache)
+    latest = cache.get("latest_version") or (merged[0] if merged else None)
+    recent = [v for v in (cache.get("recent_versions") or []) if v in set(merged)]
+    if not recent and merged:
+        recent = merged[:10]
+    return {
+        "versions": merged,
+        "latest_version": latest,
+        "recent_versions": recent,
+        "synced_at": cache.get("synced_at"),
+        "source": "backend-cache",
+    }
+
+
+@router.post("/platforms/sync")
+async def sync_supported_platforms(
+    version: Optional[str] = Query(None, description="可选，指定 release tag，不传则同步最新 release"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     service = GithubService()
     releases = await service.fetch_releases()
     if not releases:
-        return {"platforms": [], "version": None, "source": "github"}
-    if version:
-        tag = version
-    else:
-        tag = releases[0].get("tag_name")
-    platforms = await service.discover_platforms_for_tag(tag) if tag else []
-    # 合并本地已存在的平台（历史数据/手动上传）
-    local_rows = db.query(FrpPackage.platform).distinct().all()
-    local_platforms = [r[0] for r in local_rows if r[0]]
-    merged = _merge_platform_lists(platforms, local_platforms)
-    return {"platforms": merged, "version": tag, "source": "github"}
+        raise HTTPException(status_code=400, detail="GitHub 无可用 release")
+
+    tag = version or releases[0].get("tag_name")
+    release = next((x for x in releases if x.get("tag_name") == tag), None)
+    if not release:
+        raise HTTPException(status_code=404, detail="未找到指定版本 release")
+
+    discovered = service.discover_platforms_from_release(release)
+    saved = _save_platforms_cache(discovered, tag)
+    _refresh_versions_cache_from_releases(releases)
+    merged = _merge_cached_with_local(db, saved.get("platforms") or [])
+    return {
+        "platforms": merged,
+        "version": saved.get("version"),
+        "synced_at": saved.get("synced_at"),
+        "source": "backend-cache",
+    }
 
 
 @router.get("/script-templates")
@@ -415,6 +572,8 @@ async def sync_from_github(
             db.refresh(item)
             results.append(item)
 
+    _save_platforms_cache(sorted(discovered), payload.version)
+    _refresh_versions_cache_from_releases(releases)
     return {"version": payload.version, "count": len(results), "items": results}
 
 
@@ -464,20 +623,44 @@ def download_package(
     return FileResponse(path=item.file_path, filename=item.filename, media_type="application/octet-stream")
 
 
+def _auth_for_install_script(request: Request, db: Session = Depends(get_db)):
+    """install-script 端点的认证：支持 API Key 或已登录用户。
+    用于 curl | bash 场景（传 api_key query param）以及前端已登录用户操作。"""
+    # 优先尝试 API Key（query / header / Bearer）
+    api_key = request.query_params.get("api_key")
+    if not api_key:
+        api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.startswith("Bearer "):
+            api_key = authorization[7:].strip()
+    if api_key:
+        obj = verify_api_key(db, api_key)
+        if obj:
+            return {"type": "api_key", "obj": obj, "key": api_key}
+    # 兜底使用统一登录认证逻辑（与其它受保护接口保持一致）
+    try:
+        user = get_current_user(request, db)
+        return {"type": "user", "obj": user, "key": None}
+    except HTTPException:
+        pass
+    raise HTTPException(status_code=401, detail="认证失败，请提供有效的 API Key 或登录凭证")
+
+
 @router.get("/install-script")
 def get_install_script(
     package_id: int = Query(..., ge=1),
-    install_path: str = Query("/usr/local/bin"),
+    install_path: str = Query("/opt/frp"),
     config_url: Optional[str] = Query(None),
     request: Request = None,
-    api_key_obj=Depends(_require_api_key_only),
     db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_install_script),
 ):
     item = db.query(FrpPackage).filter(FrpPackage.id == package_id, FrpPackage.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="安装包不存在")
 
-    api_key = request.query_params.get("api_key")
+    api_key = request.query_params.get("api_key") or ""
     server_base = f"{request.url.scheme}://{request.url.netloc}"
     download_url = f"{server_base}/api/packages/{item.id}/download?api_key={api_key}"
     config_line = ""
@@ -497,4 +680,4 @@ def get_install_script(
         .replace("{{platform}}", item.platform)
         .replace("{{version}}", item.version)
     )
-    return PlainTextResponse(content=script)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")

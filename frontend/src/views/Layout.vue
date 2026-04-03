@@ -22,6 +22,19 @@
             </router-link>
           </div>
           <div class="flex items-center gap-3">
+            <div class="hidden lg:flex items-center gap-2">
+              <label class="text-xs text-gray-500 whitespace-nowrap">默认APPKey</label>
+              <select
+                class="form-control form-control-sm min-w-[200px]"
+                :value="apiKeysStore.selectedKeyId ?? ''"
+                @change="handleDefaultKeyChange"
+              >
+                <option value="" disabled>无可用 APPKey</option>
+                <option v-for="item in apiKeysStore.availableKeys" :key="item.id" :value="item.id">
+                  #{{ item.id }} {{ item.description }}
+                </option>
+              </select>
+            </div>
             <div class="relative hidden md:block">
               <button
                 ref="notifyDropdown.triggerRef"
@@ -136,6 +149,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useApiKeysStore } from '@/stores/apiKeys'
 import FrpLogo from '@/components/FrpLogo.vue'
 import UserManageDialog from '@/components/UserManageDialog.vue'
 import { settingsApi } from '@/api/settings'
@@ -145,6 +159,7 @@ import { useCollapse } from '@/composables/useCollapse'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const apiKeysStore = useApiKeysStore()
 
 const showUserManageDialog = ref(false)
 const forcePasswordChange = ref(false)
@@ -211,10 +226,18 @@ watch(() => route.query, (newQuery) => {
 
 // 组件挂载时检查
 onMounted(() => {
+  apiKeysStore.init()
   if (route.query.forcePasswordChange === 'true') {
     checkPasswordRequirement()
   }
 })
+
+const handleDefaultKeyChange = (event) => {
+  const nextId = Number(event.target.value)
+  if (Number.isInteger(nextId) && nextId > 0) {
+    apiKeysStore.setDefaultKey(nextId)
+  }
+}
 
 const handleUserManage = () => {
   // 手动打开用户管理时始终使用普通模式，避免遗留强制状态导致信息被隐藏

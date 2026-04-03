@@ -32,12 +32,30 @@ export const packagesApi = {
     return `/api/packages/${id}/download?api_key=${encoded}`
   },
 
+  getInstallScriptUrl(params) {
+    const query = new URLSearchParams()
+    query.set('package_id', params.package_id)
+    if (params.install_path) query.set('install_path', params.install_path)
+    if (params.config_url) query.set('config_url', params.config_url)
+    if (params.api_key) query.set('api_key', params.api_key)
+    return `/api/packages/install-script?${query.toString()}`
+  },
+
   getInstallScript(params) {
-    return api.get('/packages/install-script', { params })
+    // 生成脚本场景下即使 401 也应保留当前页面，由调用方提示错误
+    return api.get('/packages/install-script', { params, skipAuthRedirect: true })
   },
 
   getPlatforms(params = {}) {
     return api.get('/packages/platforms', { params })
+  },
+
+  getVersions(params = {}) {
+    return api.get('/packages/versions', { params })
+  },
+
+  syncPlatforms(params = {}) {
+    return api.post('/packages/platforms/sync', null, { params })
   },
 
   getScriptTemplates() {

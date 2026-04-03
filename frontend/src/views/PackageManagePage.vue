@@ -3,16 +3,76 @@
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">FRP 安装包管理</h3>
-        <div class="card-actions flex gap-2">
-          <button class="btn btn-outline-primary" @click="handleCheckUpdate">检查更新</button>
-          <button class="btn btn-primary" @click="showSyncDialog = true">GitHub 同步</button>
-          <button class="btn btn-primary" @click="showUploadDialog = true">手动上传</button>
-          <button class="btn btn-outline-primary" @click="showInstallDialog = true">生成安装脚本</button>
+        <div class="card-actions flex flex-wrap gap-2 items-center">
+          <button
+            class="btn btn-outline-primary"
+            type="button"
+            :disabled="refreshLoading"
+            @click="handleRefresh"
+          >
+            {{ refreshLoading ? '刷新中...' : '刷新' }}
+          </button>
+          <button class="btn btn-primary" type="button" @click="showSyncDialog = true">GitHub 同步</button>
+          <button class="btn btn-primary" type="button" @click="showUploadDialog = true">手动上传</button>
+          <button class="btn btn-primary" type="button" @click="showInstallDialog = true">生成安装脚本</button>
+          <div class="dropdown">
+            <button
+              ref="moreActionsDropdown.triggerRef"
+              type="button"
+              class="btn btn-outline-primary dropdown-toggle"
+              @click.prevent="moreActionsDropdown.toggle()"
+              :aria-expanded="moreActionsDropdown.isOpen.value"
+            >
+              更多
+            </button>
+            <div
+              ref="moreActionsDropdown.dropdownRef"
+              class="dropdown-menu"
+              :class="{ show: moreActionsDropdown.isOpen.value }"
+              @click.stop
+            >
+              <a
+                class="dropdown-item"
+                href="#"
+                :class="{ 'opacity-50 pointer-events-none': checkUpdateLoading }"
+                @click.prevent="handleMoreCheckUpdate"
+              >
+                {{ checkUpdateLoading ? '检查中...' : '检查更新' }}
+              </a>
+              <a
+                class="dropdown-item"
+                href="#"
+                :class="{ 'opacity-50 pointer-events-none': syncPlatformsLoading }"
+                @click.prevent="handleMoreSyncPlatforms"
+              >
+                {{ syncPlatformsLoading ? '同步中...' : '同步平台类型' }}
+              </a>
+              <div class="dropdown-divider"></div>
+              <a
+                class="dropdown-item"
+                href="#"
+                @click.prevent="showTemplateDialog = true; moreActionsDropdown.close()"
+              >
+                脚本模板编辑
+              </a>
+            </div>
+          </div>
         </div>
       </div>
       <div class="card-body">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <input v-model="filters.version" class="form-control" placeholder="版本过滤，如 v0.61.1" />
+          <select v-model="filters.version" class="form-control">
+            <option value="">全部版本</option>
+            <option v-if="versionsMeta.latest_version" value="__latest__">
+              最新（{{ versionsMeta.latest_version }}）
+            </option>
+            <optgroup v-if="recentVersionsForUi.length" label="最近">
+              <option v-for="v in recentVersionsForUi" :key="'rv-' + v" :value="v">{{ v }}</option>
+            </optgroup>
+            <optgroup v-if="otherVersionsForUi.length" label="其他版本">
+              <option v-for="v in otherVersionsForUi" :key="'ov-' + v" :value="v">{{ v }}</option>
+            </optgroup>
+          </select>
           <select v-model="filters.platform" class="form-control">
             <option value="">全部平台</option>
             <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
@@ -22,29 +82,6 @@
             <option value="github">github</option>
             <option value="upload">upload</option>
           </select>
-        </div>
-        <div class="card mb-3">
-          <div class="card-header">
-            <h4 class="card-title">平台脚本模板（可手动编辑）</h4>
-          </div>
-          <div class="card-body">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-              <select v-model="scriptEditor.platform" class="form-control">
-                <option value="">请选择平台</option>
-                <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
-              </select>
-              <button class="btn btn-outline-primary" @click="loadTemplateToEditor">加载模板</button>
-              <button class="btn btn-primary" :disabled="savingTemplate" @click="saveTemplate">
-                {{ savingTemplate ? '保存中...' : '保存模板' }}
-              </button>
-            </div>
-            <textarea
-              v-model="scriptEditor.content"
-              class="form-control font-monospace"
-              rows="10"
-              placeholder="可用变量：{{filename}} {{download_url}} {{install_path}} {{config_line}} {{platform}} {{version}}"
-            />
-          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full border-collapse text-left text-sm text-gray-700">
@@ -78,7 +115,8 @@
                 <td class="px-4 py-3 border-b">{{ formatDate(item.downloaded_at) }}</td>
                 <td class="px-4 py-3 border-b"><code>{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
                 <td class="px-4 py-3 border-b">
-                  <button class="btn btn-sm btn-outline-primary me-2" @click="copyDownloadCommand(item)">复制下载命令</button>
+                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyDownloadCommand(item)">复制下载命令</button>
+                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyInstallCommand(item)">复制安装命令</button>
                   <button class="btn btn-sm btn-outline-danger" @click="remove(item)">删除</button>
                 </td>
               </tr>
@@ -93,19 +131,31 @@
     <PackageInstallDialog
       v-model="showInstallDialog"
       :packages="packages"
+      :latest-version="versionsMeta.latest_version"
       :loading="scriptLoading"
       :script="installScript"
       @submit="handleGenerateScript"
+      @copy-command="handleCopyInstallCommand"
+    />
+    <ScriptTemplateDialog
+      v-model="showTemplateDialog"
+      :platforms="platforms"
+      :templates="scriptTemplates"
+      :saving="savingTemplate"
+      @save="handleSaveTemplate"
     />
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { packagesApi } from '@/api/packages'
+import { useApiKeysStore } from '@/stores/apiKeys'
+import { useDropdown } from '@/composables/useDropdown'
 import PackageSyncDialog from '@/components/PackageSyncDialog.vue'
 import PackageUploadDialog from '@/components/PackageUploadDialog.vue'
 import PackageInstallDialog from '@/components/PackageInstallDialog.vue'
+import ScriptTemplateDialog from '@/components/ScriptTemplateDialog.vue'
 
 const loading = ref(false)
 const syncLoading = ref(false)
@@ -114,22 +164,62 @@ const scriptLoading = ref(false)
 const showSyncDialog = ref(false)
 const showUploadDialog = ref(false)
 const showInstallDialog = ref(false)
+const showTemplateDialog = ref(false)
+const checkUpdateLoading = ref(false)
+const syncPlatformsLoading = ref(false)
 const savingTemplate = ref(false)
+const refreshLoading = ref(false)
+const moreActionsDropdown = useDropdown()
+/** 从服务端恢复/修正筛选条件时避免 watch 重复请求 */
+const filterSyncing = ref(false)
 
 const packages = ref([])
 const releases = ref([])
 const installScript = ref('')
 const scriptTemplates = ref({})
+const apiKeysStore = useApiKeysStore()
+
+const PKG_FILTER_KEY = 'fm_package_list_filters_v1'
+
+function readSavedFilters() {
+  try {
+    const raw = localStorage.getItem(PKG_FILTER_KEY)
+    if (raw) {
+      const o = JSON.parse(raw)
+      if (o && typeof o === 'object') {
+        return {
+          version: typeof o.version === 'string' ? o.version : '',
+          platform: typeof o.platform === 'string' ? o.platform : '',
+          source: typeof o.source === 'string' ? o.source : ''
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { version: '', platform: '', source: '' }
+}
 
 const platforms = ref([])
-const filters = reactive({
-  version: '',
-  platform: '',
-  source: ''
+const filters = reactive(readSavedFilters())
+const versionsMeta = ref({
+  versions: [],
+  latest_version: '',
+  recent_versions: [],
+  synced_at: null
 })
-const scriptEditor = reactive({
-  platform: '',
-  content: ''
+
+const recentVersionsForUi = computed(() => {
+  const recent = versionsMeta.value.recent_versions || []
+  const lv = versionsMeta.value.latest_version
+  return recent.filter((v) => v && v !== lv)
+})
+
+const otherVersionsForUi = computed(() => {
+  const merged = versionsMeta.value.versions || []
+  const recent = new Set(versionsMeta.value.recent_versions || [])
+  const lv = versionsMeta.value.latest_version
+  return merged.filter((v) => v && !recent.has(v) && v !== lv)
 })
 
 const formatDate = (v) => (v ? new Date(v).toLocaleString('zh-CN') : '')
@@ -140,15 +230,106 @@ const formatSize = (s) => {
   return `${(s / 1024 / 1024).toFixed(1)} MB`
 }
 
+const resolveVersionForApi = () => {
+  const v = filters.version
+  if (!v) return undefined
+  if (v === '__latest__') {
+    const lv = versionsMeta.value.latest_version
+    return lv || undefined
+  }
+  return v
+}
+
+const persistFilters = () => {
+  try {
+    localStorage.setItem(PKG_FILTER_KEY, JSON.stringify({ ...filters }))
+  } catch {
+    /* ignore */
+  }
+}
+
+const loadVersionsMeta = async () => {
+  let ranLoadPackages = false
+  try {
+    const data = await packagesApi.getVersions()
+    versionsMeta.value = {
+      versions: data.versions || [],
+      latest_version: data.latest_version || '',
+      recent_versions: data.recent_versions || [],
+      synced_at: data.synced_at
+    }
+    const sel = filters.version
+    const merged = versionsMeta.value.versions || []
+    const latest = versionsMeta.value.latest_version
+    if (sel === '__latest__' && !latest) {
+      filterSyncing.value = true
+      filters.version = ''
+      filterSyncing.value = false
+      persistFilters()
+      await loadPackages()
+      ranLoadPackages = true
+    } else if (sel && sel !== '__latest__' && merged.length && !merged.includes(sel)) {
+      filterSyncing.value = true
+      filters.version = ''
+      filterSyncing.value = false
+      persistFilters()
+      await loadPackages()
+      ranLoadPackages = true
+    }
+  } catch (e) {
+    console.warn('获取版本列表失败', e)
+    versionsMeta.value = {
+      versions: [],
+      latest_version: '',
+      recent_versions: [],
+      synced_at: null
+    }
+  }
+  return ranLoadPackages
+}
+
 const loadPackages = async () => {
   loading.value = true
   try {
-    packages.value = await packagesApi.list(filters)
+    const params = {
+      version: resolveVersionForApi(),
+      platform: filters.platform || undefined,
+      source: filters.source || undefined
+    }
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, val]) => val !== undefined && val !== '')
+    )
+    packages.value = await packagesApi.list(clean)
   } catch (e) {
     alert(`加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }
+}
+
+const handleRefresh = async () => {
+  refreshLoading.value = true
+  try {
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
+    await Promise.all([loadReleases(), loadPlatforms(), loadScriptTemplates(), apiKeysStore.loadKeys()])
+  } finally {
+    refreshLoading.value = false
+  }
+}
+
+const handleMoreCheckUpdate = () => {
+  if (checkUpdateLoading.value) return
+  moreActionsDropdown.close()
+  handleCheckUpdate()
+}
+
+const handleMoreSyncPlatforms = () => {
+  if (syncPlatformsLoading.value) return
+  moreActionsDropdown.close()
+  handleSyncPlatforms()
 }
 
 const loadReleases = async () => {
@@ -178,22 +359,14 @@ const loadScriptTemplates = async () => {
   }
 }
 
-const loadTemplateToEditor = () => {
-  if (!scriptEditor.platform) {
-    alert('请先选择平台')
-    return
-  }
-  scriptEditor.content = scriptTemplates.value[scriptEditor.platform] || ''
+const resolvePreferredApiKey = async () => {
+  return apiKeysStore.resolveDefaultFullKey()
 }
 
-const saveTemplate = async () => {
-  if (!scriptEditor.platform || !scriptEditor.content.trim()) {
-    alert('请选择平台并填写脚本内容')
-    return
-  }
+const handleSaveTemplate = async ({ platform, content }) => {
   savingTemplate.value = true
   try {
-    await packagesApi.updateScriptTemplate(scriptEditor.platform, scriptEditor.content)
+    await packagesApi.updateScriptTemplate(platform, content)
     alert('脚本模板保存成功')
     await loadScriptTemplates()
   } catch (e) {
@@ -209,7 +382,11 @@ const handleSync = async (payload) => {
     await packagesApi.sync(payload)
     alert('同步成功')
     showSyncDialog.value = false
-    await loadPackages()
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
+    await Promise.all([loadPlatforms(), loadScriptTemplates()])
   } catch (e) {
     alert(`同步失败: ${e.message}`)
   } finally {
@@ -227,7 +404,10 @@ const handleUpload = async (payload) => {
     await packagesApi.upload(fd)
     alert('上传成功')
     showUploadDialog.value = false
-    await loadPackages()
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
   } catch (e) {
     alert(`上传失败: ${e.message}`)
   } finally {
@@ -239,13 +419,17 @@ const remove = async (item) => {
   if (!confirm(`确认删除 ${item.filename} ?`)) return
   try {
     await packagesApi.delete(item.id)
-    await loadPackages()
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
   } catch (e) {
     alert(`删除失败: ${e.message}`)
   }
 }
 
 const handleCheckUpdate = async () => {
+  checkUpdateLoading.value = true
   try {
     const result = await packagesApi.checkUpdate()
     if (result.has_update) {
@@ -255,15 +439,73 @@ const handleCheckUpdate = async () => {
     }
   } catch (e) {
     alert(`检查失败: ${e.message}`)
+  } finally {
+    checkUpdateLoading.value = false
+  }
+}
+
+const handleSyncPlatforms = async () => {
+  syncPlatformsLoading.value = true
+  try {
+    const data = await packagesApi.syncPlatforms()
+    platforms.value = data.platforms || []
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
+    await loadScriptTemplates()
+    alert(`平台类型已同步到后台（${data.version || 'unknown'}）`)
+  } catch (e) {
+    alert(`同步平台类型失败: ${e.message}`)
+  } finally {
+    syncPlatformsLoading.value = false
+  }
+}
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return ok
+    } catch {
+      return false
+    }
   }
 }
 
 const copyDownloadCommand = async (item) => {
-  const apiKey = prompt('请输入用于远程下载的 API Key：')
-  if (!apiKey) return
+  const apiKey = await resolvePreferredApiKey()
+  if (!apiKey) {
+    alert('无法获取默认 API Key，请先在 API Key 页面创建或复制一次完整密钥')
+    return
+  }
   const cmd = `curl -L "${window.location.origin}${packagesApi.getDownloadUrl(item.id, apiKey)}" -o ${item.filename}`
-  await navigator.clipboard.writeText(cmd)
-  alert('下载命令已复制')
+  const ok = await copyToClipboard(cmd)
+  alert(ok ? '下载命令已复制' : '复制失败，请手动复制命令')
+}
+
+const copyInstallCommand = async (item) => {
+  const apiKey = await resolvePreferredApiKey()
+  if (!apiKey) {
+    alert('无法获取默认 API Key，请先在 API Key 页面创建或复制一次完整密钥')
+    return
+  }
+  const url = packagesApi.getInstallScriptUrl({ package_id: item.id, api_key: apiKey })
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+  const ok = await copyToClipboard(cmd)
+  alert(ok ? '安装命令已复制' : '复制失败，请手动复制命令')
 }
 
 const handleGenerateScript = async (payload) => {
@@ -282,9 +524,34 @@ const handleGenerateScript = async (payload) => {
   }
 }
 
-watch(filters, loadPackages, { deep: true })
+const handleCopyInstallCommand = async (params) => {
+  const url = packagesApi.getInstallScriptUrl({
+    package_id: params.package_id,
+    api_key: params.api_key,
+    install_path: params.install_path,
+    config_url: params.config_url || undefined
+  })
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+  const ok = await copyToClipboard(cmd)
+  alert(ok ? '安装命令已复制' : '复制失败，请手动复制命令')
+}
+
+watch(
+  filters,
+  () => {
+    if (filterSyncing.value) return
+    persistFilters()
+    loadPackages()
+  },
+  { deep: true }
+)
 
 onMounted(async () => {
-  await Promise.all([loadPackages(), loadReleases(), loadPlatforms(), loadScriptTemplates()])
+  apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
+  const ran = await loadVersionsMeta()
+  if (!ran) {
+    await loadPackages()
+  }
+  await Promise.all([loadReleases(), loadPlatforms(), loadScriptTemplates(), apiKeysStore.loadKeys()])
 })
 </script>

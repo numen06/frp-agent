@@ -54,7 +54,8 @@ api.interceptors.response.use(
     return response.data
   },
   (error) => {
-    if (error.response?.status === 401) {
+    const skipAuthRedirect = Boolean(error?.config?.skipAuthRedirect)
+    if (error.response?.status === 401 && !skipAuthRedirect) {
       // 清除认证信息
       localStorage.removeItem('auth_token')
       localStorage.removeItem('username')

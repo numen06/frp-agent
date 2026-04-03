@@ -172,14 +172,13 @@
               </div>
               
               <div class="mb-3">
-                <label class="form-label">选择 API Key（可选）</label>
+                <label class="form-label">选择 API Key</label>
                 <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
-                  <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
-                  <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
+                  <option v-for="apiKey in apiKeysStore.availableKeys" :key="apiKey.id" :value="apiKey.id">
                     {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
                   </option>
                 </AppSelect>
-                <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
+                <small class="form-hint">默认使用全局 APPKey，可按需临时切换</small>
               </div>
 
               <div class="mb-3">
@@ -308,7 +307,7 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
-import { apiKeysApi } from '@/api/apiKeys'
+import { useApiKeysStore } from '@/stores/apiKeys'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
 import GroupProxiesDialog from '@/components/GroupProxiesDialog.vue'
@@ -329,6 +328,7 @@ const props = defineProps({
 
 const groupsStore = useGroupsStore()
 const serversStore = useServersStore()
+const apiKeysStore = useApiKeysStore()
 
 // 加载分组数据
 const loadGroups = async (page = 1) => {
@@ -404,9 +404,10 @@ const showGroupProxiesDialog = ref(false)
 const activeTab = ref('groups') // 主tab: 'groups' 或 'quick'
 const currentGroup = ref(null)
 const selectedGroupForProxies = ref('')
-const apiKeys = ref([])
-const selectedApiKeyId = ref(null)
-const loadingApiKeys = ref(false)
+const selectedApiKeyId = computed({
+  get: () => apiKeysStore.selectedKeyId,
+  set: (id) => apiKeysStore.setDefaultKey(id)
+})
 
 // 快捷功能 Tab 中的分组选择/输入
 const quickSelectedGroup = ref('')
@@ -431,7 +432,7 @@ const selectedApiKey = computed(() => {
   if (!selectedApiKeyId.value) {
     return null
   }
-  const selectedKey = apiKeys.value.find(k => k.id === selectedApiKeyId.value)
+  const selectedKey = apiKeysStore.availableKeys.find(k => k.id === selectedApiKeyId.value)
   if (!selectedKey) {
     return null
   }
@@ -444,42 +445,7 @@ const updateFullKey = async () => {
   if (selectedApiKeyId.value) {
     // 先尝试从 localStorage 读取
     const id = selectedApiKeyId.value
-    const possibleKeys = [
-      `api_key_${id}`,
-      `api_key_${Number(id)}`,
-      `api_key_${String(id)}`
-    ]
-    
-    let fullKey = null
-    for (const key of possibleKeys) {
-      const value = localStorage.getItem(key)
-      if (value && value.trim()) {
-        // 验证：确保不是 ID 本身（API Key 应该是一个长字符串，不会是单个数字）
-        // API Key 通常是 64 字符（32字节的 base64url 编码），至少应该大于 20 字符
-        const trimmedValue = value.trim()
-        if (trimmedValue !== String(id) && trimmedValue !== String(Number(id)) && trimmedValue.length > 20) {
-          fullKey = trimmedValue
-          break
-        }
-      }
-    }
-    
-    // 如果 localStorage 中没有，尝试从后端接口获取
-    if (!fullKey) {
-      try {
-        const response = await apiKeysApi.get(id, { include_full_key: true })
-        if (response.key && response.key.length > 20) {
-          fullKey = response.key
-          // 保存到 localStorage 以便下次使用
-          const storageKey = `api_key_${Number(id)}`
-          localStorage.setItem(storageKey, fullKey)
-          localStorage.setItem(`api_key_${String(id)}`, fullKey)
-        }
-      } catch (error) {
-        console.warn('无法从后端获取完整密钥:', error)
-      }
-    }
-    
+    const fullKey = await apiKeysStore.resolveFullKey(id)
     if (fullKey) {
       // 找到了有效的完整密钥
       selectedApiKeyFullKey.value = fullKey
@@ -499,6 +465,7 @@ watch(selectedApiKeyId, (newId) => {
 
 // 处理 API Key 选择变化
 const handleApiKeyChange = () => {
+  apiKeysStore.setDefaultKey(selectedApiKeyId.value)
   updateFullKey()
 }
 
@@ -566,26 +533,12 @@ const selectedApiKeyDescription = computed(() => {
 
 // 加载 API Key 列表
 const loadApiKeys = async () => {
-  loadingApiKeys.value = true
-  try {
-    const keys = await apiKeysApi.list(0, 100)
-    // 只显示激活的密钥
-    apiKeys.value = keys.filter(k => k.is_active && !k.is_expired)
-    
-    // 如果列表不为空且当前没有选中密钥，默认选择第一个
-    if (apiKeys.value.length > 0 && selectedApiKeyId.value === null) {
-      selectedApiKeyId.value = apiKeys.value[0].id
-    }
-    
-    // 如果已经有选中的密钥，重新加载完整密钥
-    if (selectedApiKeyId.value) {
-      updateFullKey()
-    }
-  } catch (error) {
-    console.error('加载 API Key 列表失败:', error)
-    apiKeys.value = []
-  } finally {
-    loadingApiKeys.value = false
+  if (apiKeysStore.selectedKeyId === null) {
+    apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
+  }
+  await apiKeysStore.loadKeys()
+  if (selectedApiKeyId.value) {
+    await updateFullKey()
   }
 }
 
@@ -615,7 +568,7 @@ const copyExampleCommand = async () => {
 
 // 当切换到快捷功能tab时加载 API Key 列表
 watch(activeTab, (newVal) => {
-  if (newVal === 'quick' && apiKeys.value.length === 0) {
+  if (newVal === 'quick' && apiKeysStore.availableKeys.length === 0) {
     loadApiKeys()
   }
 })

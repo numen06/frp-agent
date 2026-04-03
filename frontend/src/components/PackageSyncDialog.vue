@@ -20,7 +20,13 @@
             </div>
             <div class="mb-3">
               <label class="form-label">平台（可多选）</label>
-              <div class="grid gap-2">
+              <div v-if="platformsForVersion.length" class="flex gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="selectAll">全选</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="deselectAll">取消全选</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="invertSelection">反选</button>
+                <span class="form-label mb-0 ms-auto">已选 {{ form.platforms.length }} / {{ platformsForVersion.length }}</span>
+              </div>
+              <div class="grid gap-2" style="max-height: 260px; overflow-y: auto;">
                 <label v-for="p in platformsForVersion" :key="p" class="form-check">
                   <input v-model="form.platforms" class="form-check-input" type="checkbox" :value="p" />
                   <span class="form-check-label">{{ p }}</span>
@@ -81,6 +87,17 @@ const closeDialog = () => {
 }
 
 useModal(visible, closeDialog)
+
+const selectAll = () => {
+  form.platforms = [...platformsForVersion.value]
+}
+const deselectAll = () => {
+  form.platforms = []
+}
+const invertSelection = () => {
+  const all = platformsForVersion.value
+  form.platforms = all.filter((p) => !form.platforms.includes(p))
+}
 
 const submit = () => {
   if (!form.version) {

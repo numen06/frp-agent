@@ -161,6 +161,12 @@ def get_api_key_full_key(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="解密密钥失败"
         )
+    # 校验解密结果与存储哈希是否一致，避免返回错误密钥
+    if hash_api_key(full_key) != api_key.key:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该 API Key 的完整密钥无法恢复，请重新创建新的 API Key"
+        )
     
     return ApiKeyFullKeyResponse(
         id=api_key.id,
@@ -187,7 +193,7 @@ def get_api_key(
     # 如果需要返回完整密钥，尝试解密
     if include_full_key and api_key.key_encrypted:
         full_key = decrypt_key(api_key.key_encrypted)
-        if full_key:
+        if full_key and hash_api_key(full_key) == api_key.key:
             return ApiKeyResponse(
                 id=api_key.id,
                 key=full_key,  # 返回完整密钥
