@@ -89,7 +89,6 @@ onMounted(async () => {
   try {
     await serversStore.loadServers()
     if (serversStore.servers.length > 0 && !selectedServerId.value) {
-      // 如果没有选中值，使用 store 中的当前服务器或第一个服务器
       const defaultId = serversStore.currentServerId || serversStore.servers[0].id
       selectedServerId.value = defaultId
       if (defaultId) {

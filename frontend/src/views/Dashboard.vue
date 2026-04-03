@@ -176,8 +176,8 @@
               <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div class="d-flex align-items-center">
                   <div class="progress progress-sm me-2" style="width: 60px;">
-                    <div class="progress-bar" :class="getServerOnlineRate(server.id) > 0 ? 'bg-success' : 'bg-secondary'" 
-                         :style="`width: ${getServerOnlineRate(server.id)}%`" 
+                    <div class="progress-bar" :class="getServerOnlineRate(server.id) > 0 ? 'bg-success' : 'bg-secondary'"
+                         :style="`width: ${getServerOnlineRate(server.id)}%`"
                          role="progressbar"
                          :aria-valuenow="getServerOnlineRate(server.id)"
                          aria-valuemin="0"
@@ -251,28 +251,11 @@ const serversStore = useServersStore()
 const { refreshEvent } = useRefresh()
 
 const loading = ref(false)
-const serverStatsMap = ref(new Map()) // 存储每个服务器的统计数据
+const serverStatsMap = ref({}) // 存储每个服务器的统计数据
 
-// 汇总统计
+// 汇总统计 - 直接从后端返回
 const totalStats = computed(() => {
-  let total = 0
-  let online = 0
-  let offline = 0
-  const ports = new Set()
-  
-  serverStatsMap.value.forEach((stats) => {
-    total += stats.total
-    online += stats.online
-    offline += stats.offline
-    stats.ports.forEach(port => ports.add(port))
-  })
-  
-  return {
-    total,
-    online,
-    offline,
-    portCount: ports.size
-  }
+  return statsData.value.total || { total: 0, online: 0, offline: 0, portCount: 0 }
 })
 
 const totalOnlineRate = computed(() => {
@@ -285,14 +268,15 @@ const totalOfflineRate = computed(() => {
   return Math.round((totalStats.value.offline / totalStats.value.total) * 100)
 })
 
+const statsData = ref({ total: { total: 0, online: 0, offline: 0, portCount: 0 }, server_stats: {} })
+
 // 获取指定服务器的统计数据
 const getServerStats = (serverId) => {
-  return serverStatsMap.value.get(serverId) || {
+  return statsData.value.server_stats[serverId] || {
     total: 0,
     online: 0,
     offline: 0,
-    portCount: 0,
-    ports: new Set()
+    portCount: 0
   }
 }
 
@@ -303,54 +287,15 @@ const getServerOnlineRate = (serverId) => {
   return Math.round((stats.online / stats.total) * 100)
 }
 
-// 加载所有服务器的数据
-const loadAllServersData = async () => {
-  if (serversStore.servers.length === 0) return
-  
+// 加载统计数据 - 单次 API 请求
+const loadDashboardStats = async () => {
   loading.value = true
   try {
-    // 并行加载所有服务器的代理数据
-    const promises = serversStore.servers.map(async (server) => {
-      try {
-        const response = await proxyApi.getProxies({
-          frps_server_id: server.id,
-          sync_from_frps: false,
-          page: 1,
-          page_size: 1000 // 获取足够多的数据用于统计
-        })
-        
-        // 处理分页响应格式
-        const proxies = response.items || response.proxies || []
-        const stats = {
-          total: response.total || proxies.length,
-          online: proxies.filter(p => p.status === 'online').length,
-          offline: proxies.filter(p => p.status === 'offline').length,
-          ports: new Set()
-        }
-        
-        proxies.forEach(p => {
-          if (p.remote_port) stats.ports.add(p.remote_port)
-        })
-        
-        stats.portCount = stats.ports.size
-        
-        serverStatsMap.value.set(server.id, stats)
-      } catch (error) {
-        console.error(`加载服务器 ${server.name} 的数据失败:`, error)
-        // 设置默认值
-        serverStatsMap.value.set(server.id, {
-          total: 0,
-          online: 0,
-          offline: 0,
-          portCount: 0,
-          ports: new Set()
-        })
-      }
-    })
-    
-    await Promise.all(promises)
+    const response = await proxyApi.getDashboardStats()
+    statsData.value = response
+    serverStatsMap.value = response.server_stats || {}
   } catch (error) {
-    console.error('加载服务器数据失败:', error)
+    console.error('加载统计数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -359,14 +304,19 @@ const loadAllServersData = async () => {
 // 监听刷新事件，当同步操作完成后自动刷新统计数据
 watch(refreshEvent, () => {
   if (refreshEvent.value > 0) {
-    loadAllServersData()
+    loadDashboardStats()
   }
 })
 
 onMounted(async () => {
   try {
-    await serversStore.loadServers()
-    await loadAllServersData()
+    // 并行加载服务器列表和统计数据
+    const promises = []
+    if (serversStore.servers.length === 0) {
+      promises.push(serversStore.loadServers())
+    }
+    promises.push(loadDashboardStats())
+    await Promise.all(promises)
   } catch (error) {
     console.error('初始化失败:', error)
   }

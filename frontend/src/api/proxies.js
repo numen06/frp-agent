@@ -5,6 +5,11 @@ export const proxyApi = {
   getProxies(params = {}) {
     return api.get('/proxies', { params })
   },
+
+  // 获取 Dashboard 统计数据
+  getDashboardStats() {
+    return api.get('/proxies/dashboard-stats')
+  },
   
   // 获取代理详情
   getProxy(id) {

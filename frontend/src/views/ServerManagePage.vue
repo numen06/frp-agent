@@ -185,7 +185,7 @@ const handleSubmit = async () => {
     }
     showAddDialog.value = false
     resetForm()
-    await serversStore.loadServers()
+    serversStore.markRefreshNeeded()
   } catch (error) {
     alert('操作失败: ' + error.message)
   }
@@ -206,7 +206,7 @@ const deleteServer = async (server) => {
   try {
     await serversStore.deleteServer(server.id)
     alert('删除成功')
-    await serversStore.loadServers()
+    serversStore.markRefreshNeeded()
   } catch (error) {
     alert('删除失败: ' + error.message)
   }
@@ -216,7 +216,7 @@ const testServer = async (server) => {
   try {
     await serversStore.testServer(server.id)
     alert('连接测试成功')
-    await serversStore.loadServers()
+    serversStore.markRefreshNeeded()
   } catch (error) {
     alert('连接测试失败: ' + error.message)
   }
@@ -227,7 +227,7 @@ const testConnection = async () => {
     try {
       await serversStore.testServer(editingServer.value.id)
       alert('连接测试成功')
-      await serversStore.loadServers()
+      serversStore.markRefreshNeeded()
     } catch (error) {
       alert('连接测试失败: ' + error.message)
     }

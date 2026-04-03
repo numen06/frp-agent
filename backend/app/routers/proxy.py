@@ -17,6 +17,55 @@ from app.frps_client import FrpsClient
 router = APIRouter(prefix="/api/proxies", tags=["代理管理"])
 
 
+@router.get("/dashboard-stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取 Dashboard 统计数据（单次请求返回所有服务器的汇总统计）
+
+    将统计计算下推到数据库，避免前端拉取大量代理数据。
+    """
+    from sqlalchemy import case
+
+    # 总汇总
+    total_row = db.query(
+        func.count(Proxy.id).label("total"),
+        func.sum(case((Proxy.status == "online", 1), else_=0)).label("online"),
+        func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline"),
+        func.count(func.distinct(Proxy.remote_port)).label("port_count"),
+    ).first()
+
+    # 按服务器分组统计
+    server_stats = db.query(
+        Proxy.frps_server_id,
+        func.count(Proxy.id).label("total"),
+        func.sum(case((Proxy.status == "online", 1), else_=0)).label("online"),
+        func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline"),
+        func.count(func.distinct(Proxy.remote_port)).label("port_count"),
+    ).group_by(Proxy.frps_server_id).all()
+
+    # 构建每个服务器的统计 map
+    server_stats_map = {}
+    for row in server_stats:
+        server_stats_map[row.frps_server_id] = {
+            "total": row.total,
+            "online": int(row.online or 0),
+            "offline": int(row.offline or 0),
+            "portCount": row.port_count,
+        }
+
+    return {
+        "total": {
+            "total": total_row.total,
+            "online": int(total_row.online or 0),
+            "offline": int(total_row.offline or 0),
+            "portCount": total_row.port_count,
+        },
+        "server_stats": server_stats_map,
+    }
+
+
 @router.get("")
 async def get_proxies(
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),

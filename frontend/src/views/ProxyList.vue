@@ -484,6 +484,7 @@ const syncFromFrps = async () => {
 
 const handleTestServer = async () => {
   alert('连接测试成功')
+  serversStore.markRefreshNeeded()
   await serversStore.loadServers()
 }
 

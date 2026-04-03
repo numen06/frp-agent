@@ -5,7 +5,8 @@ export const useServersStore = defineStore('servers', {
   state: () => ({
     servers: [],
     currentServerId: null,
-    loading: false
+    loading: false,
+    _needsRefresh: false
   }),
   
   getters: {
@@ -17,9 +18,14 @@ export const useServersStore = defineStore('servers', {
   actions: {
     // 加载服务器列表
     async loadServers() {
+      // 如果已有数据且未标记为需要刷新，直接返回
+      if (this.servers.length > 0 && !this._needsRefresh) {
+        return
+      }
       this.loading = true
       try {
         this.servers = await serverApi.getServers()
+        this._needsRefresh = false
         // 恢复之前选中的服务器
         const savedServerId = localStorage.getItem('currentServerId')
         if (savedServerId && this.servers.find(s => s.id === parseInt(savedServerId))) {
@@ -34,6 +40,11 @@ export const useServersStore = defineStore('servers', {
         this.loading = false
       }
     },
+
+    // 标记需要刷新服务器列表（在增删改后调用）
+    markRefreshNeeded() {
+      this._needsRefresh = true
+    },
     
     // 设置当前服务器
     setCurrentServer(id) {
@@ -45,6 +56,7 @@ export const useServersStore = defineStore('servers', {
     async addServer(data) {
       const server = await serverApi.createServer(data)
       this.servers.push(server)
+      this._needsRefresh = true
       return server
     },
     
@@ -55,6 +67,7 @@ export const useServersStore = defineStore('servers', {
       if (index !== -1) {
         this.servers[index] = server
       }
+      this._needsRefresh = true
       return server
     },
     
@@ -65,6 +78,7 @@ export const useServersStore = defineStore('servers', {
       if (this.currentServerId === id) {
         this.currentServerId = this.servers.length > 0 ? this.servers[0].id : null
       }
+      this._needsRefresh = true
     },
     
     // 测试服务器连接
