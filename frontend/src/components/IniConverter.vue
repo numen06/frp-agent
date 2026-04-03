@@ -38,8 +38,13 @@
             <!-- 文件上传区域 -->
             <div class="mb-4">
               <label class="form-label">上传 INI 文件</label>
-              <div class="input-group">
-                <input type="file" class="form-control" @change="handleFileChange" accept=".ini,.txt,.conf" />
+              <div class="flex items-center gap-2">
+                <fwb-file-input
+                  v-model="uploadedIniFile"
+                  accept=".ini,.txt,.conf"
+                  size="md"
+                  class="flex-1"
+                />
                 <button class="btn btn-outline-secondary" @click="clearInput">清空</button>
               </div>
               <small class="form-hint">支持 .ini、.txt、.conf 格式文件</small>
@@ -115,12 +120,12 @@
             
             <div class="mb-3">
               <label class="form-label">选择 API Key（可选）</label>
-              <select class="form-select" v-model="selectedApiKeyId" @change="handleApiKeyChange">
+              <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
                 <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
                 <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
                   {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
                 </option>
-              </select>
+              </AppSelect>
               <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
             </div>
             
@@ -167,8 +172,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { FwbFileInput } from 'flowbite-vue'
 import { configApi } from '@/api/config'
 import { apiKeysApi } from '@/api/apiKeys'
+import AppSelect from '@/components/AppSelect.vue'
 
 const activeTab = ref('web') // 当前激活的 tab: 'web' 或 'command'
 const iniContent = ref('')
@@ -180,6 +187,7 @@ const selectedApiKeyId = ref(null)
 const selectedApiKeyFullKey = ref(null)
 const loadingApiKeys = ref(false)
 const copySuccess = ref(false) // 复制成功提示
+const uploadedIniFile = ref(null)
 
 // 获取 API 基础 URL
 const apiBaseUrl = computed(() => {
@@ -328,8 +336,7 @@ onMounted(() => {
   loadApiKeys()
 })
 
-const handleFileChange = (event) => {
-  const file = event.target.files[0]
+const handleFileChange = (file) => {
   if (file) {
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -343,7 +350,12 @@ const handleFileChange = (event) => {
   }
 }
 
+watch(uploadedIniFile, (file) => {
+  handleFileChange(file)
+})
+
 const clearInput = () => {
+  uploadedIniFile.value = null
   iniContent.value = ''
   tomlContent.value = ''
   errorMessage.value = ''

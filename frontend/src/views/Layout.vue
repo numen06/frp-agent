@@ -22,11 +22,46 @@
             </router-link>
           </div>
           <div class="flex items-center gap-3">
-            <button class="hidden md:inline-flex rounded-lg p-2 text-gray-500 hover:bg-gray-100">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-4.2A2.1 2.1 0 0016.6 11H7.4a2.1 2.1 0 00-2 1.8L4 17h5m1.5 0a1.5 1.5 0 003 0" />
-              </svg>
-            </button>
+            <div class="relative hidden md:block">
+              <button
+                ref="notifyDropdown.triggerRef"
+                class="inline-flex rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+                type="button"
+                :aria-expanded="notifyDropdown.isOpen.value"
+                aria-label="消息通知"
+                @click.prevent="notifyDropdown.toggle()"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-4.2A2.1 2.1 0 0016.6 11H7.4a2.1 2.1 0 00-2 1.8L4 17h5m1.5 0a1.5 1.5 0 003 0" />
+                </svg>
+                <span
+                  v-if="unreadNotificationCount > 0"
+                  class="absolute right-1 top-1 inline-flex h-2.5 w-2.5 rounded-full bg-red-500"
+                ></span>
+              </button>
+              <div
+                ref="notifyDropdown.dropdownRef"
+                class="dropdown-menu w-72"
+                :class="{ show: notifyDropdown.isOpen.value }"
+                @click.stop
+              >
+                <div class="px-3 py-2 text-xs font-semibold text-gray-500">消息通知</div>
+                <div class="dropdown-divider"></div>
+                <template v-if="notifications.length > 0">
+                  <a
+                    v-for="item in notifications"
+                    :key="item.id"
+                    href="#"
+                    class="dropdown-item"
+                    @click.prevent="handleNotificationClick(item); notifyDropdown.close()"
+                  >
+                    <span class="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500"></span>
+                    <span class="truncate">{{ item.title }}</span>
+                  </a>
+                </template>
+                <div v-else class="px-3 py-2 text-sm text-gray-500">暂无新消息</div>
+              </div>
+            </div>
             <div class="relative">
               <button
                 ref="userDropdown.triggerRef"
@@ -46,7 +81,7 @@
               <div
                 ref="userDropdown.dropdownRef"
                 class="dropdown-menu"
-                :class="{ hidden: !userDropdown.isOpen.value }"
+                :class="{ show: userDropdown.isOpen.value }"
                 @click.stop
               >
                 <a href="#" class="dropdown-item" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
@@ -98,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import FrpLogo from '@/components/FrpLogo.vue'
@@ -126,7 +161,22 @@ const navItems = [
 
 // 下拉菜单和折叠功能
 const userDropdown = useDropdown()
+const notifyDropdown = useDropdown()
 const navCollapse = useCollapse()
+
+const notifications = computed(() => {
+  const items = []
+  if (forcePasswordChange.value) {
+    items.push({
+      id: 'force-password-change',
+      type: 'forcePasswordChange',
+      title: forcePasswordChangeReason.value || '检测到使用默认密码，请立即修改'
+    })
+  }
+  return items
+})
+
+const unreadNotificationCount = computed(() => notifications.value.length)
 
 // 检查是否需要强制修改密码
 const checkPasswordRequirement = async () => {
@@ -193,6 +243,14 @@ const handleLogout = async () => {
   if (confirm('确定要退出登录吗？')) {
     authStore.logout()
     router.push('/login')
+  }
+}
+
+const handleNotificationClick = (notification) => {
+  if (notification.type === 'forcePasswordChange') {
+    forcePasswordChange.value = true
+    forcePasswordChangeReason.value = notification.title
+    showUserManageDialog.value = true
   }
 }
 </script>

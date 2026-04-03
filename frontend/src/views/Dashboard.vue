@@ -1,10 +1,34 @@
 <template>
   <div>
     <!-- 欢迎区域 -->
-    <div class="card">
-      <div class="card-body">
-        <h3 class="card-title mb-0">欢迎回来，{{ authStore.username || '管理员' }}</h3>
-        <div class="text-gray-700">共 {{ serversStore.servers.length }} 个服务器</div>
+    <div class="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-bold">欢迎回来，{{ authStore.username || '管理员' }}</h2>
+          <p class="mt-1 text-sm text-gray-600">FRP 节点运行概览与代理状态实时看板</p>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
+          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+          在线监控中
+        </div>
+      </div>
+      <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-500">服务器数</div>
+          <div class="mt-1 text-xl font-semibold">{{ serversStore.servers.length }}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-500">代理总数</div>
+          <div class="mt-1 text-xl font-semibold">{{ totalStats.total }}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-500">在线代理</div>
+          <div class="mt-1 text-xl font-semibold">{{ totalStats.online }}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-500">唯一端口</div>
+          <div class="mt-1 text-xl font-semibold">{{ totalStats.portCount }}</div>
+        </div>
       </div>
     </div>
 
@@ -14,11 +38,12 @@
         <h3 class="card-title">汇总统计</h3>
       </div>
       <div class="card-body">
-        <div class="row">
-          <div class="col-sm-6 col-lg-3">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="subheader">代理总数</div>
-                  <div class="ms-auto lh-1">
+        <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="subheader mb-0">代理总数</div>
+                  <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M9 6l11 0" />
@@ -30,12 +55,15 @@
                     </svg>
                   </div>
                 </div>
-                <div class="h1 mb-0">{{ totalStats.total }}</div>
+                <div class="h1 mb-0 leading-none text-gray-900">{{ totalStats.total }}</div>
+                <div class="mt-3 text-xs text-gray-500">全局代理实例数量</div>
+            </div>
           </div>
-          <div class="col-sm-6 col-lg-3">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="subheader">在线代理</div>
-                  <div class="ms-auto lh-1">
+          <div>
+            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="subheader mb-0">在线代理</div>
+                  <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
@@ -44,13 +72,18 @@
                     </svg>
                   </div>
                 </div>
-                <div class="h1 mb-0">{{ totalStats.online }}</div>
-                <div class="text-muted small">在线率: {{ totalOnlineRate }}%</div>
+                <div class="h1 mb-0 leading-none text-gray-900">{{ totalStats.online }}</div>
+                <div class="mt-3 text-xs text-gray-600">在线率: {{ totalOnlineRate }}%</div>
+                <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                  <div class="h-full rounded-full bg-blue-600" :style="`width: ${totalOnlineRate}%`"></div>
+                </div>
+            </div>
           </div>
-          <div class="col-sm-6 col-lg-3">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="subheader">离线代理</div>
-                  <div class="ms-auto lh-1">
+          <div>
+            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="subheader mb-0">离线代理</div>
+                  <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
@@ -59,13 +92,18 @@
                     </svg>
                   </div>
                 </div>
-                <div class="h1 mb-0">{{ totalStats.offline }}</div>
-                <div class="text-muted small">离线率: {{ totalOfflineRate }}%</div>
+                <div class="h1 mb-0 leading-none text-gray-900">{{ totalStats.offline }}</div>
+                <div class="mt-3 text-xs text-gray-600">离线率: {{ totalOfflineRate }}%</div>
+                <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                  <div class="h-full rounded-full bg-gray-500" :style="`width: ${totalOfflineRate}%`"></div>
+                </div>
+            </div>
           </div>
-          <div class="col-sm-6 col-lg-3">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="subheader">端口分配</div>
-                  <div class="ms-auto lh-1">
+          <div>
+            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="subheader mb-0">端口分配</div>
+                  <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
@@ -73,7 +111,9 @@
                     </svg>
                   </div>
                 </div>
-                <div class="h1 mb-0">{{ totalStats.portCount }}</div>
+                <div class="h1 mb-0 leading-none text-gray-900">{{ totalStats.portCount }}</div>
+                <div class="mt-3 text-xs text-gray-600">去重后远端端口数量</div>
+            </div>
           </div>
         </div>
       </div>
@@ -105,7 +145,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="server in serversStore.servers" :key="server.id" class="even:bg-gray-50">
+            <tr v-for="server in serversStore.servers" :key="server.id" class="even:bg-gray-50 hover:bg-gray-50 transition-colors">
               <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div class="fw-bold">{{ server.name }}</div>
                 <div class="text-muted small">{{ server.api_base_url }}</div>
@@ -160,7 +200,7 @@
       <div class="card-body">
         <div class="row g-2">
           <div class="col-6 col-md-3">
-            <router-link to="/proxies" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
+            <router-link to="/proxies" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M9 6l11 0" />
@@ -174,7 +214,7 @@
             </router-link>
           </div>
           <div class="col-6 col-md-3">
-            <router-link to="/groups" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
+            <router-link to="/groups" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M9 4h3l2 2h5a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
@@ -184,7 +224,7 @@
             </router-link>
           </div>
           <div class="col-6 col-md-3">
-            <router-link to="/converter" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
+            <router-link to="/converter" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />

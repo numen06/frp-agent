@@ -2,12 +2,12 @@
   <div v-if="total > 0" class="flex flex-wrap items-center justify-between gap-2">
     <div class="flex items-center gap-2">
       <span class="text-sm text-gray-500">显示</span>
-      <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" :value="pageSize" @change="handlePageSizeChange">
+      <AppSelect class="w-auto" size="sm" :number="true" :model-value="pageSize" @change="handlePageSizeChange">
         <option :value="10">10</option>
         <option :value="20">20</option>
         <option :value="50">50</option>
         <option :value="100">100</option>
-      </select>
+      </AppSelect>
       <span class="text-sm text-gray-500">条记录</span>
     </div>
     <div v-if="totalPages > 1" class="flex items-center gap-2">
@@ -93,6 +93,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import AppSelect from '@/components/AppSelect.vue'
 
 const props = defineProps({
   total: {

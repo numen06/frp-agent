@@ -22,14 +22,14 @@
           
           <div class="mb-3">
             <label class="form-label">代理类型 <span class="text-danger">*</span></label>
-            <select class="form-select" v-model="proxyForm.proxy_type" required>
+            <AppSelect v-model="proxyForm.proxy_type" required>
               <option value="tcp">TCP</option>
               <option value="udp">UDP</option>
               <option value="http">HTTP</option>
               <option value="https">HTTPS</option>
               <option value="stcp">STCP</option>
               <option value="xtcp">XTCP</option>
-            </select>
+            </AppSelect>
           </div>
           
           <div class="mb-3">
@@ -64,6 +64,7 @@ import { ref, reactive, watch } from 'vue'
 import { useProxiesStore } from '@/stores/proxies'
 import { autoDetectLocalPort } from '@/utils/portDetector'
 import { useModal } from '@/composables/useModal'
+import AppSelect from '@/components/AppSelect.vue'
 
 const props = defineProps({
   modelValue: {

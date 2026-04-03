@@ -134,15 +134,15 @@
                 @search="handleSearch"
               />
             </div>
-            <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="proxiesStore.filters.group" @change="handleFilterChange">
+            <AppSelect class="w-auto" size="sm" v-model="proxiesStore.filters.group" @change="handleFilterChange">
               <option value="">全部分组</option>
               <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-            </select>
-            <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="proxiesStore.filters.status" @change="handleFilterChange">
+            </AppSelect>
+            <AppSelect class="w-auto" size="sm" v-model="proxiesStore.filters.status" @change="handleFilterChange">
               <option value="">全部状态</option>
               <option value="online">在线</option>
               <option value="offline">离线</option>
-            </select>
+            </AppSelect>
           </div>
         </div>
       </div>
@@ -152,10 +152,10 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="fw-bold">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
             <div class="d-flex gap-2 flex-wrap">
-              <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="bulkGroupName">
+              <AppSelect class="w-auto" size="sm" v-model="bulkGroupName">
                 <option value="">选择目标分组...</option>
                 <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-              </select>
+              </AppSelect>
               <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="handleBulkAssignGroup">分配到分组</button>
               <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700" @click="handleGenerateConfigForSelected">生成配置</button>
               <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="proxiesStore.clearSelection()">取消选择</button>
@@ -324,6 +324,7 @@ import ImportConfigDialog from '@/components/ImportConfigDialog.vue'
 import ConfigGenerateDialog from '@/components/ConfigGenerateDialog.vue'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import ServerSelector from '@/components/ServerSelector.vue'
 
 const route = useRoute()

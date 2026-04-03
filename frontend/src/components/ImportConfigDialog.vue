@@ -20,10 +20,10 @@
           
           <div class="mb-3">
             <label class="form-label">选择分组 <span class="text-danger">*</span></label>
-            <select class="form-select" v-model="importForm.group_name" required>
+            <AppSelect v-model="importForm.group_name" required>
               <option value="">请选择分组...</option>
               <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-            </select>
+            </AppSelect>
             <small class="form-hint">导入的代理将被分配到此分组</small>
           </div>
           
@@ -52,6 +52,7 @@ import { useServersStore } from '@/stores/servers'
 import { useGroupsStore } from '@/stores/groups'
 import { configApi } from '@/api/config'
 import { useModal } from '@/composables/useModal'
+import AppSelect from '@/components/AppSelect.vue'
 
 const props = defineProps({
   modelValue: {

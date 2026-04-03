@@ -9,8 +9,8 @@
           <label class="form-label">当前服务器：</label>
         </div>
         <div class="col-auto">
-          <select 
-            class="form-select" 
+          <AppSelect
+            :number="true"
             v-model="selectedServerId" 
             @change="handleServerChange" 
             :disabled="serversStore.loading"
@@ -19,7 +19,7 @@
             <option v-for="server in serversStore.servers" :key="server.id" :value="server.id">
               {{ server.name }}
             </option>
-          </select>
+          </AppSelect>
         </div>
         <div class="col-auto">
           <button 
@@ -39,6 +39,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { useServersStore } from '@/stores/servers'
+import AppSelect from '@/components/AppSelect.vue'
 
 const props = defineProps({
   modelValue: {

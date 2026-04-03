@@ -173,24 +173,24 @@
               
               <div class="mb-3">
                 <label class="form-label">选择 API Key（可选）</label>
-                <select class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="selectedApiKeyId" @change="handleApiKeyChange">
+                <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
                   <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
                   <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
                     {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
                   </option>
-                </select>
+                </AppSelect>
                 <small class="form-hint">选择 API Key 后，命令中会自动填充真实的密钥</small>
               </div>
 
               <div class="mb-3">
                 <label class="form-label">指定分组（可选）</label>
                 <div class="d-flex flex-wrap gap-2">
-                  <select class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="quickSelectedGroup" style="max-width: 220px;">
+                  <AppSelect class="w-full" v-model="quickSelectedGroup" style="max-width: 220px;">
                     <option value="">不选择（使用默认分组）</option>
                     <option v-for="group in groupsStore.groups" :key="group.group_name" :value="group.group_name">
                       {{ group.group_name }}
                     </option>
-                  </select>
+                  </AppSelect>
                   <input
                     type="text"
                     class="form-control"
@@ -294,6 +294,12 @@
         </div>
       </div>
     </Teleport>
+    <GroupProxiesDialog
+      v-model="showGroupProxiesDialog"
+      :server-id="props.serverId"
+      :group-name="selectedGroupForProxies"
+      @success="handleGroupProxiesChanged"
+    />
   </div>
 </template>
 
@@ -305,8 +311,10 @@ import { useModal } from '@/composables/useModal'
 import { apiKeysApi } from '@/api/apiKeys'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
+import GroupProxiesDialog from '@/components/GroupProxiesDialog.vue'
+import AppSelect from '@/components/AppSelect.vue'
 
-const emit = defineEmits(['view-group', 'generate-config'])
+const emit = defineEmits(['generate-config'])
 
 const props = defineProps({
   serverId: {
@@ -392,8 +400,10 @@ watch(() => groupsStore.groups, async () => {
 
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
+const showGroupProxiesDialog = ref(false)
 const activeTab = ref('groups') // 主tab: 'groups' 或 'quick'
 const currentGroup = ref(null)
+const selectedGroupForProxies = ref('')
 const apiKeys = ref([])
 const selectedApiKeyId = ref(null)
 const loadingApiKeys = ref(false)
@@ -732,11 +742,16 @@ const handleAutoAnalyze = async () => {
 }
 
 const viewGroupProxies = (groupName) => {
-  emit('view-group', groupName)
+  selectedGroupForProxies.value = groupName
+  showGroupProxiesDialog.value = true
 }
 
 const generateGroupConfig = (groupName) => {
   emit('generate-config', groupName)
+}
+
+const handleGroupProxiesChanged = async () => {
+  await loadGroups(groupsStore.pagination.page)
 }
 
 const closeCreateDialog = () => {
