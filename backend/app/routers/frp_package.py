@@ -272,6 +272,145 @@ def _default_template_for_platform(platform: str) -> str:
     )
 
 
+def _default_upgrade_template_for_platform(platform: str) -> str:
+    if platform.startswith("windows_"):
+        return (
+            "# frp-client upgrade script (PowerShell)\n"
+            "# platform: {{platform}}  version: {{version}}\n"
+            "\n"
+            "$ErrorActionPreference = 'Stop'\n"
+            "$FRP_DIR = 'C:\\frp'\n"
+            "$FRPC_EXE = \"$FRP_DIR\\frpc.exe\"\n"
+            "\n"
+            "# --- 检查是否已安装 ---\n"
+            "if (-not (Test-Path $FRPC_EXE)) {\n"
+            "    Write-Host \"错误: 未检测到已安装的 frpc ($FRPC_EXE)，请先使用安装脚本进行安装。\"\n"
+            "    exit 1\n"
+            "}\n"
+            "\n"
+            "$OLD_VERSION = & $FRPC_EXE --version 2>&1\n"
+            "Write-Host \"当前版本: $OLD_VERSION\"\n"
+            "Write-Host \"目标版本: {{version}}\"\n"
+            "\n"
+            "# --- 停止 frpc 服务（如已注册为系统服务）---\n"
+            "if (Get-Service -Name frpc -ErrorAction SilentlyContinue) {\n"
+            "    Write-Host \"停止 frpc 服务...\"\n"
+            "    Stop-Service -Name frpc -Force\n"
+            "}\n"
+            "\n"
+            "# --- 备份当前 frpc ---\n"
+            "if (Test-Path $FRPC_EXE) {\n"
+            "    $BACKUP = \"$FRP_DIR\\frpc.exe.bak\"\n"
+            "    Copy-Item $FRPC_EXE $BACKUP -Force\n"
+            "    Write-Host \"已备份当前版本: $BACKUP\"\n"
+            "}\n"
+            "\n"
+            "# --- 下载并替换 ---\n"
+            "Write-Host \"下载 {{filename}} ...\"\n"
+            "Invoke-WebRequest -Uri \"{{download_url}}\" -OutFile \"$env:TEMP\\{{filename}}\"\n"
+            "tar -xf \"$env:TEMP\\{{filename}}\" -C \"$env:TEMP\"\n"
+            "Copy-Item \"$env:TEMP\\frp_*\\frpc.exe\" $FRPC_EXE -Force\n"
+            "\n"
+            "# --- 清理临时文件 ---\n"
+            "Remove-Item \"$env:TEMP\\{{filename}}\" -Force -ErrorAction SilentlyContinue\n"
+            "Get-ChildItem \"$env:TEMP\\frp_*\" -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue\n"
+            "\n"
+            "# --- 配置兼容性：frpc.ini -> frpc.toml 迁移 ---\n"
+            "$INI_FILE = \"$FRP_DIR\\frpc.ini\"\n"
+            "$TOML_FILE = \"$FRP_DIR\\frpc.toml\"\n"
+            "if (Test-Path $INI_FILE) {\n"
+            "    if (-not (Test-Path $TOML_FILE)) {\n"
+            "        Write-Host \"迁移到 TOML: 将 $INI_FILE 重命名为 $TOML_FILE\"\n"
+            "        Move-Item $INI_FILE $TOML_FILE\n"
+            "    } else {\n"
+            "        $ts = Get-Date -Format 'yyyyMMdd_HHmmss'\n"
+            "        Move-Item $INI_FILE \"$INI_FILE.backup_$ts\"\n"
+            "        Write-Host \"警告: $INI_FILE 存在但 $TOML_FILE 已存在，已备份为 $INI_FILE.backup_$ts\"\n"
+            "    }\n"
+            "}\n"
+            "\n"
+            "# --- 重启 frpc 服务 ---\n"
+            "if (Get-Service -Name frpc -ErrorAction SilentlyContinue) {\n"
+            "    Write-Host \"启动 frpc 服务...\"\n"
+            "    Start-Service -Name frpc\n"
+            "}\n"
+            "\n"
+            "$NEW_VERSION = & $FRPC_EXE --version 2>&1\n"
+            "Write-Host \"=== Frp Client 升级完成 ===\"\n"
+            "Write-Host \"版本: $OLD_VERSION -> $NEW_VERSION\"\n"
+            "Write-Host \"安装路径: $FRPC_EXE\"\n"
+        )
+    # Linux / macOS / 其他平台
+    return (
+        "#!/usr/bin/env bash\n"
+        "# frp-client upgrade script\n"
+        "# platform: {{platform}}  version: {{version}}\n"
+        "set -e\n"
+        "\n"
+        "FRP_DIR=\"{{install_path}}\"\n"
+        "FRPC_BIN=\"$FRP_DIR/frpc\"\n"
+        "\n"
+        "# --- 检查是否已安装 ---\n"
+        "if [[ ! -f \"$FRPC_BIN\" ]]; then\n"
+        "    echo \"错误: 未检测到已安装的 frpc ($FRPC_BIN)，请先使用安装脚本进行安装。\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "\n"
+        "OLD_VERSION=$(\"$FRPC_BIN\" --version 2>&1 || true)\n"
+        "echo \"当前版本: $OLD_VERSION\"\n"
+        "echo \"目标版本: {{version}}\"\n"
+        "\n"
+        "# --- 停止 frpc 服务（如已注册为 systemd 服务）---\n"
+        "if command -v systemctl &>/dev/null && systemctl is-active --quiet frpc 2>/dev/null; then\n"
+        "    echo \"停止 frpc 服务...\"\n"
+        "    systemctl stop frpc\n"
+        "fi\n"
+        "\n"
+        "# --- 备份当前 frpc ---\n"
+        "if [[ -f \"$FRPC_BIN\" ]]; then\n"
+        "    BACKUP=\"$FRP_DIR/frpc.bak\"\n"
+        "    cp \"$FRPC_BIN\" \"$BACKUP\"\n"
+        "    echo \"已备份当前版本: $BACKUP\"\n"
+        "fi\n"
+        "\n"
+        "# --- 下载并替换 ---\n"
+        "echo \"下载 {{filename}} ...\"\n"
+        "curl -sL \"{{download_url}}\" -o /tmp/{{filename}}\n"
+        "cd /tmp\n"
+        "tar -xzf \"{{filename}}\"\n"
+        "cp frp_*/frpc \"$FRPC_BIN\"\n"
+        "chmod 755 \"$FRPC_BIN\"\n"
+        "\n"
+        "# --- 清理临时文件 ---\n"
+        "rm -f /tmp/{{filename}}\n"
+        "rm -rf /tmp/frp_*\n"
+        "\n"
+        "# --- 配置兼容性：frpc.ini -> frpc.toml 迁移 ---\n"
+        "INI_FILE=\"$FRP_DIR/frpc.ini\"\n"
+        "TOML_FILE=\"$FRP_DIR/frpc.toml\"\n"
+        "if [[ -f \"$INI_FILE\" ]]; then\n"
+        "    if [[ ! -f \"$TOML_FILE\" ]]; then\n"
+        "        echo \"迁移到 TOML: 将 $INI_FILE 重命名为 $TOML_FILE\"\n"
+        "        mv \"$INI_FILE\" \"$TOML_FILE\"\n"
+        "    else\n"
+        "        echo \"警告: $INI_FILE 存在但 $TOML_FILE 已存在，跳过迁移以防止覆盖。\"\n"
+        "        mv \"$INI_FILE\" \"${INI_FILE}.backup_$(date +%Y%m%d_%H%M%S)\"\n"
+        "    fi\n"
+        "fi\n"
+        "\n"
+        "# --- 重启 frpc 服务 ---\n"
+        "if command -v systemctl &>/dev/null && systemctl is-enabled --quiet frpc 2>/dev/null; then\n"
+        "    echo \"启动 frpc 服务...\"\n"
+        "    systemctl start frpc\n"
+        "fi\n"
+        "\n"
+        "NEW_VERSION=$(\"$FRPC_BIN\" --version 2>&1 || true)\n"
+        "echo \"=== Frp Client 升级完成 ===\"\n"
+        "echo \"版本: $OLD_VERSION -> $NEW_VERSION\"\n"
+        "echo \"安装路径: $FRPC_BIN\"\n"
+    )
+
+
 def _load_script_templates() -> dict:
     path = _scripts_file_path()
     if not os.path.exists(path):
@@ -677,6 +816,35 @@ def get_install_script(
         .replace("{{download_url}}", download_url)
         .replace("{{install_path}}", install_path)
         .replace("{{config_line}}", config_line)
+        .replace("{{platform}}", item.platform)
+        .replace("{{version}}", item.version)
+    )
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.get("/upgrade-script")
+def get_upgrade_script(
+    package_id: int = Query(..., ge=1),
+    install_path: str = Query("/opt/frp"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_install_script),
+):
+    item = db.query(FrpPackage).filter(FrpPackage.id == package_id, FrpPackage.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="安装包不存在")
+
+    api_key = request.query_params.get("api_key") or ""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+    download_url = f"{server_base}/api/packages/{item.id}/download?api_key={api_key}"
+
+    templates = _load_script_templates()
+    upgrade_key = f"{item.platform}_upgrade"
+    template = templates.get(upgrade_key) or _default_upgrade_template_for_platform(item.platform)
+    script = (
+        template.replace("{{filename}}", item.filename)
+        .replace("{{download_url}}", download_url)
+        .replace("{{install_path}}", install_path)
         .replace("{{platform}}", item.platform)
         .replace("{{version}}", item.version)
     )

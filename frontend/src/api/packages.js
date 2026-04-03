@@ -64,5 +64,17 @@ export const packagesApi = {
 
   updateScriptTemplate(platform, script_template) {
     return api.put(`/packages/script-templates/${platform}`, { script_template })
+  },
+
+  getUpgradeScriptUrl(params) {
+    const query = new URLSearchParams()
+    query.set('package_id', params.package_id)
+    if (params.install_path) query.set('install_path', params.install_path)
+    if (params.api_key) query.set('api_key', params.api_key)
+    return `/api/packages/upgrade-script?${query.toString()}`
+  },
+
+  getUpgradeScript(params) {
+    return api.get('/packages/upgrade-script', { params, skipAuthRedirect: true })
   }
 }

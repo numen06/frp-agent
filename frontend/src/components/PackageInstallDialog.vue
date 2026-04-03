@@ -5,7 +5,7 @@
       <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">生成一键安装脚本</h5>
+            <h5 class="modal-title">一键脚本生成</h5>
             <button type="button" class="btn-close" @click="closeDialog"></button>
           </div>
           <div class="modal-body">
@@ -32,14 +32,39 @@
                 <label class="form-label">安装路径</label>
                 <input v-model="installPath" class="form-control" type="text" />
               </div>
-              <div>
+              <div v-if="activeTab === 'install'">
                 <label class="form-label">配置URL（可选）</label>
                 <input v-model="configUrl" class="form-control" type="text" placeholder="http://.../frpc.toml" />
               </div>
-              <div>
-                <button class="btn btn-primary" :disabled="loading" @click="submit">{{ loading ? '生成中...' : '生成脚本' }}</button>
+              <div class="flex gap-2">
+                <button
+                  class="btn"
+                  :class="activeTab === 'install' ? 'btn-primary' : 'btn-outline-primary'"
+                  :disabled="loading"
+                  @click="activeTab = 'install'"
+                >安装脚本</button>
+                <button
+                  class="btn"
+                  :class="activeTab === 'upgrade' ? 'btn-success' : 'btn-outline-success'"
+                  :disabled="loading"
+                  @click="activeTab = 'upgrade'"
+                >升级脚本</button>
               </div>
-              <div v-if="script">
+              <div>
+                <button
+                  v-if="activeTab === 'install'"
+                  class="btn btn-primary"
+                  :disabled="loading"
+                  @click="submit"
+                >{{ loading ? '生成中...' : '生成安装脚本' }}</button>
+                <button
+                  v-else
+                  class="btn btn-success"
+                  :disabled="loading"
+                  @click="submitUpgrade"
+                >{{ loading ? '生成中...' : '生成升级脚本' }}</button>
+              </div>
+              <div v-if="activeTab === 'install' && script">
                 <label class="form-label">安装脚本预览</label>
                 <CodeEditor
                   :model-value="script"
@@ -48,6 +73,16 @@
                   :readonly="true"
                 />
                 <button class="btn btn-outline-primary mt-2" :disabled="!packageId" @click="handleCopyCommand($event)">复制安装命令</button>
+              </div>
+              <div v-if="activeTab === 'upgrade' && upgradeScript">
+                <label class="form-label">升级脚本预览</label>
+                <CodeEditor
+                  :model-value="upgradeScript"
+                  language="shell"
+                  :height="'320px'"
+                  :readonly="true"
+                />
+                <button class="btn btn-outline-success mt-2" :disabled="!packageId" @click="handleCopyUpgradeCommand($event)">复制升级命令</button>
               </div>
             </div>
           </div>
@@ -71,10 +106,11 @@ const props = defineProps({
   /** 与「版本」筛选中的「最新」一致，用于默认选中对应安装包 */
   latestVersion: { type: String, default: '' },
   loading: { type: Boolean, default: false },
-  script: { type: String, default: '' }
+  script: { type: String, default: '' },
+  upgradeScript: { type: String, default: '' }
 })
 
-const emit = defineEmits(['update:modelValue', 'submit'])
+const emit = defineEmits(['update:modelValue', 'submit', 'submit-upgrade'])
 const apiKeysStore = useApiKeysStore()
 const visible = ref(false)
 const packageId = ref(0)
@@ -82,6 +118,7 @@ const installPath = ref('/opt/frp')
 const configUrl = ref('')
 const selectedKeyId = ref(0)
 const manualApiKey = ref('')
+const activeTab = ref('install')
 
 const availableKeys = computed(() => {
   return apiKeysStore.availableKeys
@@ -121,6 +158,7 @@ const pickDefaultPackageId = () => {
 watch(() => props.modelValue, async (val) => {
   visible.value = val
   if (val) {
+    activeTab.value = 'install'
     await apiKeysStore.loadKeys()
     const fallbackId = apiKeysStore.selectedKeyId || (availableKeys.value[0]?.id ?? 0)
     selectedKeyId.value = fallbackId
@@ -196,6 +234,47 @@ const handleCopyCommand = async (event) => {
     api_key: apiKey || '',
     install_path: installPath.value,
     config_url: configUrl.value || undefined
+  })
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+  await copyWithTooltip(cmd, event)
+}
+
+const submitUpgrade = async () => {
+  if (!packageId.value) {
+    alert('请选择安装包')
+    return
+  }
+  if (availableKeys.value.length > 0 && !selectedKeyId.value) {
+    alert('请选择 API Key')
+    return
+  }
+  if (availableKeys.value.length === 0 && !manualApiKey.value.trim()) {
+    alert('请输入 API Key（升级脚本中的下载链接需要 API Key 认证）')
+    return
+  }
+  const apiKey = await resolveApiKey()
+  if (!apiKey) {
+    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
+    return
+  }
+  emit('submit-upgrade', {
+    package_id: packageId.value,
+    api_key: apiKey || '',
+    install_path: installPath.value
+  })
+}
+
+const handleCopyUpgradeCommand = async (event) => {
+  if (!packageId.value) return
+  const apiKey = await resolveApiKey()
+  if (!apiKey) {
+    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
+    return
+  }
+  const url = packagesApi.getUpgradeScriptUrl({
+    package_id: packageId.value,
+    api_key: apiKey || '',
+    install_path: installPath.value
   })
   const cmd = `curl -sL "${window.location.origin}${url}" | bash`
   await copyWithTooltip(cmd, event)

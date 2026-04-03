@@ -5,25 +5,46 @@
         <h3 class="card-title">FRP 安装包管理</h3>
         <div class="card-actions flex flex-wrap gap-2 items-center">
           <button
-            class="btn btn-outline-primary"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             :disabled="refreshLoading"
             @click="handleRefresh"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
             {{ refreshLoading ? '刷新中...' : '刷新' }}
           </button>
-          <button class="btn btn-primary" type="button" @click="showSyncDialog = true">GitHub 同步</button>
-          <button class="btn btn-primary" type="button" @click="showUploadDialog = true">手动上传</button>
-          <button class="btn btn-primary" type="button" @click="showInstallDialog = true">生成安装脚本</button>
+          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showSyncDialog = true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 14v4a1 1 0 0 0 1 1h4"/><path d="M17 3h4a1 1 0 0 1 1 1v4"/><path d="M16 8l-8 8"/>
+            </svg>
+            GitHub 同步
+          </button>
+          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showUploadDialog = true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/>
+            </svg>
+            手动上传
+          </button>
+          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showInstallDialog = true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/>
+            </svg>
+            脚本生成
+          </button>
           <div class="dropdown">
             <button
               ref="moreActionsDropdown.triggerRef"
               type="button"
-              class="btn btn-outline-primary dropdown-toggle"
+              class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
               @click.prevent="moreActionsDropdown.toggle()"
               :aria-expanded="moreActionsDropdown.isOpen.value"
             >
               更多
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6"/>
+              </svg>
             </button>
             <div
               ref="moreActionsDropdown.dropdownRef"
@@ -60,8 +81,8 @@
         </div>
       </div>
       <div class="card-body">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <select v-model="filters.version" class="form-control">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <select v-model="filters.version" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部版本</option>
             <option v-if="versionsMeta.latest_version" value="__latest__">
               最新（{{ versionsMeta.latest_version }}）
@@ -73,51 +94,77 @@
               <option v-for="v in otherVersionsForUi" :key="'ov-' + v" :value="v">{{ v }}</option>
             </optgroup>
           </select>
-          <select v-model="filters.platform" class="form-control">
+          <select v-model="filters.platform" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部平台</option>
             <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
           </select>
-          <select v-model="filters.source" class="form-control">
+          <select v-model="filters.source" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部来源</option>
             <option value="github">github</option>
             <option value="upload">upload</option>
           </select>
         </div>
-        <div class="overflow-x-auto">
+        <div v-if="loading" class="text-center py-8">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+          <span class="ms-2 text-muted">加载中...</span>
+        </div>
+        <div v-else class="overflow-x-auto">
           <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
-                <th class="px-4 py-3 bg-gray-50 border-b">ID</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">版本</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">平台</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">文件名</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">大小</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">来源</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">下载时间</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">SHA256</th>
-                <th class="px-4 py-3 bg-gray-50 border-b">操作</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">ID</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">版本</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">平台</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">文件名</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">大小</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">来源</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">下载时间</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">SHA256</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:180px">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading">
-                <td colspan="9" class="text-center py-4">加载中...</td>
-              </tr>
-              <tr v-else-if="packages.length === 0">
-                <td colspan="9" class="text-center py-4">暂无安装包</td>
+              <tr v-if="packages.length === 0">
+                <td colspan="9" class="text-center text-muted py-8">暂无安装包</td>
               </tr>
               <tr v-for="item in packages" :key="item.id">
-                <td class="px-4 py-3 border-b">{{ item.id }}</td>
-                <td class="px-4 py-3 border-b">{{ item.version }}</td>
-                <td class="px-4 py-3 border-b">{{ item.platform }}</td>
-                <td class="px-4 py-3 border-b">{{ item.filename }}</td>
-                <td class="px-4 py-3 border-b">{{ formatSize(item.file_size) }}</td>
-                <td class="px-4 py-3 border-b">{{ item.source }}</td>
-                <td class="px-4 py-3 border-b">{{ formatDate(item.downloaded_at) }}</td>
-                <td class="px-4 py-3 border-b"><code>{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
-                <td class="px-4 py-3 border-b">
-                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyDownloadCommand(item, $event)">复制下载命令</button>
-                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyInstallCommand(item, $event)">复制安装命令</button>
-                  <button class="btn btn-sm btn-outline-danger" @click="remove(item)">删除</button>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ item.id }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.version }}</span>
+                </td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ item.platform }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <span class="truncate" :title="item.filename">{{ item.filename }}</span>
+                </td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatSize(item.file_size) }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.source }}</span>
+                </td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatDate(item.downloaded_at) }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle"><code class="text-xs text-gray-500">{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <div class="flex items-center gap-1.5">
+                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200" title="复制下载命令" @click="copyDownloadCommand(item, $event)">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4v5h.582m15.356 2a8.001 8.001 0 0 0 -15.356 -2m15.356 2a15 15 0 0 1 2 0m-17 0a15 15 0 0 1 2 0"/><path d="M4 13a8.001 8.001 0 0 0 4 0"/>
+                      </svg>
+                    </button>
+                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" title="复制安装命令" @click="copyInstallCommand(item, $event)">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l0 18"/><path d="M8 7l4 -4l4 4"/><path d="M8 17l4 4l4 -4"/>
+                      </svg>
+                    </button>
+                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100" title="复制升级命令" @click="copyUpgradeCommand(item, $event)">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6l0 12"/><path d="M16 10l-4 -4l-4 4"/><path d="M16 14l-4 4l-4 -4"/>
+                      </svg>
+                    </button>
+                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100" title="删除" @click="remove(item)">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -134,7 +181,9 @@
       :latest-version="versionsMeta.latest_version"
       :loading="scriptLoading"
       :script="installScript"
+      :upgrade-script="upgradeScript"
       @submit="handleGenerateScript"
+      @submit-upgrade="handleGenerateUpgradeScript"
     />
     <ScriptTemplateDialog
       v-model="showTemplateDialog"
@@ -176,6 +225,7 @@ const filterSyncing = ref(false)
 const packages = ref([])
 const releases = ref([])
 const installScript = ref('')
+const upgradeScript = ref('')
 const scriptTemplates = ref({})
 const apiKeysStore = useApiKeysStore()
 
@@ -483,6 +533,17 @@ const copyInstallCommand = async (item, event) => {
   await copyWithTooltip(cmd, event)
 }
 
+const copyUpgradeCommand = async (item, event) => {
+  const apiKey = await resolvePreferredApiKey()
+  if (!apiKey) {
+    alert('无法获取默认 API Key，请先在 API Key 页面创建或复制一次完整密钥')
+    return
+  }
+  const url = packagesApi.getUpgradeScriptUrl({ package_id: item.id, api_key: apiKey })
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+  await copyWithTooltip(cmd, event)
+}
+
 const handleGenerateScript = async (payload) => {
   scriptLoading.value = true
   try {
@@ -494,6 +555,21 @@ const handleGenerateScript = async (payload) => {
     })
   } catch (e) {
     alert(`生成脚本失败: ${e.message}`)
+  } finally {
+    scriptLoading.value = false
+  }
+}
+
+const handleGenerateUpgradeScript = async (payload) => {
+  scriptLoading.value = true
+  try {
+    upgradeScript.value = await packagesApi.getUpgradeScript({
+      package_id: payload.package_id,
+      install_path: payload.install_path,
+      api_key: payload.api_key
+    })
+  } catch (e) {
+    alert(`生成升级脚本失败: ${e.message}`)
   } finally {
     scriptLoading.value = false
   }
