@@ -43,9 +43,9 @@
         {
             "label": "运行 FastAPI 应用",
             "type": "shell",
-            "command": "python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+            "command": "${workspaceFolder}/.venv/Scripts/python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
             "windows": {
-                "command": "python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+                "command": "${workspaceFolder}/.venv/Scripts/python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
             },
             "linux": {
                 "command": "python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
@@ -100,12 +100,12 @@
             "label": "安装 Node.js 依赖",
             "type": "shell",
             "command": "npm install",
-            "windows": {
-                "command": "cmd.exe",
-                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm install"]
-            },
             "options": {
-                "cwd": "${workspaceFolder}/frontend"
+                "cwd": "${workspaceFolder}/frontend",
+                "env": {
+                    "NODE_OPTIONS": "",
+                    "VSCODE_INSPECTOR_OPTIONS": ""
+                }
             },
             "problemMatcher": [],
             "presentation": {
@@ -116,13 +116,13 @@
         {
             "label": "运行前端开发服务器",
             "type": "shell",
-            "command": "npm run dev",
-            "windows": {
-                "command": "cmd.exe",
-                "args": ["/c", "cd /d ${workspaceFolder}\\frontend && npm run dev"]
-            },
+            "command": "echo 前端地址: http://localhost:5173; npm run dev -- --host 0.0.0.0 --port 5173 --strictPort",
             "options": {
-                "cwd": "${workspaceFolder}/frontend"
+                "cwd": "${workspaceFolder}/frontend",
+                "env": {
+                    "NODE_OPTIONS": "",
+                    "VSCODE_INSPECTOR_OPTIONS": ""
+                }
             },
             "presentation": {
                 "reveal": "always",
@@ -183,6 +183,19 @@
             "dependsOn": [
                 "安装 Python 依赖",
                 "安装 Node.js 依赖"
+            ],
+            "dependsOrder": "parallel",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "启动前后端 (2个终端)",
+            "dependsOn": [
+                "运行 FastAPI 应用",
+                "运行前端开发服务器"
             ],
             "dependsOrder": "parallel",
             "problemMatcher": [],

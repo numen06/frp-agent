@@ -1,54 +1,83 @@
 <template>
-  <div v-if="total > 0" class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-muted">显示</span>
-      <select class="form-select form-select-sm" :value="pageSize" @change="handlePageSizeChange" style="width: auto;">
+  <div v-if="total > 0" class="flex flex-wrap items-center justify-between gap-2">
+    <div class="flex items-center gap-2">
+      <span class="text-sm text-gray-500">显示</span>
+      <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" :value="pageSize" @change="handlePageSizeChange">
         <option :value="10">10</option>
         <option :value="20">20</option>
         <option :value="50">50</option>
         <option :value="100">100</option>
       </select>
-      <span class="text-muted">条记录</span>
+      <span class="text-sm text-gray-500">条记录</span>
     </div>
-    <div v-if="totalPages > 1" class="d-flex align-items-center gap-2">
-      <div class="text-muted">
+    <div v-if="totalPages > 1" class="flex items-center gap-2">
+      <div class="text-sm text-gray-500">
         显示第 {{ (page - 1) * pageSize + 1 }} - {{ Math.min(page * pageSize, total) }} 条，共 {{ total }} 条
       </div>
-      <ul class="pagination mb-0">
-        <li class="page-item" :class="{ disabled: page === 1 }">
-          <a class="page-link" href="#" @click.prevent="goToPage(1)" :tabindex="page === 1 ? -1 : 0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ul class="inline-flex items-center gap-1">
+        <li>
+          <a
+            class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+            :class="{ 'pointer-events-none opacity-50': page === 1 }"
+            href="#"
+            @click.prevent="goToPage(1)"
+            :tabindex="page === 1 ? -1 : 0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M15 6l-6 6l6 6" />
             </svg>
           </a>
         </li>
-        <li class="page-item" :class="{ disabled: page === 1 }">
-          <a class="page-link" href="#" @click.prevent="goToPage(page - 1)" :tabindex="page === 1 ? -1 : 0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <li>
+          <a
+            class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+            :class="{ 'pointer-events-none opacity-50': page === 1 }"
+            href="#"
+            @click.prevent="goToPage(page - 1)"
+            :tabindex="page === 1 ? -1 : 0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M15 6l-6 6l6 6" />
             </svg>
           </a>
         </li>
         
-        <li v-for="pageNum in visiblePages" :key="pageNum" class="page-item" :class="{ active: pageNum === page }">
-          <a class="page-link" href="#" @click.prevent="goToPage(pageNum)">
+        <li v-for="pageNum in visiblePages" :key="pageNum">
+          <a
+            class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-2 text-sm"
+            :class="pageNum === page ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'"
+            href="#"
+            @click.prevent="goToPage(pageNum)"
+          >
             {{ pageNum }}
           </a>
         </li>
         
-        <li class="page-item" :class="{ disabled: page === totalPages }">
-          <a class="page-link" href="#" @click.prevent="goToPage(page + 1)" :tabindex="page === totalPages ? -1 : 0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <li>
+          <a
+            class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+            :class="{ 'pointer-events-none opacity-50': page === totalPages }"
+            href="#"
+            @click.prevent="goToPage(page + 1)"
+            :tabindex="page === totalPages ? -1 : 0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M9 6l6 6l-6 6" />
             </svg>
           </a>
         </li>
-        <li class="page-item" :class="{ disabled: page === totalPages }">
-          <a class="page-link" href="#" @click.prevent="goToPage(totalPages)" :tabindex="page === totalPages ? -1 : 0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <li>
+          <a
+            class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+            :class="{ 'pointer-events-none opacity-50': page === totalPages }"
+            href="#"
+            @click.prevent="goToPage(totalPages)"
+            :tabindex="page === totalPages ? -1 : 0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M9 6l6 6l-6 6" />
             </svg>
@@ -56,7 +85,7 @@
         </li>
       </ul>
     </div>
-    <div v-else class="text-muted">
+    <div v-else class="text-sm text-gray-500">
       共 {{ total }} 条记录
     </div>
   </div>

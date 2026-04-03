@@ -2,9 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: FastAPI (Uvicorn) 调试",
+            "name": "后端: FastAPI (Uvicorn)",
             "type": "debugpy",
             "request": "launch",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
             "module": "uvicorn",
             "args": [
                 "app.main:app",
@@ -22,109 +23,24 @@
             "jinja": true
         },
         {
-            "name": "Python: FastAPI 应用",
-            "type": "debugpy",
+            "name": "前端: 仅启动Vite(不打开浏览器)",
+            "type": "node-terminal",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/app.py",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/backend",
-                "APP_DEBUG": "true"
-            },
-            "jinja": true
-        },
-        {
-            "name": "Python: app.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/backend/app.py",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/backend"
-            }
-        },
-        {
-            "name": "Python: 当前文件",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/backend"
-            }
-        },
-        {
-            "name": "Python: 导入配置脚本",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/backend/import_frpc_config.py",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/backend"
-            }
-        },
-        {
-            "name": "Node.js: 调试 Vite 开发服务器",
-            "type": "node",
-            "request": "launch",
-            "runtimeExecutable": "npm",
-            "runtimeArgs": ["run", "dev"],
+            "command": "npm run dev -- --host 0.0.0.0 --port 5173 --strictPort",
             "cwd": "${workspaceFolder}/frontend",
-            "console": "integratedTerminal",
-            "internalConsoleOptions": "neverOpen",
-            "skipFiles": ["<node_internals>/**"],
             "env": {
-                "NODE_ENV": "development"
+                "NODE_OPTIONS": "",
+                "VSCODE_INSPECTOR_OPTIONS": ""
             }
-        },
+        }
+    ],
+    "compounds": [
         {
-            "name": "Node.js: 调试当前文件",
-            "type": "node",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "skipFiles": ["<node_internals>/**"]
-        },
-        {
-            "name": "Chrome: 调试前端应用",
-            "type": "chrome",
-            "request": "launch",
-            "name": "调试前端 (Chrome)",
-            "url": "http://localhost:5173",
-            "webRoot": "${workspaceFolder}/frontend",
-            "sourceMaps": true,
-            "sourceMapPathOverrides": {
-                "webpack:///src/*": "${webRoot}/src/*"
-            }
-        },
-        {
-            "name": "Edge: 调试前端应用",
-            "type": "msedge",
-            "request": "launch",
-            "name": "调试前端 (Edge)",
-            "url": "http://localhost:5173",
-            "webRoot": "${workspaceFolder}/frontend",
-            "sourceMaps": true,
-            "sourceMapPathOverrides": {
-                "webpack:///src/*": "${webRoot}/src/*"
-            }
-        },
-        {
-            "name": "复合: 前后端同时调试",
-            "type": "compound",
+            "name": "启动: 前后端 (2个进程)",
             "configurations": [
-                "Python: FastAPI (Uvicorn) 调试",
-                "Node.js: 调试 Vite 开发服务器",
-                "Chrome: 调试前端应用"
-            ],
-            "preLaunchTask": "安装所有依赖"
+                "后端: FastAPI (Uvicorn)",
+                "前端: 仅启动Vite(不打开浏览器)"
+            ]
         }
     ]
 }

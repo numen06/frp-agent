@@ -4,7 +4,7 @@
     <div class="card">
       <div class="card-body">
         <h3 class="card-title mb-0">欢迎回来，{{ authStore.username || '管理员' }}</h3>
-        <div class="text-muted">共 {{ serversStore.servers.length }} 个服务器</div>
+        <div class="text-gray-700">共 {{ serversStore.servers.length }} 个服务器</div>
       </div>
     </div>
 
@@ -90,50 +90,50 @@
           <span class="ms-2">加载中...</span>
         </div>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table table-vcenter card-table table-striped w-100">
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse text-left text-sm text-gray-700">
           <thead>
             <tr>
-              <th>服务器名称</th>
-              <th>服务器地址</th>
-              <th>连接状态</th>
-              <th>代理总数</th>
-              <th>在线</th>
-              <th>离线</th>
-              <th>端口数</th>
-              <th>在线率</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">服务器名称</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">服务器地址</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">连接状态</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">代理总数</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">在线</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">离线</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">端口数</th>
+              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">在线率</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="server in serversStore.servers" :key="server.id">
-              <td>
+            <tr v-for="server in serversStore.servers" :key="server.id" class="even:bg-gray-50">
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div class="fw-bold">{{ server.name }}</div>
                 <div class="text-muted small">{{ server.api_base_url }}</div>
               </td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div>{{ server.server_addr }}:{{ server.server_port }}</div>
                 <div class="text-muted small">{{ server.auth_username }}</div>
               </td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <span class="badge" :class="getServerStatusBadgeClass(server)">
                   {{ getServerStatusText(server) }}
                 </span>
               </td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div class="fw-bold">{{ getServerStats(server.id).total }}</div>
               </td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <span class="badge text-bg-success">
                   {{ getServerStats(server.id).online }}
                 </span>
               </td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <span class="badge text-bg-danger">
                   {{ getServerStats(server.id).offline }}
                 </span>
               </td>
-              <td>{{ getServerStats(server.id).portCount }}</td>
-              <td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ getServerStats(server.id).portCount }}</td>
+              <td class="px-4 py-3 border-b border-gray-100 align-middle">
                 <div class="d-flex align-items-center">
                   <div class="progress progress-sm me-2" style="width: 60px;">
                     <div class="progress-bar" :class="getServerOnlineRate(server.id) > 0 ? 'bg-success' : 'bg-secondary'" 
@@ -160,7 +160,7 @@
       <div class="card-body">
         <div class="row g-2">
           <div class="col-6 col-md-3">
-            <router-link to="/proxies" class="btn btn-outline-primary w-100">
+            <router-link to="/proxies" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M9 6l11 0" />
@@ -174,7 +174,7 @@
             </router-link>
           </div>
           <div class="col-6 col-md-3">
-            <router-link to="/groups" class="btn btn-outline-primary w-100">
+            <router-link to="/groups" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M9 4h3l2 2h5a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
@@ -184,7 +184,7 @@
             </router-link>
           </div>
           <div class="col-6 col-md-3">
-            <router-link to="/converter" class="btn btn-outline-primary w-100">
+            <router-link to="/converter" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />

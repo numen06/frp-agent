@@ -14,7 +14,6 @@ from app.database import get_db
 from app.models.user import User
 from app.models.api_key import ApiKey
 
-settings = get_settings()
 security = HTTPBasic(auto_error=False)  # 不自动报错，避免浏览器弹窗
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -146,26 +145,34 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
     # 验证用户
     user = authenticate_user(db, username, password)
+    if user:
+        return user
 
-    if not user:
-        # 如果数据库中没有用户，使用配置中的默认认证
-        if username == settings.auth_username and password == settings.auth_password:
-            # 返回一个临时用户对象（不保存到数据库）
-            temp_user = User(
-                id=0, username=username, password_hash=get_password_hash(password)
-            )
-            return temp_user
-
+    # 如果数据库中已存在该用户名，但密码不匹配，不允许回退到环境变量认证
+    db_user_exists = db.query(User).filter(User.username == username).first()
+    if db_user_exists:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
         )
 
-    return user
+    # 仅当数据库不存在该用户时，才允许使用环境变量凭据作为临时用户登录
+    settings = get_settings()
+    if username == settings.auth_username and password == settings.auth_password:
+        temp_user = User(
+            id=0, username=username, password_hash=get_password_hash(password)
+        )
+        return temp_user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="用户名或密码错误",
+    )
 
 
 def verify_credentials(credentials: HTTPBasicCredentials) -> bool:
     """简单验证凭据（用于兼容 frps 认证）"""
+    settings = get_settings()
     correct_username = secrets.compare_digest(
         credentials.username.encode("utf8"), settings.auth_username.encode("utf8")
     )

@@ -1,11 +1,12 @@
 <template>
-  <div v-if="show" class="modal-backdrop fade show" @click="!forceMode && close()"></div>
-  <div class="modal modal-blur fade" :class="{ show: show, 'd-block': show }" tabindex="-1" role="dialog" :style="show ? 'display: block;' : ''" @click.self="!forceMode && close()">
-    <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-      <div class="modal-content">
+  <Teleport to="body">
+    <div v-if="visible" class="modal-backdrop fade show" @click.prevent.stop="close"></div>
+    <div v-if="visible" class="modal modal-blur fade" :class="{ show: visible }" tabindex="-1" role="dialog" @click.self.prevent.stop="close">
+      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
+        <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">{{ forceMode ? '强制修改密码' : '用户管理' }}</h5>
-          <button v-if="!forceMode" type="button" class="btn-close" @click="close"></button>
+          <button type="button" class="btn-close" @click.prevent.stop="close"></button>
         </div>
         <div class="modal-body">
           <!-- 强制修改密码提示 -->
@@ -53,7 +54,7 @@
                 </div>
                 
                 <div class="form-footer">
-                  <button v-if="!forceMode" type="button" class="btn btn-secondary me-auto" @click="close">取消</button>
+                  <button type="button" class="btn btn-secondary me-auto" @click.prevent.stop="close">取消</button>
                   <button type="submit" class="btn btn-primary">保存修改</button>
                 </div>
               </form>
@@ -72,14 +73,15 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { settingsApi } from '@/api/settings'
 import { useModal } from '@/composables/useModal'
@@ -99,11 +101,11 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:show'])
+const emit = defineEmits(['update:show', 'cancel-force'])
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
+const localHidden = ref(false)
 
 const userSettings = reactive({
   username: ''
@@ -118,6 +120,7 @@ const passwordForm = reactive({
 // 监听 show 变化，加载用户设置
 watch(() => props.show, async (newVal) => {
   if (newVal) {
+    localHidden.value = false
     await loadUserSettings()
     // 重置表单
     passwordForm.old_password = ''
@@ -126,12 +129,7 @@ watch(() => props.show, async (newVal) => {
   }
 })
 
-// 监听路由变化，检查是否需要强制修改密码
-watch(() => route.query, async (newQuery) => {
-  if (newQuery.forcePasswordChange === 'true' && !props.show) {
-    emit('update:show', true)
-  }
-}, { immediate: true })
+const visible = computed(() => props.show && !localHidden.value)
 
 const loadUserSettings = async () => {
   try {
@@ -169,29 +167,29 @@ const handleChangePassword = async () => {
       // 清除强制修改密码的查询参数
       router.replace({ query: {} })
     } else {
-      alert('密码修改成功，3秒后跳转到登录页')
+      alert('密码修改成功，请重新登录')
     }
     
-    setTimeout(() => {
-      authStore.logout()
-      router.push('/login')
-    }, props.forceMode ? 1000 : 3000)
+    authStore.logout()
+    router.push('/login')
   } catch (error) {
     alert('修改失败: ' + error.message)
   }
 }
 
 const close = () => {
-  if (!props.forceMode) {
-    emit('update:show', false)
+  localHidden.value = true
+  if (props.forceMode) {
+    emit('cancel-force')
+    // 清除强制改密查询参数，避免当前会话内被路由监听立即重新拉起
+    router.replace({ query: {} })
   }
+  emit('update:show', false)
 }
 
-// 使用统一的模态框功能，在强制模式下禁用ESC退出
+// 使用统一的模态框功能，允许用户先关闭，下次进入再继续提示
 // 将props.show转换为ref以适配useModal
-const showRef = computed(() => props.show)
-useModal(showRef, close, {
-  disabled: computed(() => props.forceMode)
-})
+const showRef = computed(() => visible.value)
+useModal(showRef, close)
 </script>
 

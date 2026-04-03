@@ -36,16 +36,8 @@ def check_password_requirement(
     """检查是否需要强制修改密码"""
     settings = get_settings()
     
-    # 默认用户名和密码
-    default_username = "admin"
+    # 默认密码
     default_password = "admin"
-    
-    # 检查用户名是否为默认用户名
-    if current_user.username != default_username:
-        return {
-            "require_password_change": False,
-            "reason": "用户名不是默认用户名"
-        }
     
     # 如果是数据库用户（id != 0），检查密码哈希是否匹配默认密码
     if current_user.id != 0:
@@ -56,8 +48,7 @@ def check_password_requirement(
             }
     else:
         # 如果是临时用户（id=0），检查是否使用的是配置中的默认密码
-        if (settings.auth_username == default_username and 
-            settings.auth_password == default_password):
+        if settings.auth_password == default_password:
             return {
                 "require_password_change": True,
                 "reason": "检测到使用默认密码，为了安全起见，请立即修改密码"
@@ -142,6 +133,8 @@ def change_password(
         
         # 同时更新 .env 文件（保持环境变量同步）
         update_env_file('AUTH_PASSWORD', password_data.new_password)
+        # 清理配置缓存，确保后续请求读取到最新密码
+        get_settings.cache_clear()
         
         return {
             "success": True,

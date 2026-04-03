@@ -1,8 +1,9 @@
 <template>
-  <div v-if="dialogVisible" class="modal-backdrop fade show" @click="closeDialog"></div>
-  <div class="modal modal-blur fade" :class="{ show: dialogVisible, 'd-block': dialogVisible }" tabindex="-1" role="dialog" :style="dialogVisible ? 'display: block;' : ''" @click.self="closeDialog">
-    <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-      <div class="modal-content">
+  <Teleport to="body">
+    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="closeDialog"></div>
+    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="closeDialog">
+      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
+        <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">导入 frpc 配置文件</h5>
           <button type="button" class="btn-close" @click="closeDialog"></button>
@@ -39,9 +40,10 @@
             开始导入
           </button>
         </div>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>

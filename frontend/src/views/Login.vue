@@ -1,65 +1,57 @@
 <template>
-  <div class="page page-center">
-    <div class="container container-tight py-4">
-      <div class="text-center mb-4">
-        <a href="/" class="login-brand">
-          <div class="login-brand-icon">
-            <FrpLogo :size="48" color="#206bcb" :animated="true" />
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+    <div class="w-full max-w-md">
+      <div class="mb-6 text-center">
+        <a href="/" class="inline-flex flex-col items-center no-underline">
+          <div class="mb-3 animate-float text-blue-600">
+            <FrpLogo :size="48" color="currentColor" :animated="true" />
           </div>
-          <div class="login-brand-text">
-            <span class="brand-name">FRP</span>
-            <span class="brand-suffix">-AGENT</span>
+          <div class="flex items-baseline text-3xl font-bold tracking-tight">
+            <span class="text-blue-600 font-extrabold">FRP</span>
+            <span class="text-gray-500 font-semibold ml-0.5">-AGENT</span>
           </div>
-          <div class="login-brand-subtitle">代理管理系统</div>
+          <div class="mt-1 text-sm font-medium tracking-wide text-gray-500">代理管理系统</div>
         </a>
       </div>
-      <div class="card card-md">
-        <div class="card-body">
-          <h2 class="h2 text-center mb-4">登录到账户</h2>
-          <div v-if="errorMessage" class="alert alert-danger" role="alert">
-            {{ errorMessage }}
-          </div>
-          <form @submit.prevent="handleLogin" method="get" autocomplete="off" novalidate>
-            <div class="mb-3">
-              <label class="form-label">用户名</label>
-              <input
-                type="text"
-                class="form-control"
-                v-model="loginForm.username"
-                placeholder="请输入用户名"
-                autocomplete="off"
-                autofocus
-                required
-              />
-            </div>
-            <div class="mb-3">
-              <label class="form-label">
-                密码
-              </label>
-              <div class="input-group input-group-flat">
-                <input
-                  type="password"
-                  class="form-control"
-                  v-model="loginForm.password"
-                  placeholder="请输入密码"
-                  autocomplete="off"
-                  required
-                  @keyup.enter="handleLogin"
-                />
-              </div>
-            </div>
-            <div class="form-footer">
-              <button type="submit" class="btn btn-primary w-100" :disabled="loading">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                {{ loading ? '登录中...' : '登录' }}
-              </button>
-            </div>
-          </form>
+
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+        <h2 class="mb-5 text-center text-2xl font-semibold text-gray-900">登录到账户</h2>
+        <div v-if="errorMessage" class="alert alert-danger mb-4" role="alert">
+          {{ errorMessage }}
         </div>
+        <form @submit.prevent="handleLogin" autocomplete="off" novalidate class="space-y-4">
+          <div>
+            <label class="form-label">用户名</label>
+            <input
+              type="text"
+              class="form-control"
+              v-model="loginForm.username"
+              placeholder="请输入用户名"
+              autocomplete="off"
+              autofocus
+              required
+            />
+          </div>
+          <div>
+            <label class="form-label">密码</label>
+            <input
+              type="password"
+              class="form-control"
+              v-model="loginForm.password"
+              placeholder="请输入密码"
+              autocomplete="off"
+              required
+              @keyup.enter="handleLogin"
+            />
+          </div>
+          <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+            <span v-if="loading" class="spinner-border mr-2" role="status" aria-hidden="true"></span>
+            {{ loading ? '登录中...' : '登录' }}
+          </button>
+        </form>
       </div>
-      <div class="text-center text-muted mt-3">
-        FRP-AGENT v1.0 &copy; 2025
-      </div>
+
+      <div class="mt-4 text-center text-sm text-gray-500">FRP-AGENT v1.0 &copy; 2025</div>
     </div>
   </div>
 </template>
@@ -111,53 +103,13 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-brand {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  text-decoration: none;
-  margin-bottom: 1rem;
-}
-
-.login-brand-icon {
-  margin-bottom: 1rem;
-  animation: float 3s ease-in-out infinite;
-}
-
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
-.login-brand-text {
-  display: flex;
-  align-items: baseline;
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.5rem;
-}
-
-.login-brand-text .brand-name {
-  color: #206bcb;
-  font-weight: 800;
-}
-
-.login-brand-text .brand-suffix {
-  color: #6c757d;
-  font-weight: 600;
-  margin-left: 0.1rem;
-}
-
-.login-brand-subtitle {
-  font-size: 0.875rem;
-  color: #6c757d;
-  font-weight: 500;
-  letter-spacing: 0.05em;
+.animate-float {
+  animation: float 3s ease-in-out infinite;
 }
 </style>
 

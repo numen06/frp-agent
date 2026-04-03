@@ -1,171 +1,105 @@
 <template>
-  <div class="page">
-    <!-- 顶部导航栏 -->
-    <header class="navbar navbar-expand-md d-print-none">
-      <div class="container-xl">
-        <button class="navbar-toggler d-md-none" type="button" @click="navCollapse.toggle()" :aria-expanded="navCollapse.isOpen.value" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <h1 class="navbar-brand navbar-brand-autodark">
-          <router-link to="/dashboard" class="navbar-brand">
-            <span class="navbar-brand-icon me-2">
-              <FrpLogo :size="28" color="#206bcb" />
-            </span>
-            <span class="navbar-brand-text">
-              <span class="text-primary fw-bold">FRP</span>
-              <span class="text-muted fw-medium">-AGENT</span>
-            </span>
-          </router-link>
-        </h1>
-        <div class="navbar-nav flex-row order-md-last">
-          <div class="nav-item d-none d-md-flex me-3">
-            <a href="#" class="nav-link px-0" tabindex="-1" aria-label="Show notifications">
-              <IconBell class="icon" />
-              <span class="badge bg-red"></span>
-            </a>
+  <div class="min-h-screen bg-gray-50">
+    <header class="border-b border-gray-200 bg-white">
+      <div class="max-w-7xl mx-auto px-4">
+        <div class="h-16 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <button
+              class="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              type="button"
+              @click="navCollapse.toggle()"
+              :aria-expanded="navCollapse.isOpen.value"
+              aria-label="Toggle navigation"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <router-link to="/dashboard" class="flex items-center gap-2 text-blue-600">
+              <FrpLogo :size="28" color="currentColor" />
+              <span class="font-extrabold text-blue-600">FRP</span>
+              <span class="font-semibold text-gray-500">-AGENT</span>
+            </router-link>
           </div>
-          <div class="nav-item dropdown">
-            <a 
-              ref="userDropdown.triggerRef" 
-              href="#" 
-              class="nav-link d-flex lh-1 text-reset p-0" 
-              @click.prevent="userDropdown.toggle()"
-              aria-label="Open user menu"
-            >
-              <span class="avatar avatar-sm" :style="{ backgroundImage: `url(https://ui-avatars.com/api/?name=${encodeURIComponent(authStore.username || 'Admin')}&background=206bcb&color=fff)` }"></span>
-              <div class="d-none d-xl-block ps-2">
-                <div>{{ authStore.username || '管理员' }}</div>
-                <div class="mt-0 small text-muted">管理员</div>
+          <div class="flex items-center gap-3">
+            <button class="hidden md:inline-flex rounded-lg p-2 text-gray-500 hover:bg-gray-100">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-4.2A2.1 2.1 0 0016.6 11H7.4a2.1 2.1 0 00-2 1.8L4 17h5m1.5 0a1.5 1.5 0 003 0" />
+              </svg>
+            </button>
+            <div class="relative">
+              <button
+                ref="userDropdown.triggerRef"
+                class="inline-flex items-center gap-2 rounded-lg p-1.5 hover:bg-gray-100"
+                @click.prevent="userDropdown.toggle()"
+              >
+                <img
+                  class="h-8 w-8 rounded-full"
+                  :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(authStore.username || 'Admin')}&background=206bcb&color=fff`"
+                  alt="avatar"
+                />
+                <div class="hidden xl:block text-left">
+                  <div class="text-sm font-medium">{{ authStore.username || '管理员' }}</div>
+                  <div class="text-xs text-gray-500">管理员</div>
+                </div>
+              </button>
+              <div
+                ref="userDropdown.dropdownRef"
+                class="dropdown-menu"
+                :class="{ hidden: !userDropdown.isOpen.value }"
+                @click.stop
+              >
+                <a href="#" class="dropdown-item" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
+                <div class="dropdown-divider"></div>
+                <a href="#" class="dropdown-item text-red-600" @click.prevent="handleLogout(); userDropdown.close()">退出登录</a>
               </div>
-            </a>
-            <div 
-              ref="userDropdown.dropdownRef"
-              class="dropdown-menu dropdown-menu-end dropdown-menu-arrow"
-              :class="{ show: userDropdown.isOpen.value }"
-              @click.stop
-            >
-              <a href="#" class="dropdown-item" @click.prevent="handleUserManage(); userDropdown.close()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" />
-                  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
-                </svg>
-                用户管理
-              </a>
-              <div class="dropdown-divider"></div>
-              <a href="#" class="dropdown-item" @click.prevent="handleLogout(); userDropdown.close()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" />
-                  <path d="M7 12h14l-3 -3m0 6l3 -3" />
-                </svg>
-                退出登录
-              </a>
             </div>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- 水平导航栏 -->
-    <div class="navbar-expand-md">
-      <div class="collapse navbar-collapse" :class="{ show: navCollapse.isOpen.value }" id="navbar-menu">
-        <div class="navbar navbar-light">
-          <div class="container-xl">
-            <ul class="navbar-nav">
-              <li class="nav-item">
-                <router-link to="/dashboard" class="nav-link" :class="{ active: $route.path === '/dashboard' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconLayoutDashboard class="icon" />
-                  </span>
-                  <span class="nav-link-title">仪表板</span>
-                </router-link>
-              </li>
-              <li class="nav-item">
-                <router-link to="/proxies" class="nav-link" :class="{ active: $route.path === '/proxies' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconList class="icon" />
-                  </span>
-                  <span class="nav-link-title">代理列表</span>
-                </router-link>
-              </li>
-              <li class="nav-item">
-                <router-link to="/groups" class="nav-link" :class="{ active: $route.path === '/groups' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconFolder class="icon" />
-                  </span>
-                  <span class="nav-link-title">分组管理</span>
-                </router-link>
-              </li>
-              <li class="nav-item">
-                <router-link to="/converter" class="nav-link" :class="{ active: $route.path === '/converter' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconRefresh class="icon" />
-                  </span>
-                  <span class="nav-link-title">INI 转换</span>
-                </router-link>
-              </li>
-              <li class="nav-item">
-                <router-link to="/servers" class="nav-link" :class="{ active: $route.path === '/servers' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconServer class="icon" />
-                  </span>
-                  <span class="nav-link-title">服务器管理</span>
-                </router-link>
-              </li>
-              <li class="nav-item">
-                <router-link to="/api-keys" class="nav-link" :class="{ active: $route.path === '/api-keys' }">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconKey class="icon" />
-                  </span>
-                  <span class="nav-link-title">密钥管理</span>
-                </router-link>
-              </li>
-            </ul>
-          </div>
-        </div>
+    <nav class="border-b border-gray-200 bg-white md:block" :class="{ hidden: !navCollapse.isOpen.value }">
+      <div class="max-w-7xl mx-auto px-4">
+        <ul class="flex flex-wrap gap-1 py-2">
+          <li v-for="item in navItems" :key="item.path">
+            <router-link
+              :to="item.path"
+              class="inline-flex rounded-lg px-3 py-2 text-sm font-medium"
+              :class="$route.path === item.path ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'"
+            >
+              {{ item.label }}
+            </router-link>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="py-6">
+      <div class="max-w-7xl mx-auto px-4">
+        <router-view />
       </div>
     </div>
 
-    <!-- 主内容区域 -->
-    <div class="page-wrapper">
-      <div class="page-body">
-        <div class="container-xl">
-          <router-view />
-        </div>
+    <footer class="border-t border-gray-200 bg-white py-4">
+      <div class="max-w-7xl mx-auto px-4 text-sm text-gray-500">
+        FRP-AGENT v1.0 | Copyright &copy; 2025
       </div>
+    </footer>
 
-      <footer class="footer footer-transparent d-print-none">
-        <div class="container-xl">
-          <div class="row text-center align-items-center flex-row-reverse">
-            <div class="col-lg-auto ms-lg-auto">
-              <ul class="list-inline list-inline-dots mb-0">
-                <li class="list-inline-item">FRP-AGENT v1.0</li>
-              </ul>
-            </div>
-            <div class="col-12 col-lg-auto mt-3 mt-lg-0">
-              <ul class="list-inline list-inline-dots mb-0">
-                <li class="list-inline-item">Copyright &copy; 2025</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
-
-    <!-- 用户管理对话框 -->
-    <UserManageDialog 
-      v-model:show="showUserManageDialog" 
+    <UserManageDialog
+      :show="showUserManageDialog"
       :force-mode="forcePasswordChange"
       :force-reason="forcePasswordChangeReason"
+      @update:show="handleUserDialogShowChange"
+      @cancel-force="handleCancelForce"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { IconBell, IconLayoutDashboard, IconList, IconFolder, IconRefresh, IconServer, IconKey } from '@tabler/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import FrpLogo from '@/components/FrpLogo.vue'
 import UserManageDialog from '@/components/UserManageDialog.vue'
@@ -180,6 +114,15 @@ const authStore = useAuthStore()
 const showUserManageDialog = ref(false)
 const forcePasswordChange = ref(false)
 const forcePasswordChangeReason = ref('')
+const suppressForcePasswordPrompt = ref(false)
+const navItems = [
+  { path: '/dashboard', label: '仪表板' },
+  { path: '/proxies', label: '代理列表' },
+  { path: '/groups', label: '分组管理' },
+  { path: '/converter', label: 'INI 转换' },
+  { path: '/servers', label: '服务器管理' },
+  { path: '/api-keys', label: '密钥管理' }
+]
 
 // 下拉菜单和折叠功能
 const userDropdown = useDropdown()
@@ -191,7 +134,7 @@ const checkPasswordRequirement = async () => {
   
   try {
     const result = await settingsApi.checkPasswordRequirement()
-    if (result?.require_password_change) {
+    if (result?.require_password_change && !suppressForcePasswordPrompt.value) {
       forcePasswordChange.value = true
       forcePasswordChangeReason.value = result.reason || '检测到使用默认密码，请立即修改'
       showUserManageDialog.value = true
@@ -203,11 +146,16 @@ const checkPasswordRequirement = async () => {
 
 // 监听路由查询参数
 watch(() => route.query, (newQuery) => {
-  if (newQuery.forcePasswordChange === 'true') {
+  if (newQuery.forcePasswordChange === 'true' && !suppressForcePasswordPrompt.value) {
     forcePasswordChange.value = true
     forcePasswordChangeReason.value = newQuery.reason || '检测到使用默认密码，请立即修改'
     showUserManageDialog.value = true
+    return
   }
+
+  // 路由不再要求强制改密时，恢复普通用户管理模式
+  forcePasswordChange.value = false
+  forcePasswordChangeReason.value = ''
 }, { immediate: true })
 
 // 组件挂载时检查
@@ -218,7 +166,27 @@ onMounted(() => {
 })
 
 const handleUserManage = () => {
+  // 手动打开用户管理时始终使用普通模式，避免遗留强制状态导致信息被隐藏
+  forcePasswordChange.value = false
+  forcePasswordChangeReason.value = ''
   showUserManageDialog.value = true
+}
+
+const handleCancelForce = () => {
+  // 当前会话内可跳过，避免关闭后立即再次弹出
+  suppressForcePasswordPrompt.value = true
+}
+
+const handleUserDialogShowChange = (visible) => {
+  showUserManageDialog.value = visible
+  if (!visible) {
+    if (route.query.forcePasswordChange === 'true') {
+      router.replace({ query: {} })
+    }
+    // 关闭弹窗后恢复普通状态，防止残留状态导致再次拉起
+    forcePasswordChange.value = false
+    forcePasswordChangeReason.value = ''
+  }
 }
 
 const handleLogout = async () => {
@@ -228,43 +196,5 @@ const handleLogout = async () => {
   }
 }
 </script>
-
-<style scoped>
-/* 确保导航栏下拉菜单不被裁剪 */
-.navbar {
-  overflow: visible;
-}
-
-.navbar .container-xl {
-  overflow: visible;
-  position: relative;
-}
-
-.navbar-nav {
-  overflow: visible;
-}
-
-.navbar-nav .nav-item.dropdown {
-  position: relative;
-}
-
-.navbar-nav .dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: auto;
-  z-index: 1050;
-  margin-top: 0.5rem;
-  min-width: 10rem;
-}
-
-/* 确保下拉菜单在页面边缘时也能正确显示 */
-@media (max-width: 768px) {
-  .navbar-nav .dropdown-menu {
-    right: auto;
-    left: 0;
-  }
-}
-</style>
 
 

@@ -3,7 +3,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <p class="text-muted mb-0">管理所有代理分组，支持重命名和快速生成配置</p>
       <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="showCreateDialog = true">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M12 5l0 14" />
@@ -11,7 +11,7 @@
           </svg>
           新增分组
         </button>
-        <button class="btn btn-success btn-sm" @click="handleAutoAnalyze">
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700" @click="handleAutoAnalyze">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
@@ -26,7 +26,7 @@
       <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs">
           <li class="nav-item">
-            <a href="#" class="nav-link" :class="{ active: activeTab === 'groups' }" @click.prevent="activeTab = 'groups'">
+            <a href="#" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium" :class="activeTab === 'groups' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'" @click.prevent="activeTab = 'groups'">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
@@ -39,7 +39,7 @@
             </a>
           </li>
           <li class="nav-item">
-            <a href="#" class="nav-link" :class="{ active: activeTab === 'quick' }" @click.prevent="activeTab = 'quick'">
+            <a href="#" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium" :class="activeTab === 'quick' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'" @click.prevent="activeTab = 'quick'">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M12 9v2m0 4v.01" />
@@ -67,15 +67,15 @@
               </div>
             </div>
             <!-- 表格区域 -->
-            <div class="table-responsive">
-              <table class="table table-vcenter card-table w-100">
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse text-left text-sm text-gray-700">
         <thead>
           <tr>
-            <th>分组名称</th>
-            <th>代理数量</th>
-            <th>在线</th>
-            <th>离线</th>
-            <th class="w-1">操作</th>
+            <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">分组名称</th>
+            <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">代理数量</th>
+            <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">在线</th>
+            <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">离线</th>
+            <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -88,71 +88,51 @@
           <tr v-else-if="groupsStore.groups.length === 0">
             <td colspan="5" class="text-center text-muted py-4">暂无分组，请先创建分组或导入配置</td>
           </tr>
-          <tr v-else v-for="group in groupsStore.groups" :key="group.group_name" :data-group-name="group.group_name" :class="{ 'table-active': props.highlightGroup === group.group_name }">
-            <td>
+          <tr v-else v-for="group in groupsStore.groups" :key="group.group_name" :data-group-name="group.group_name" :class="{ 'bg-amber-50': props.highlightGroup === group.group_name }">
+            <td class="px-4 py-3 border-b border-gray-100 align-middle">
               <strong :class="props.highlightGroup === group.group_name ? 'text-warning' : 'text-primary'">{{ group.group_name }}</strong>
             </td>
-            <td>{{ group.total_count }}</td>
-            <td>
+            <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ group.total_count }}</td>
+            <td class="px-4 py-3 border-b border-gray-100 align-middle">
               <span class="badge text-bg-success">{{ group.online_count }}</span>
             </td>
-            <td>
+            <td class="px-4 py-3 border-b border-gray-100 align-middle">
               <span class="badge text-bg-danger">{{ group.offline_count }}</span>
             </td>
-            <td>
-              <div class="dropdown">
-                <button 
-                  :ref="el => { if (el) getGroupDropdown(group.group_name).triggerRef.value = el }"
-                  class="btn btn-sm dropdown-toggle" 
-                  @click.prevent="getGroupDropdown(group.group_name).toggle()"
-                  :aria-expanded="getGroupDropdown(group.group_name).isOpen.value"
-                >
-                  操作
+            <td class="px-4 py-3 border-b border-gray-100 align-middle">
+              <div class="inline-flex items-center gap-2">
+                <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" @click="viewGroupProxies(group.group_name)" title="查看代理" aria-label="查看代理">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                    <path d="M21 21l-6 -6" />
+                  </svg>
                 </button>
-                <div 
-                  :ref="el => { if (el) getGroupDropdown(group.group_name).dropdownRef.value = el }"
-                  class="dropdown-menu"
-                  :class="{ show: getGroupDropdown(group.group_name).isOpen.value }"
-                  @click.stop
-                >
-                  <a class="dropdown-item" href="#" @click.prevent="viewGroupProxies(group.group_name); getGroupDropdown(group.group_name).close()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
-                      <path d="M21 21l-6 -6" />
-                    </svg>
-                    查看代理
-                  </a>
-                  <a class="dropdown-item" href="#" @click.prevent="editGroup(group); getGroupDropdown(group.group_name).close()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
-                      <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
-                      <path d="M16 5l3 3" />
-                    </svg>
-                    重命名
-                  </a>
-                  <a class="dropdown-item" href="#" @click.prevent="generateGroupConfig(group.group_name); getGroupDropdown(group.group_name).close()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                      <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                    </svg>
-                    生成配置
-                  </a>
-                  <div class="dropdown-divider"></div>
-                  <a class="dropdown-item text-danger" href="#" @click.prevent="deleteGroup(group); getGroupDropdown(group.group_name).close()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M4 7l16 0" />
-                      <path d="M10 11l0 6" />
-                      <path d="M14 11l0 6" />
-                      <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-                      <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-                    </svg>
-                    删除
-                  </a>
-                </div>
+                <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editGroup(group)" title="重命名" aria-label="重命名">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                    <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                    <path d="M16 5l3 3" />
+                  </svg>
+                </button>
+                <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100" @click="generateGroupConfig(group.group_name)" title="生成配置" aria-label="生成配置">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                  </svg>
+                </button>
+                <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteGroup(group)" title="删除" aria-label="删除">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M4 7l16 0" />
+                    <path d="M10 11l0 6" />
+                    <path d="M14 11l0 6" />
+                    <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                    <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                  </svg>
+                </button>
               </div>
             </td>
           </tr>
@@ -178,7 +158,7 @@
               <h4 class="mb-3">CURL 命令</h4>
               <div class="alert alert-info mb-3">
                 <div class="d-flex align-items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-info-circle me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
                     <path d="M12 9h.01" />
@@ -193,7 +173,7 @@
               
               <div class="mb-3">
                 <label class="form-label">选择 API Key（可选）</label>
-                <select class="form-select" v-model="selectedApiKeyId" @change="handleApiKeyChange">
+                <select class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="selectedApiKeyId" @change="handleApiKeyChange">
                   <option :value="null">不选择（使用 YOUR_API_KEY 占位符）</option>
                   <option v-for="apiKey in apiKeys" :key="apiKey.id" :value="apiKey.id">
                     {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
@@ -205,7 +185,7 @@
               <div class="mb-3">
                 <label class="form-label">指定分组（可选）</label>
                 <div class="d-flex flex-wrap gap-2">
-                  <select class="form-select" v-model="quickSelectedGroup" style="max-width: 220px;">
+                  <select class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="quickSelectedGroup" style="max-width: 220px;">
                     <option value="">不选择（使用默认分组）</option>
                     <option v-for="group in groupsStore.groups" :key="group.group_name" :value="group.group_name">
                       {{ group.group_name }}
@@ -227,7 +207,7 @@
               <div class="mb-0">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <label class="form-label mb-0">使用示例（可直接复制执行）</label>
-                  <button class="btn btn-sm btn-primary" @click="copyExampleCommand">
+                  <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="copyExampleCommand">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
@@ -236,7 +216,7 @@
                     复制命令
                   </button>
                 </div>
-                <pre class="bg-dark text-light p-3 rounded" style="font-size: 0.875rem; background-color: #1a1a1a !important; color: #ffffff !important; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; margin: 0;"><code class="text-light" style="color: #ffffff !important;">{{ exampleCommand }}</code></pre>
+                <pre class="m-0 rounded-lg bg-gray-900 p-3 text-sm whitespace-pre-wrap wrap-break-word text-gray-100"><code class="text-gray-100">{{ exampleCommand }}</code></pre>
               </div>
             </div>
             
@@ -266,10 +246,11 @@
     </div>
 
     <!-- 创建分组对话框 -->
-    <div v-if="showCreateDialog" class="modal-backdrop fade show" @click="closeCreateDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: showCreateDialog, 'd-block': showCreateDialog }" tabindex="-1" role="dialog" :style="showCreateDialog ? 'display: block;' : ''" @click.self="closeCreateDialog">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
+    <Teleport to="body">
+      <div v-if="showCreateDialog" class="modal-backdrop fade show" @click="closeCreateDialog"></div>
+      <div class="modal modal-blur fade" :class="{ show: showCreateDialog }" tabindex="-1" role="dialog" @click.self="closeCreateDialog">
+        <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
+          <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">新增分组</h5>
             <button type="button" class="btn-close" @click="closeCreateDialog"></button>
@@ -281,18 +262,20 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary me-auto" @click="closeCreateDialog">取消</button>
-            <button type="button" class="btn btn-primary" @click="handleCreateGroup">创建</button>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 me-auto" @click="closeCreateDialog">取消</button>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="handleCreateGroup">创建</button>
+          </div>
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- 重命名分组对话框 -->
-    <div v-if="showRenameDialog" class="modal-backdrop fade show" @click="closeRenameDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: showRenameDialog, 'd-block': showRenameDialog }" tabindex="-1" role="dialog" :style="showRenameDialog ? 'display: block;' : ''" @click.self="closeRenameDialog">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
+    <Teleport to="body">
+      <div v-if="showRenameDialog" class="modal-backdrop fade show" @click="closeRenameDialog"></div>
+      <div class="modal modal-blur fade" :class="{ show: showRenameDialog }" tabindex="-1" role="dialog" @click.self="closeRenameDialog">
+        <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
+          <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">重命名分组</h5>
             <button type="button" class="btn-close" @click="closeRenameDialog"></button>
@@ -304,12 +287,13 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary me-auto" @click="closeRenameDialog">取消</button>
-            <button type="button" class="btn btn-primary" @click="handleRenameGroup">保存</button>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 me-auto" @click="closeRenameDialog">取消</button>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="handleRenameGroup">保存</button>
+          </div>
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -318,7 +302,6 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
-import { useDropdown } from '@/composables/useDropdown'
 import { apiKeysApi } from '@/api/apiKeys'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
@@ -338,16 +321,6 @@ const props = defineProps({
 
 const groupsStore = useGroupsStore()
 const serversStore = useServersStore()
-
-// 每个分组的下拉菜单（使用 Map 存储）
-const groupDropdowns = new Map()
-
-const getGroupDropdown = (groupName) => {
-  if (!groupDropdowns.has(groupName)) {
-    groupDropdowns.set(groupName, useDropdown())
-  }
-  return groupDropdowns.get(groupName)
-}
 
 // 加载分组数据
 const loadGroups = async (page = 1) => {

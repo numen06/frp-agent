@@ -16,7 +16,7 @@
             <div class="dropdown" v-if="proxiesStore.selectedCount > 0">
               <button 
                 ref="batchActionsDropdown.triggerRef"
-                class="btn btn-warning btn-sm dropdown-toggle" 
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 dropdown-toggle" 
                 @click.prevent="batchActionsDropdown.toggle()"
                 :aria-expanded="batchActionsDropdown.isOpen.value"
               >
@@ -61,7 +61,7 @@
             <div class="dropdown">
               <button 
                 ref="addActionsDropdown.triggerRef"
-                class="btn btn-success btn-sm dropdown-toggle" 
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 dropdown-toggle" 
                 @click.prevent="addActionsDropdown.toggle()"
                 :aria-expanded="addActionsDropdown.isOpen.value"
                 :disabled="!currentServerId"
@@ -99,7 +99,7 @@
                 </a>
               </div>
             </div>
-            <button class="btn btn-success btn-sm" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
+            <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
               <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -108,7 +108,7 @@
               </svg>
               同步
             </button>
-            <button class="btn btn-primary btn-sm" @click="refreshProxies" :disabled="proxiesStore.loading">
+            <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" @click="refreshProxies" :disabled="proxiesStore.loading">
               <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -117,7 +117,7 @@
               </svg>
               刷新
             </button>
-            <button class="btn btn-outline-warning btn-sm" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
+            <button class="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500 px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
               清理重复
             </button>
           </div>
@@ -134,11 +134,11 @@
                 @search="handleSearch"
               />
             </div>
-            <select class="form-select form-select-sm" v-model="proxiesStore.filters.group" @change="handleFilterChange" style="width: auto;">
+            <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="proxiesStore.filters.group" @change="handleFilterChange">
               <option value="">全部分组</option>
               <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
             </select>
-            <select class="form-select form-select-sm" v-model="proxiesStore.filters.status" @change="handleFilterChange" style="width: auto;">
+            <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="proxiesStore.filters.status" @change="handleFilterChange">
               <option value="">全部状态</option>
               <option value="online">在线</option>
               <option value="offline">离线</option>
@@ -152,36 +152,36 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="fw-bold">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
             <div class="d-flex gap-2 flex-wrap">
-              <select class="form-select form-select-sm" v-model="bulkGroupName">
+              <select class="w-auto rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="bulkGroupName">
                 <option value="">选择目标分组...</option>
                 <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
               </select>
-              <button class="btn btn-primary btn-sm" @click="handleBulkAssignGroup">分配到分组</button>
-              <button class="btn btn-success btn-sm" @click="handleGenerateConfigForSelected">生成配置</button>
-              <button class="btn btn-secondary btn-sm" @click="proxiesStore.clearSelection()">取消选择</button>
+              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="handleBulkAssignGroup">分配到分组</button>
+              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700" @click="handleGenerateConfigForSelected">生成配置</button>
+              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="proxiesStore.clearSelection()">取消选择</button>
             </div>
           </div>
         </div>
       </div>
       <!-- 表格区域 -->
-      <div class="table-responsive">
-        <table class="table table-vcenter card-table w-100">
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
-                <th>
-                  <input class="form-check-input m-0 align-middle" type="checkbox" 
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                  <input class="h-4 w-4 rounded border border-gray-300 m-0 align-middle" type="checkbox" 
                     :checked="proxiesStore.selectedCount === proxiesStore.proxies.length && proxiesStore.proxies.length > 0"
                     @change="handleSelectAll"
                   />
                 </th>
-                <th>代理名称</th>
-                <th>分组</th>
-                <th>类型</th>
-                <th>本地IP</th>
-                <th>本地端口</th>
-                <th>远程端口</th>
-                <th>状态</th>
-                <th class="w-1">操作</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">代理名称</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">分组</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">类型</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">本地IP</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">本地端口</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">远程端口</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">状态</th>
+                <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -197,16 +197,16 @@
                 </td>
               </tr>
               <tr v-else v-for="proxy in proxiesStore.proxies" :key="proxy.id">
-                <td>
-                  <input class="form-check-input m-0 align-middle" type="checkbox" 
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <input class="h-4 w-4 rounded border border-gray-300 m-0 align-middle" type="checkbox" 
                     :checked="proxiesStore.selectedProxyIds.has(proxy.id)"
                     @change="proxiesStore.toggleProxySelection(proxy.id)"
                   />
                 </td>
-                <td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <div class="text-truncate" :title="proxy.name">{{ proxy.name }}</div>
                 </td>
-                <td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <a 
                     v-if="proxy.group_name" 
                     href="#" 
@@ -218,55 +218,47 @@
                   </a>
                   <span class="text-muted" v-else>-</span>
                 </td>
-                <td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <span class="badge text-bg-secondary">{{ proxy.proxy_type.toUpperCase() }}</span>
                 </td>
-                <td>{{ proxy.local_ip }}</td>
-                <td>{{ proxy.local_port || '-' }}</td>
-                <td>{{ proxy.remote_port || '-' }}</td>
-                <td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_ip }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_port || '-' }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.remote_port || '-' }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <span class="badge" :class="proxy.status === 'online' ? 'text-bg-success' : 'text-bg-danger'">
                     {{ proxy.status === 'online' ? '在线' : '离线' }}
                   </span>
                 </td>
-                <td>
-                  <div class="dropdown">
-                    <button 
-                      :ref="el => { if (el) getProxyDropdown(proxy.id).triggerRef.value = el }"
-                      class="btn btn-sm dropdown-toggle" 
-                      @click.prevent="getProxyDropdown(proxy.id).toggle()"
-                      :aria-expanded="getProxyDropdown(proxy.id).isOpen.value"
+                <td class="px-4 py-3 border-b border-gray-100 align-middle">
+                  <div class="inline-flex items-center gap-2">
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      @click="editProxy(proxy)"
+                      title="编辑"
+                      aria-label="编辑"
                     >
-                      操作
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                        <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                        <path d="M16 5l3 3" />
+                      </svg>
                     </button>
-                    <div 
-                      :ref="el => { if (el) getProxyDropdown(proxy.id).dropdownRef.value = el }"
-                      class="dropdown-menu"
-                      :class="{ show: getProxyDropdown(proxy.id).isOpen.value }"
-                      @click.stop
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                      @click="deleteProxy(proxy)"
+                      title="删除"
+                      aria-label="删除"
                     >
-                      <a class="dropdown-item" href="#" @click.prevent="editProxy(proxy); getProxyDropdown(proxy.id).close()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                          <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
-                          <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
-                          <path d="M16 5l3 3" />
-                        </svg>
-                        编辑
-                      </a>
-                      <div class="dropdown-divider"></div>
-                      <a class="dropdown-item text-danger" href="#" @click.prevent="deleteProxy(proxy); getProxyDropdown(proxy.id).close()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                          <path d="M4 7l16 0" />
-                          <path d="M10 11l0 6" />
-                          <path d="M14 11l0 6" />
-                          <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-                          <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-                        </svg>
-                        删除
-                      </a>
-                    </div>
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M4 7l16 0" />
+                        <path d="M10 11l0 6" />
+                        <path d="M14 11l0 6" />
+                        <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                        <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                      </svg>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -343,16 +335,6 @@ const { triggerRefresh } = useRefresh()
 // 下拉菜单
 const batchActionsDropdown = useDropdown()
 const addActionsDropdown = useDropdown()
-
-// 每个代理的下拉菜单（使用 Map 存储）
-const proxyDropdowns = new Map()
-
-const getProxyDropdown = (proxyId) => {
-  if (!proxyDropdowns.has(proxyId)) {
-    proxyDropdowns.set(proxyId, useDropdown())
-  }
-  return proxyDropdowns.get(proxyId)
-}
 
 const currentServerId = ref(null)
 const showAddProxyDialog = ref(false)

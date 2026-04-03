@@ -1,8 +1,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 /**
- * Tabler 下拉菜单组合式函数
- * 不依赖 Bootstrap JavaScript，纯 Vue 实现
+ * 下拉菜单组合式函数
+ * 纯 Vue 实现，不依赖任何 UI 框架
  */
 export function useDropdown() {
   const isOpen = ref(false)
@@ -21,7 +21,6 @@ export function useDropdown() {
     isOpen.value = false
   }
 
-  // 点击外部关闭下拉菜单
   const handleClickOutside = (event) => {
     if (
       dropdownRef.value &&
@@ -50,4 +49,3 @@ export function useDropdown() {
     close
   }
 }
-

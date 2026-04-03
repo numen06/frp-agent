@@ -1,8 +1,9 @@
 <template>
-  <div v-if="dialogVisible" class="modal-backdrop fade show" @click="handleBackdropClick"></div>
-  <div class="modal modal-blur fade" :class="{ show: dialogVisible, 'd-block': dialogVisible }" tabindex="-1" role="dialog" :style="dialogVisible ? 'display: block;' : ''" @click.self="handleBackdropClick">
-    <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-      <div class="modal-content">
+  <Teleport to="body">
+    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="handleBackdropClick"></div>
+    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="handleBackdropClick">
+      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
+        <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">{{ editingProxy ? '编辑代理' : '添加代理' }}</h5>
           <button type="button" class="btn-close" @click="closeDialog"></button>
@@ -52,9 +53,10 @@
           <button type="button" class="btn me-auto" @click="closeDialog">取消</button>
           <button type="button" class="btn btn-primary" @click="handleSubmit">保存</button>
         </div>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>

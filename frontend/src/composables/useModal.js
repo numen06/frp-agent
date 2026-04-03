@@ -53,10 +53,12 @@ export function useModal(visible, onClose, options = {}) {
     onClose,
     disabled: options.disabled || false
   }
+  let isRegistered = false
 
   // 监听 visible 变化，动态添加/移除 ESC 监听器
   watch(visible, (isVisible) => {
-    if (isVisible) {
+    if (isVisible && !isRegistered) {
+      isRegistered = true
       modalCount++
       // 添加当前处理器到数组
       activeModals.push(modalHandler)
@@ -69,7 +71,8 @@ export function useModal(visible, onClose, options = {}) {
         // 防止背景滚动
         document.body.style.overflow = 'hidden'
       }
-    } else {
+    } else if (!isVisible && isRegistered) {
+      isRegistered = false
       modalCount--
       // 移除当前处理器
       const index = activeModals.indexOf(modalHandler)
@@ -78,7 +81,8 @@ export function useModal(visible, onClose, options = {}) {
       }
       
       // 当所有模态框都关闭时，移除全局监听器并恢复滚动
-      if (modalCount === 0) {
+      if (modalCount <= 0) {
+        modalCount = 0
         document.removeEventListener('keydown', globalEscapeHandler)
         // 恢复原始的 overflow 值
         if (originalBodyOverflow !== null) {
@@ -93,14 +97,16 @@ export function useModal(visible, onClose, options = {}) {
 
   // 组件卸载时清理
   onUnmounted(() => {
-    if (visible.value) {
+    if (isRegistered) {
+      isRegistered = false
       modalCount--
       const index = activeModals.indexOf(modalHandler)
       if (index > -1) {
         activeModals.splice(index, 1)
       }
       
-      if (modalCount === 0) {
+      if (modalCount <= 0) {
+        modalCount = 0
         document.removeEventListener('keydown', globalEscapeHandler)
         // 恢复原始的 overflow 值
         if (originalBodyOverflow !== null) {

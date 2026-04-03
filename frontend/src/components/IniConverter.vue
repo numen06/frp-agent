@@ -1,6 +1,6 @@
 <template>
   <div>
-    <p class="text-muted mb-4">
+    <p class="text-gray-700 mb-4">
       将旧版 FRP 的 INI 格式配置文件转换为新版的 TOML 格式
     </p>
     
@@ -87,11 +87,11 @@
                 </button>
               </div>
               <textarea
-                class="form-control"
+                class="form-control bg-gray-50"
                 v-model="tomlContent"
                 rows="10"
                 readonly
-                style="font-family: monospace; background: var(--tblr-bg-surface-tertiary);"
+                style="font-family: monospace;"
               ></textarea>
             </div>
           </div>
@@ -100,7 +100,7 @@
           <div class="tab-pane" :class="{ active: activeTab === 'command', show: activeTab === 'command' }" id="command-line">
             <div class="alert alert-info">
               <div class="d-flex align-items-start">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-info-circle me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
                   <path d="M12 9h.01" />
@@ -145,7 +145,7 @@
                   </button>
                 </div>
               </div>
-              <pre class="bg-dark text-light p-3 rounded" style="font-size: 0.875rem; background-color: #1a1a1a !important; color: #ffffff !important; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; margin: 0;"><code class="text-light" style="color: #ffffff !important;">{{ exampleCommand }}</code></pre>
+              <pre class="m-0 rounded-lg bg-gray-900 p-3 text-sm whitespace-pre-wrap wrap-break-word text-gray-100"><code class="text-gray-100">{{ exampleCommand }}</code></pre>
             </div>
             
             <div class="alert alert-secondary">
