@@ -20,12 +20,14 @@
                   {{ saving ? '保存中...' : '保存模板' }}
                 </button>
               </div>
-              <textarea
-                v-model="content"
-                class="form-control font-monospace"
-                rows="16"
-                placeholder="可用变量：{{filename}} {{download_url}} {{install_path}} {{config_line}} {{platform}} {{version}}"
-              />
+              <div class="code-editor-wrapper">
+                <CodeEditor
+                  v-model="content"
+                  language="shell"
+                  :height="editorHeight"
+                  placeholder="可用变量：{{filename}} {{download_url}} {{install_path}} {{config_line}} {{platform}} {{version}}"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -37,6 +39,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useModal } from '@/composables/useModal'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -49,6 +52,7 @@ const emit = defineEmits(['update:modelValue', 'save'])
 const visible = ref(false)
 const platform = ref('')
 const content = ref('')
+const editorHeight = ref('420px')
 
 watch(() => props.modelValue, (val) => { visible.value = val })
 watch(visible, (val) => emit('update:modelValue', val))
@@ -72,3 +76,10 @@ const saveTemplate = () => {
   emit('save', { platform: platform.value, content: content.value })
 }
 </script>
+
+<style scoped>
+.code-editor-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+</style>

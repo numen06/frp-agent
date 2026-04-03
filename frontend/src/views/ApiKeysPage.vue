@@ -46,7 +46,7 @@
                         <code class="grow me-2 text-gray-700">{{ key.key }}</code>
                          <button 
                            class="inline-flex items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
-                           @click.stop="copyKeyFromList(key.id)"
+                           @click.stop="copyKeyFromList(key.id, $event)"
                            :title="hasFullKey(key.id) ? '点击复制完整密钥' : '点击复制密钥（将从服务器获取）'"
                          >
                           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -254,7 +254,7 @@
                 <button 
                   class="inline-flex items-center justify-center gap-2 rounded-r-lg border border-l-0 border-gray-300 px-3 text-gray-700 transition-colors hover:bg-gray-100" 
                   type="button"
-                  @click.stop="copyKey"
+                  @click.stop="copyKey($event)"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2"></rect>
@@ -305,6 +305,7 @@ import { ref, onMounted, computed } from 'vue'
 import { apiKeysApi } from '@/api/apiKeys'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { useModal } from '@/composables/useModal'
+import { copyWithTooltip } from '@/composables/useCopyTooltip'
 
 const apiKeysStore = useApiKeysStore()
 const apiKeys = ref([])
@@ -418,7 +419,7 @@ const copyToClipboard = async (text) => {
 }
 
 // 从列表复制密钥
-const copyKeyFromList = async (id) => {
+const copyKeyFromList = async (id, event) => {
   const idNum = Number(id)
   const numKey = `api_key_${idNum}`
   const strKey = `api_key_${String(id)}`
@@ -475,12 +476,7 @@ const copyKeyFromList = async (id) => {
   }
   
   // 复制到剪贴板
-  const success = await copyToClipboard(keyToCopy)
-  if (success) {
-    showToast('密钥已复制到剪贴板', 'success')
-  } else {
-    showToast('复制失败，请手动复制', 'error')
-  }
+  await copyWithTooltip(keyToCopy, event)
 }
 
 // 提示消息
@@ -637,15 +633,10 @@ useModal(createEditDialogVisible, closeDialog)
 useModal(showKeyDialog, closeKeyDialog)
 
 // 复制密钥（创建对话框中的）
-const copyKey = async () => {
+const copyKey = async (event) => {
   if (keyInput.value && createdKeyData.value?.key) {
     keyInput.value.select()
-    const success = await copyToClipboard(createdKeyData.value.key)
-    if (success) {
-      showToast('密钥已复制到剪贴板', 'success')
-    } else {
-      showToast('复制失败，请手动复制', 'error')
-    }
+    await copyWithTooltip(createdKeyData.value.key, event)
   }
 }
 

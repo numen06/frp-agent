@@ -41,8 +41,13 @@
               </div>
               <div v-if="script">
                 <label class="form-label">安装脚本预览</label>
-                <textarea class="form-control font-monospace" rows="10" :value="script" readonly></textarea>
-                <button class="btn btn-outline-primary mt-2" :disabled="!packageId" @click="handleCopyCommand">复制安装命令</button>
+                <CodeEditor
+                  :model-value="script"
+                  language="shell"
+                  :height="'320px'"
+                  :readonly="true"
+                />
+                <button class="btn btn-outline-primary mt-2" :disabled="!packageId" @click="handleCopyCommand($event)">复制安装命令</button>
               </div>
             </div>
           </div>
@@ -56,6 +61,9 @@
 import { ref, watch, computed } from 'vue'
 import { useModal } from '@/composables/useModal'
 import { useApiKeysStore } from '@/stores/apiKeys'
+import { packagesApi } from '@/api/packages'
+import { copyWithTooltip } from '@/composables/useCopyTooltip'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -66,7 +74,7 @@ const props = defineProps({
   script: { type: String, default: '' }
 })
 
-const emit = defineEmits(['update:modelValue', 'submit', 'copy-command'])
+const emit = defineEmits(['update:modelValue', 'submit'])
 const apiKeysStore = useApiKeysStore()
 const visible = ref(false)
 const packageId = ref(0)
@@ -165,7 +173,7 @@ const submit = async () => {
   }
   const apiKey = await resolveApiKey()
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到“密钥管理”页重新复制/设置默认 APPKey 后重试')
+    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
     return
   }
   emit('submit', {
@@ -176,18 +184,20 @@ const submit = async () => {
   })
 }
 
-const handleCopyCommand = async () => {
+const handleCopyCommand = async (event) => {
   if (!packageId.value) return
   const apiKey = await resolveApiKey()
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到“密钥管理”页重新复制/设置默认 APPKey 后重试')
+    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
     return
   }
-  emit('copy-command', {
+  const url = packagesApi.getInstallScriptUrl({
     package_id: packageId.value,
     api_key: apiKey || '',
     install_path: installPath.value,
-    config_url: configUrl.value
+    config_url: configUrl.value || undefined
   })
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
+  await copyWithTooltip(cmd, event)
 }
 </script>

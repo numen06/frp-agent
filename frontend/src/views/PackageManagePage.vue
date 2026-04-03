@@ -115,8 +115,8 @@
                 <td class="px-4 py-3 border-b">{{ formatDate(item.downloaded_at) }}</td>
                 <td class="px-4 py-3 border-b"><code>{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
                 <td class="px-4 py-3 border-b">
-                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyDownloadCommand(item)">复制下载命令</button>
-                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyInstallCommand(item)">复制安装命令</button>
+                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyDownloadCommand(item, $event)">复制下载命令</button>
+                  <button class="btn btn-sm btn-outline-primary me-1" @click="copyInstallCommand(item, $event)">复制安装命令</button>
                   <button class="btn btn-sm btn-outline-danger" @click="remove(item)">删除</button>
                 </td>
               </tr>
@@ -135,7 +135,6 @@
       :loading="scriptLoading"
       :script="installScript"
       @submit="handleGenerateScript"
-      @copy-command="handleCopyInstallCommand"
     />
     <ScriptTemplateDialog
       v-model="showTemplateDialog"
@@ -152,6 +151,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { packagesApi } from '@/api/packages'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { useDropdown } from '@/composables/useDropdown'
+import { copyWithTooltip } from '@/composables/useCopyTooltip'
 import PackageSyncDialog from '@/components/PackageSyncDialog.vue'
 import PackageUploadDialog from '@/components/PackageUploadDialog.vue'
 import PackageInstallDialog from '@/components/PackageInstallDialog.vue'
@@ -462,41 +462,17 @@ const handleSyncPlatforms = async () => {
   }
 }
 
-const copyToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    try {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      textarea.style.left = '-9999px'
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(textarea)
-      return ok
-    } catch {
-      return false
-    }
-  }
-}
-
-const copyDownloadCommand = async (item) => {
+const copyDownloadCommand = async (item, event) => {
   const apiKey = await resolvePreferredApiKey()
   if (!apiKey) {
     alert('无法获取默认 API Key，请先在 API Key 页面创建或复制一次完整密钥')
     return
   }
   const cmd = `curl -L "${window.location.origin}${packagesApi.getDownloadUrl(item.id, apiKey)}" -o ${item.filename}`
-  const ok = await copyToClipboard(cmd)
-  alert(ok ? '下载命令已复制' : '复制失败，请手动复制命令')
+  await copyWithTooltip(cmd, event)
 }
 
-const copyInstallCommand = async (item) => {
+const copyInstallCommand = async (item, event) => {
   const apiKey = await resolvePreferredApiKey()
   if (!apiKey) {
     alert('无法获取默认 API Key，请先在 API Key 页面创建或复制一次完整密钥')
@@ -504,8 +480,7 @@ const copyInstallCommand = async (item) => {
   }
   const url = packagesApi.getInstallScriptUrl({ package_id: item.id, api_key: apiKey })
   const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-  const ok = await copyToClipboard(cmd)
-  alert(ok ? '安装命令已复制' : '复制失败，请手动复制命令')
+  await copyWithTooltip(cmd, event)
 }
 
 const handleGenerateScript = async (payload) => {
@@ -522,18 +497,6 @@ const handleGenerateScript = async (payload) => {
   } finally {
     scriptLoading.value = false
   }
-}
-
-const handleCopyInstallCommand = async (params) => {
-  const url = packagesApi.getInstallScriptUrl({
-    package_id: params.package_id,
-    api_key: params.api_key,
-    install_path: params.install_path,
-    config_url: params.config_url || undefined
-  })
-  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-  const ok = await copyToClipboard(cmd)
-  alert(ok ? '安装命令已复制' : '复制失败，请手动复制命令')
 }
 
 watch(

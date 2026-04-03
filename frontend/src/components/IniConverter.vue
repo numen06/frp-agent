@@ -54,13 +54,12 @@
             
             <div class="mb-3">
               <label class="form-label">直接输入 INI 配置内容</label>
-              <textarea
-                class="form-control"
+              <CodeEditor
                 v-model="iniContent"
-                rows="10"
+                language="javascript"
+                :height="'280px'"
                 placeholder="粘贴您的 frpc.ini 配置内容..."
-                style="font-family: monospace;"
-              ></textarea>
+              />
             </div>
             
             <button class="btn btn-primary mb-3" @click="convertIniToToml" :disabled="converting">
@@ -91,13 +90,12 @@
                   下载 TOML
                 </button>
               </div>
-              <textarea
-                class="form-control bg-gray-50"
+              <CodeEditor
                 v-model="tomlContent"
-                rows="10"
-                readonly
-                style="font-family: monospace;"
-              ></textarea>
+                language="yaml"
+                :height="'280px'"
+                :readonly="true"
+              />
             </div>
           </div>
           
@@ -132,14 +130,7 @@
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <label class="form-label mb-0">使用示例（可直接复制执行）</label>
                 <div class="d-flex align-items-center gap-2">
-                  <span v-if="copySuccess" class="text-success small">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M5 12l5 5l10 -10" />
-                    </svg>
-                    已复制
-                  </span>
-                  <button class="btn btn-sm btn-primary" @click="copyExampleCommand">
+                  <button class="btn btn-sm btn-primary" @click="copyExampleCommand($event)">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
@@ -174,7 +165,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { FwbFileInput } from 'flowbite-vue'
 import { configApi } from '@/api/config'
 import { useApiKeysStore } from '@/stores/apiKeys'
+import { copyWithTooltip } from '@/composables/useCopyTooltip'
 import AppSelect from '@/components/AppSelect.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 const activeTab = ref('web') // 当前激活的 tab: 'web' 或 'command'
 const iniContent = ref('')
@@ -187,8 +180,7 @@ const selectedApiKeyId = computed({
   set: (id) => apiKeysStore.setDefaultKey(id)
 })
 const selectedApiKeyFullKey = ref(null)
-const copySuccess = ref(false) // 复制成功提示
-const uploadedIniFile = ref(null)
+// 复制示例命令到剪贴板const uploadedIniFile = ref(null)
 
 // 获取 API 基础 URL
 const apiBaseUrl = computed(() => {
@@ -239,7 +231,7 @@ const exampleCommand = computed(() => {
   const baseUrl = apiBaseUrl.value
   // 生成单行命令（更易复制执行）
   // baseUrl 已经包含了 /api，所以只需要拼接 /frpc/...
-  return `curl -X POST -H "Content-Type: text/plain" --data-binary "@frpc.ini" "${baseUrl}/frpc/convert/ini-to-toml/direct?api_key=${apiKey}" -o frpc.toml`
+  return `curl -X POST -H "Content-Type: text/plain" --data-binary "@frpc.ini" "${baseUrl}/frpc/convert/ini-to-toml/direct?api_key=${encodeURIComponent(apiKey)}" -o frpc.toml`
 })
 
 // 加载 API Key 列表
@@ -254,35 +246,10 @@ const loadApiKeys = async () => {
 }
 
 // 复制示例命令到剪贴板
-const copyExampleCommand = async () => {
+const copyExampleCommand = async (event) => {
   if (!exampleCommand.value) return
-  
-  try {
-    await navigator.clipboard.writeText(exampleCommand.value)
-    // 显示复制成功提示
-    copySuccess.value = true
-    setTimeout(() => {
-      copySuccess.value = false
-    }, 2000) // 2秒后自动隐藏
-  } catch (error) {
-    // 降级方案：使用传统方法
-    const textArea = document.createElement('textarea')
-    textArea.value = exampleCommand.value
-    textArea.style.position = 'fixed'
-    textArea.style.left = '-999999px'
-    document.body.appendChild(textArea)
-    textArea.select()
-    try {
-      document.execCommand('copy')
-      // 显示复制成功提示
-      copySuccess.value = true
-      setTimeout(() => {
-        copySuccess.value = false
-      }, 2000) // 2秒后自动隐藏
-    } catch (err) {
-      alert('复制失败，请手动复制')
-    }
-    document.body.removeChild(textArea)
+  await copyWithTooltip(exampleCommand.value, event)
+}
   }
 }
 

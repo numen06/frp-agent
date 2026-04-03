@@ -1,104 +1,188 @@
 <template>
   <Teleport to="body">
-    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-lg modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ title }}</h5>
-          <button type="button" class="btn-close" @click="closeDialog"></button>
+    <div
+      v-if="dialogVisible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="config-gen-title"
+    >
+      <div
+        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        aria-hidden="true"
+        @click="closeDialog"
+      />
+      <div
+        class="relative z-10 flex w-full max-w-3xl max-h-[min(90vh,900px)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <h2 id="config-gen-title" class="text-lg font-semibold text-gray-900">
+            {{ title }}
+          </h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M18 6l-12 12" />
+              <path d="M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
-          <div class="mb-3" v-if="showClientName">
-            <label class="form-label">配置名称</label>
-            <input type="text" class="form-control" v-model="form.client_name" placeholder="留空则使用分组名称" />
+
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div v-if="showClientName" class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">配置名称</label>
+            <input
+              v-model="form.client_name"
+              type="text"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="留空则使用分组名称"
+            />
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">配置格式</label>
-            <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column">
-              <label class="form-selectgroup-item">
-                <input type="radio" name="format" value="ini" class="form-selectgroup-input" v-model="form.format" />
-                <div class="form-selectgroup-label d-flex align-items-center p-3">
-                  <div>
-                    <strong>INI 格式</strong>
-                    <div class="text-muted">兼容旧版本 FRP</div>
-                  </div>
+
+          <div class="mb-4">
+            <span class="mb-2 block text-sm font-medium text-gray-700">配置格式</span>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label
+                class="flex cursor-pointer rounded-xl border-2 p-4 transition-colors"
+                :class="form.format === 'ini' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+              >
+                <input v-model="form.format" type="radio" name="format" value="ini" class="sr-only" />
+                <div>
+                  <div class="font-semibold text-gray-900">INI 格式</div>
+                  <div class="mt-0.5 text-sm text-gray-500">兼容旧版本 FRP</div>
                 </div>
               </label>
-              <label class="form-selectgroup-item">
-                <input type="radio" name="format" value="toml" class="form-selectgroup-input" v-model="form.format" />
-                <div class="form-selectgroup-label d-flex align-items-center p-3">
-                  <div>
-                    <strong>TOML 格式</strong>
-                    <div class="text-muted">推荐，新版本 FRP</div>
-                  </div>
+              <label
+                class="flex cursor-pointer rounded-xl border-2 p-4 transition-colors"
+                :class="form.format === 'toml' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+              >
+                <input v-model="form.format" type="radio" name="format" value="toml" class="sr-only" />
+                <div>
+                  <div class="font-semibold text-gray-900">TOML 格式</div>
+                  <div class="mt-0.5 text-sm text-gray-500">推荐，新版本 FRP</div>
                 </div>
               </label>
             </div>
           </div>
-          
-          <div v-if="selectedProxies.length > 0" class="alert alert-info mb-3">
-            <strong>已选择的代理：</strong>
-            <div class="mt-2">
-              <span class="badge text-bg-primary me-1 mb-1" v-for="proxy in selectedProxies" :key="proxy.id">
+
+          <div
+            v-if="selectedProxies.length > 0"
+            class="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"
+          >
+            <strong class="font-semibold">已选择的代理：</strong>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span
+                v-for="proxy in selectedProxies"
+                :key="proxy.id"
+                class="inline-flex rounded-md bg-blue-600 px-2 py-0.5 text-xs font-medium text-white"
+              >
                 {{ proxy.name }}
               </span>
             </div>
           </div>
-        </div>
-        
-        <div v-if="configContent" class="modal-body border-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <label class="form-label mb-0">配置内容</label>
-            <div class="d-flex gap-2">
-              <button 
-                v-if="props.groupName" 
-                class="btn btn-sm btn-warning" 
-                @click="handleRegeneratePorts"
-                :disabled="regeneratingPorts"
-              >
-                <span v-if="regeneratingPorts" class="spinner-border spinner-border-sm me-1" role="status"></span>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                  <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-                </svg>
-                重新生成远端端口
-              </button>
-              <button class="btn btn-sm btn-secondary" @click="downloadConfig">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                  <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                  <path d="M12 11v6" />
-                  <path d="M9 14l3 -3l3 3" />
-                </svg>
-                下载配置
-              </button>
+
+          <div v-if="configContent" class="border-t border-gray-200 pt-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-medium text-gray-700">配置内容</span>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-if="props.groupName"
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="regeneratingPorts"
+                  @click="handleRegeneratePorts"
+                >
+                  <span
+                    v-if="regeneratingPorts"
+                    class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                    role="status"
+                    aria-label="加载中"
+                  />
+                  <svg
+                    v-else
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4 shrink-0"
+                    viewBox="0 0 24 24"
+                    stroke-width="2"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                  </svg>
+                  重新生成远端端口
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300"
+                  @click="downloadConfig"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14l3 -3l3 3" />
+                  </svg>
+                  下载配置
+                </button>
+              </div>
             </div>
+            <CodeEditor
+              v-model="configContent"
+              language="yaml"
+              :height="'420px'"
+              :readonly="true"
+            />
           </div>
-          <textarea
-            class="form-control"
-            v-model="configContent"
-            rows="15"
-            readonly
-            style="font-family: monospace;"
-          ></textarea>
         </div>
-        
-        <div class="modal-footer">
-          <button type="button" class="btn me-auto" @click="closeDialog">关闭</button>
-          <button type="button" class="btn btn-primary" @click="handleGenerate" :disabled="generating">
-            <span v-if="generating" class="spinner-border spinner-border-sm me-2" role="status"></span>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
+          <button
+            type="button"
+            class="mr-auto inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            @click="closeDialog"
+          >
+            关闭
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="generating"
+            @click="handleGenerate"
+          >
+            <span
+              v-if="generating"
+              class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+              role="status"
+              aria-label="加载中"
+            />
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 shrink-0"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M14 3v4a1 1 0 0 0 1 1h4" />
               <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
             </svg>
             生成配置文件
           </button>
-        </div>
         </div>
       </div>
     </div>
@@ -110,6 +194,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { frpcConfigApi } from '@/api/frpcConfig'
 import { groupApi } from '@/api/groups'
 import { useModal } from '@/composables/useModal'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 const props = defineProps({
   modelValue: {
@@ -176,7 +261,7 @@ useModal(dialogVisible, closeDialog)
 const handleGenerate = async () => {
   generating.value = true
   configContent.value = ''
-  
+
   try {
     if (props.groupName) {
       // 优先使用新接口（支持自动创建分组）
@@ -189,7 +274,7 @@ const handleGenerate = async () => {
       if (form.client_name) {
         params.client_name = form.client_name
       }
-      
+
       const content = await frpcConfigApi.getConfigByGroupQuick(props.groupName, params)
       configContent.value = content
     } else if (props.selectedProxies.length > 0) {
@@ -198,7 +283,7 @@ const handleGenerate = async () => {
         format: form.format
       })
       configContent.value = result.config
-      
+
       if (result.note) {
         alert(result.note)
       }
@@ -206,7 +291,7 @@ const handleGenerate = async () => {
       alert('请选择代理或分组')
       return
     }
-    
+
     alert('配置生成成功')
   } catch (error) {
     alert('生成配置失败: ' + error.message)
@@ -220,12 +305,12 @@ const downloadConfig = () => {
     alert('请先生成配置')
     return
   }
-  
+
   const blob = new Blob([configContent.value], { type: 'text/plain' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  const filename = props.groupName 
+  const filename = props.groupName
     ? `frpc_${props.groupName}.${form.format}`
     : `frpc.${form.format}`
   a.download = filename
@@ -238,16 +323,16 @@ const handleRegeneratePorts = async () => {
     alert('仅支持为分组重新生成远端端口')
     return
   }
-  
+
   if (!confirm('确定要重新生成该分组中所有代理的远端端口吗？\n\n这将释放旧端口并分配新端口。')) {
     return
   }
-  
+
   regeneratingPorts.value = true
-  
+
   try {
     const result = await groupApi.regenerateGroupPorts(props.groupName, props.serverId)
-    
+
     let message = result.message || '重新生成远端端口成功'
     if (result.proxies && result.proxies.length > 0) {
       message += '\n\n已重新分配的代理：\n'
@@ -261,9 +346,9 @@ const handleRegeneratePorts = async () => {
         message += `  • ${p.name}: ${p.error}\n`
       })
     }
-    
+
     alert(message)
-    
+
     // 重新生成配置以显示新的端口
     await handleGenerate()
   } catch (error) {
@@ -273,10 +358,4 @@ const handleRegeneratePorts = async () => {
   }
 }
 
-const handleClose = () => {
-  configContent.value = ''
-  form.client_name = ''
-  form.format = 'toml'
-}
 </script>
-

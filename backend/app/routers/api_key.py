@@ -24,8 +24,8 @@ router = APIRouter(prefix="/api/api-keys", tags=["API Key 管理"])
 
 
 def generate_api_key() -> str:
-    """生成 API Key（32字节，64字符）"""
-    return secrets.token_urlsafe(32)
+    """生成 API Key（48字节，仅包含字母和数字，共64字符）"""
+    return secrets.token_hex(32)
 
 
 def hash_api_key(key: str) -> str:

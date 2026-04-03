@@ -9,16 +9,16 @@
   >
     <!-- 左侧节点 -->
     <circle cx="8" cy="24" r="4" :fill="color" opacity="0.9"/>
-    <circle cx="8" cy="24" r="6" :fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
+    <circle cx="8" cy="24" r="6" fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
     
     <!-- 右侧节点 -->
     <circle cx="40" cy="24" r="4" :fill="color" opacity="0.9"/>
-    <circle cx="40" cy="24" r="6" :fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
+    <circle cx="40" cy="24" r="6" fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
     
     <!-- 隧道/连接线 -->
     <path 
       d="M 14 24 Q 24 16, 34 24 Q 24 32, 14 24" 
-      :fill="none" 
+      fill="none"
       :stroke="color" 
       stroke-width="2.5" 
       stroke-linecap="round"
