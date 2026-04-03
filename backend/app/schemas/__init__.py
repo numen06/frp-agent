@@ -5,6 +5,7 @@ from app.schemas.proxy import ProxyCreate, ProxyUpdate, ProxyResponse
 from app.schemas.port import PortAllocationResponse, PortAllocateRequest
 from app.schemas.config import ConfigGenerateRequest, ConfigGenerateResponse
 from app.schemas.history import ProxyHistoryResponse
+from app.schemas.frp_package import FrpPackageResponse, FrpPackageSyncRequest, FrpPackageInstallScriptRequest
 
 __all__ = [
     "UserCreate",
@@ -20,5 +21,8 @@ __all__ = [
     "ConfigGenerateRequest",
     "ConfigGenerateResponse",
     "ProxyHistoryResponse",
+    "FrpPackageResponse",
+    "FrpPackageSyncRequest",
+    "FrpPackageInstallScriptRequest",
 ]
 

@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # 同步任务配置
     sync_interval_seconds: int = 1800  # 30分钟
 
+    # 安装包配置
+    packages_dir: str = "data/packages"
+    github_api_token: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = False

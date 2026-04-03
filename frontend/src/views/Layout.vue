@@ -156,7 +156,8 @@ const navItems = [
   { path: '/groups', label: '分组管理' },
   { path: '/converter', label: 'INI 转换' },
   { path: '/servers', label: '服务器管理' },
-  { path: '/api-keys', label: '密钥管理' }
+  { path: '/api-keys', label: '密钥管理' },
+  { path: '/packages', label: '安装包管理' }
 ]
 
 // 下拉菜单和折叠功能

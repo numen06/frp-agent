@@ -13,7 +13,7 @@ import os
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
-from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key
+from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key, frp_package
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy.orm import Session
@@ -94,6 +94,7 @@ app.include_router(user_settings.router)
 app.include_router(group.router)
 app.include_router(frpc_config.router)
 app.include_router(api_key.router)
+app.include_router(frp_package.router)
 
 # 健康检查端点
 @app.get("/api/health")

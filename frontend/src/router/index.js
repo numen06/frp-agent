@@ -43,6 +43,11 @@ const routes = [
         path: 'api-keys',
         name: 'ApiKeys',
         component: () => import('@/views/ApiKeysPage.vue')
+      },
+      {
+        path: 'packages',
+        name: 'PackageManage',
+        component: () => import('@/views/PackageManagePage.vue')
       }
     ]
   },
