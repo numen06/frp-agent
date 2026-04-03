@@ -180,7 +180,7 @@ const selectedApiKeyId = computed({
   set: (id) => apiKeysStore.setDefaultKey(id)
 })
 const selectedApiKeyFullKey = ref(null)
-// 复制示例命令到剪贴板const uploadedIniFile = ref(null)
+const uploadedIniFile = ref(null)
 
 // 获取 API 基础 URL
 const apiBaseUrl = computed(() => {
@@ -249,8 +249,6 @@ const loadApiKeys = async () => {
 const copyExampleCommand = async (event) => {
   if (!exampleCommand.value) return
   await copyWithTooltip(exampleCommand.value, event)
-}
-  }
 }
 
 // 组件挂载时加载 API Key 列表

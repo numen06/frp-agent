@@ -165,23 +165,30 @@
     </footer>
 
     <!-- 新版本提示 -->
-    <div
-      v-if="updateToastVisible"
-      class="fixed bottom-4 left-1/2 z-1100 w-[min(92vw,28rem)] -translate-x-1/2 rounded-lg border border-gray-200 bg-gray-900 px-4 py-3 text-sm text-white shadow-lg"
-      role="status"
-    >
-      <div class="flex gap-3">
-        <p class="flex-1 whitespace-pre-wrap">{{ updateToastText }}</p>
-        <button
-          type="button"
-          class="shrink-0 text-gray-400 hover:text-white"
-          aria-label="关闭"
-          @click="updateToastVisible = false"
-        >
-          ×
-        </button>
+    <Transition name="toast">
+      <div
+        v-if="updateToastVisible"
+        class="fixed bottom-5 left-1/2 z-1100 w-[min(92vw,30rem)] -translate-x-1/2 rounded-xl border border-blue-500/30 bg-linear-to-r from-blue-600 to-blue-700 px-5 py-3.5 text-sm text-white shadow-xl shadow-blue-500/20"
+        role="status"
+      >
+        <div class="flex items-start gap-3">
+          <svg class="mt-0.5 h-5 w-5 shrink-0 text-blue-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="flex-1 whitespace-pre-wrap leading-relaxed">{{ updateToastText }}</p>
+          <button
+            type="button"
+            class="shrink-0 rounded-md p-1 text-blue-200 hover:bg-white/10 hover:text-white transition-colors"
+            aria-label="关闭"
+            @click="updateToastVisible = false"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- 版本与更新 -->
     <div v-if="showVersionModal" class="modal-backdrop fade show" @click="closeVersionModal"></div>
@@ -192,65 +199,122 @@
       role="dialog"
       @click.self="closeVersionModal"
     >
-      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document" style="max-width: 520px;">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">版本与更新</h5>
+            <h5 class="modal-title flex items-center gap-2">
+              <svg class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              版本与更新
+            </h5>
             <button type="button" class="btn-close" aria-label="关闭" @click="closeVersionModal"></button>
           </div>
           <div class="modal-body text-sm">
-            <dl class="row mb-3">
-              <dt class="col-sm-4 text-gray-600">当前版本</dt>
-              <dd class="col-sm-8">{{ displayCurrentVersion }}</dd>
-              <dt class="col-sm-4 text-gray-600">Gitee 最新</dt>
-              <dd class="col-sm-8">{{ updateStatus.latestVersion || '—' }}</dd>
-              <dt v-if="updateStatus.releaseName" class="col-sm-4 text-gray-600">Release</dt>
-              <dd v-if="updateStatus.releaseName" class="col-sm-8">{{ updateStatus.releaseName }}</dd>
-            </dl>
-            <div v-if="!updateStatus.checkSuccess" class="alert alert-warning py-2 small mb-2" role="alert">
-              {{ updateStatus.checkMessage || '检查更新失败' }}
+            <!-- 版本对比卡片 -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div class="text-xs font-medium text-gray-500 mb-1">当前版本</div>
+                <div class="text-lg font-bold text-gray-900">v{{ displayCurrentVersion }}</div>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div class="text-xs font-medium text-gray-500 mb-1">Gitee 最新</div>
+                <div class="text-lg font-bold" :class="updateStatus.latestVersion ? 'text-gray-900' : 'text-gray-400'">
+                  {{ updateStatus.latestVersion ? `v${updateStatus.latestVersion}` : '—' }}
+                </div>
+              </div>
             </div>
-            <div v-else-if="updateStatus.hasUpdate" class="alert alert-danger py-2 small mb-2" role="alert">
-              <strong>发现新版本</strong>，请前往 Gitee Release 拉取镜像或按说明升级。
+
+            <!-- Release 名称 -->
+            <div v-if="updateStatus.releaseName" class="mb-4 px-1">
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                {{ updateStatus.releaseName }}
+              </span>
             </div>
-            <div v-else-if="updateStatus.latestVersion" class="alert alert-success py-2 small mb-2" role="alert">
-              当前已是最新版本。
+
+            <!-- 状态提示 -->
+            <div v-if="!updateStatus.checkSuccess" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 mb-4 flex items-start gap-2.5">
+              <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p class="text-amber-800">{{ updateStatus.checkMessage || '检查更新失败' }}</p>
             </div>
-            <div v-if="updateStatus.releaseBody" class="mb-2">
-              <div class="text-gray-600 mb-1">发行说明</div>
-              <pre class="small bg-light p-2 rounded border overflow-auto max-h-48 whitespace-pre-wrap mb-0">{{
-                updateStatus.releaseBody
-              }}</pre>
+            <div v-else-if="updateStatus.hasUpdate" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4 flex items-start gap-2.5">
+              <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <div>
+                <p class="font-medium text-red-800">发现新版本 v{{ updateStatus.latestVersion }}</p>
+                <p class="text-red-700 mt-0.5 text-xs">请前往 Gitee Release 拉取镜像或按说明升级。</p>
+              </div>
+            </div>
+            <div v-else-if="updateStatus.latestVersion" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 mb-4 flex items-start gap-2.5">
+              <svg class="mt-0.5 h-5 w-5 shrink-0 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p class="text-green-800">当前已是最新版本。</p>
+            </div>
+
+            <!-- 发行说明 -->
+            <div v-if="updateStatus.releaseBody" class="mb-4">
+              <div class="flex items-center gap-1.5 px-1 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                发行说明
+              </div>
+              <pre class="text-xs leading-relaxed rounded-lg border border-gray-200 bg-gray-50 p-3.5 overflow-auto max-h-48 whitespace-pre-wrap text-gray-700">{{ updateStatus.releaseBody }}</pre>
             </div>
             <div
               v-else-if="updateStatus.checkSuccess && updateStatus.latestVersion"
-              class="small text-muted mb-2"
+              class="text-xs text-gray-400 px-1 mb-4"
             >
-              本 Release 暂无正文，可点击「在 Gitee 查看」。
+              本 Release 暂无正文，可点击下方「在 Gitee 查看」。
             </div>
-            <div class="mt-2 flex flex-wrap gap-3 small">
+
+            <!-- 链接区 -->
+            <div class="border-t border-gray-100 pt-3 flex flex-wrap gap-x-4 gap-y-2">
               <a
                 v-if="updateStatus.releaseUrl"
                 :href="updateStatus.releaseUrl"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="link-primary"
-                >在 Gitee 查看</a
+                class="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition-colors"
               >
-              <a :href="GITEE_RELEASES_URL" target="_blank" rel="noopener noreferrer" class="link-primary"
-                >全部发行版</a
-              >
-              <a :href="GITEE_RELEASE_NOTES_URL" target="_blank" rel="noopener noreferrer" class="link-primary"
-                >仓库内版本说明（release-notes）</a
-              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                在 Gitee 查看
+              </a>
+              <a :href="GITEE_RELEASES_URL" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                全部发行版
+              </a>
+              <a :href="GITEE_RELEASE_NOTES_URL" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                仓库内版本说明
+              </a>
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="checkLoading" @click="closeVersionModal">
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" :disabled="checkLoading" @click="closeVersionModal">
               关闭
             </button>
-            <button type="button" class="btn btn-primary btn-sm" :disabled="checkLoading" @click="refreshVersionCheck">
-              <span v-if="checkLoading" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" :disabled="checkLoading" @click="refreshVersionCheck">
+              <svg v-if="checkLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
               刷新检查
             </button>
           </div>
@@ -511,4 +575,19 @@ const handleNotificationClick = (notification) => {
 }
 </script>
 
-
+<style scoped>
+.toast-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-leave-active {
+  transition: all 0.2s ease-in;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(1rem);
+}
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(0.5rem);
+}
+</style>
