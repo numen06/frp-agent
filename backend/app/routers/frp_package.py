@@ -23,6 +23,14 @@ router = APIRouter(prefix="/api/packages", tags=["安装包管理"])
 # 手动上传时的平台标识格式（与 GitHub 资源名中的平台段风格一致，不枚举具体值）
 _UPLOAD_PLATFORM_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 
+# 从官方 frp 安装包文件名自动解析版本和平台
+# 例如: frp_0.61.1_linux_amd64.tar.gz -> version=v0.61.1, platform=linux_amd64
+#       frp_0.61.1_windows_amd64.zip -> version=v0.61.1, platform=windows_amd64
+_FRP_FILENAME_RE = re.compile(
+    r"^frp_(\d+\.\d+\.\d+)_(.+)\.(?:tar\.gz|tgz|zip|tar\.xz)$",
+    re.IGNORECASE,
+)
+
 
 def _merge_platform_lists(*lists) -> List[str]:
     seen = set()
@@ -230,14 +238,40 @@ def list_packages(
     return query.order_by(FrpPackage.downloaded_at.desc()).offset(skip).limit(limit).all()
 
 
+def _parse_filename_info(filename: str) -> Optional[dict]:
+    """从官方 frp 安装包文件名解析版本号和平台标识。"""
+    if not filename:
+        return None
+    m = _FRP_FILENAME_RE.match(filename.strip())
+    if not m:
+        return None
+    return {"version": f"v{m.group(1)}", "platform": m.group(2)}
+
+
 @router.post("/upload", response_model=FrpPackageResponse)
 async def upload_package(
-    version: str = Form(...),
-    platform: str = Form(...),
+    version: Optional[str] = Form(None),
+    platform: Optional[str] = Form(None),
     package_file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    filename = package_file.filename or ""
+
+    # 尝试从文件名自动解析
+    parsed = _parse_filename_info(filename)
+    if parsed:
+        if not version:
+            version = parsed["version"]
+        if not platform:
+            platform = parsed["platform"]
+
+    if not version or not platform:
+        raise HTTPException(
+            status_code=400,
+            detail="无法从文件名自动解析版本号和平台，请手动填写。文件名格式应为 frp_版本_平台.扩展名（如 frp_0.61.1_linux_amd64.tar.gz）",
+        )
+
     if not _UPLOAD_PLATFORM_PATTERN.match(platform or ""):
         raise HTTPException(
             status_code=400,

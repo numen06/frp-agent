@@ -448,8 +448,8 @@ const handleUpload = async (payload) => {
   uploadLoading.value = true
   try {
     const fd = new FormData()
-    fd.append('version', payload.version)
-    fd.append('platform', payload.platform)
+    if (payload.version) fd.append('version', payload.version)
+    if (payload.platform) fd.append('platform', payload.platform)
     fd.append('package_file', payload.file)
     await packagesApi.upload(fd)
     alert('上传成功')
