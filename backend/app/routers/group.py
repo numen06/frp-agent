@@ -1,6 +1,9 @@
 """代理分组管理路由"""
 import json
 import os
+import shlex
+from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from fastapi.responses import PlainTextResponse
@@ -15,7 +18,9 @@ from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
 from app.models.frp_package import FrpPackage
+from app.models.port import PortAllocation
 from app.services.port_service import PortService
+from app.services.config_parser import ConfigParser
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -48,6 +53,15 @@ class DeleteGroupRequest(BaseModel):
     group_name: str
     frps_server_id: int
     reassign_group: Optional[str] = None  # 可选：将代理重新分配到的分组
+
+
+class ImportConfigRequest(BaseModel):
+    """导入配置请求"""
+    frps_server_id: int
+    group_name: str
+    config_content: str
+    config_format: str = "auto"  # auto, ini, toml
+    overwrite: bool = True  # 是否覆盖已存在的同名代理（默认覆盖）
 
 
 @router.get("/list")
@@ -1086,4 +1100,281 @@ def quick_download(
         raise HTTPException(status_code=404, detail="未找到可用的 linux_amd64 安装包，请先同步安装包")
 
     script = _build_download_script(db, pkg, api_key, install_path, server_name, group_name, server_base)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+# ── 配置导入 ──────────────────────────────────────────────
+
+def _do_import_config(db: Session, frps_server_id: int, group_name: str,
+                      config_content: str, config_format: str, overwrite: bool) -> dict:
+    """核心导入逻辑：解析配置内容并创建分组和代理"""
+
+    # 自动检测格式
+    if config_format == "auto":
+        config_content_stripped = config_content.strip()
+        if config_content_stripped.startswith("["):
+            config_format = "ini"
+        elif config_content_stripped.startswith("[[proxies]]") or config_content_stripped.startswith("serverAddr"):
+            config_format = "toml"
+        else:
+            # 尝试 TOML 先（更严格），失败则 INI
+            try:
+                ConfigParser.parse_toml_config(config_content)
+                config_format = "toml"
+            except Exception:
+                config_format = "ini"
+
+    # 解析配置
+    try:
+        proxies = ConfigParser.parse_config(config_content, config_format)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not proxies:
+        raise HTTPException(status_code=400, detail="配置文件中没有解析到有效的代理配置")
+
+    # 检查服务器是否存在
+    server = db.query(FrpsServer).filter(FrpsServer.id == frps_server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="服务器不存在")
+
+    # 创建或确认分组存在
+    existing_group = db.query(Group).filter(
+        Group.frps_server_id == frps_server_id,
+        Group.name == group_name
+    ).first()
+    if not existing_group:
+        existing_group = Group(frps_server_id=frps_server_id, name=group_name)
+        db.add(existing_group)
+        db.flush()
+
+    # 查询已有代理名称（用于判断重复）
+    existing_proxy_query = db.query(Proxy).filter(
+        Proxy.frps_server_id == frps_server_id,
+        Proxy.group_name == group_name
+    )
+    existing_proxy_names = {p.name: p for p in existing_proxy_query.all()}
+
+    port_service = PortService(db)
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
+    details = []
+
+    for proxy_cfg in proxies:
+        proxy_name = proxy_cfg["name"]
+        if not proxy_name:
+            skipped_count += 1
+            details.append({"name": "(空)", "action": "skipped", "reason": "代理名称为空"})
+            continue
+
+        # 如果不覆盖且已存在，跳过
+        if proxy_name in existing_proxy_names and not overwrite:
+            skipped_count += 1
+            details.append({"name": proxy_name, "action": "skipped", "reason": "代理已存在且未开启覆盖"})
+            continue
+
+        # 为代理名称自动加上分组前缀（如果原来没有的话）
+        if "_" not in proxy_name or not proxy_name.startswith(group_name + "_"):
+            full_proxy_name = f"{group_name}_{proxy_name}"
+        else:
+            full_proxy_name = proxy_name
+
+        # 再次检查全名是否重复
+        if full_proxy_name in existing_proxy_names and not overwrite:
+            skipped_count += 1
+            details.append({"name": full_proxy_name, "action": "skipped", "reason": "代理已存在且未开启覆盖"})
+            continue
+
+        proxy_type = proxy_cfg.get("proxy_type", "tcp")
+        local_ip = proxy_cfg.get("local_ip", "127.0.0.1")
+        local_port = proxy_cfg.get("local_port")
+        remote_port = proxy_cfg.get("remote_port")
+        custom_domains = proxy_cfg.get("custom_domains")
+        subdomain = proxy_cfg.get("subdomain")
+
+        if not local_port:
+            skipped_count += 1
+            details.append({"name": full_proxy_name, "action": "skipped", "reason": "缺少 local_port"})
+            continue
+
+        existing_proxy = existing_proxy_names.get(full_proxy_name)
+
+        if existing_proxy and overwrite:
+            # 覆盖更新
+            existing_proxy.proxy_type = proxy_type
+            existing_proxy.local_ip = local_ip
+            existing_proxy.local_port = local_port
+            existing_proxy.group_name = group_name
+
+            # 如果需要 remote_port 且配置中有指定
+            if remote_port and proxy_type in ("tcp", "udp"):
+                if existing_proxy.remote_port != remote_port:
+                    if existing_proxy.remote_port:
+                        try:
+                            port_service.release_port(frps_server_id, existing_proxy.remote_port)
+                        except Exception:
+                            pass
+                    try:
+                        port_service.allocate_port(frps_server_id, remote_port, full_proxy_name)
+                    except ValueError:
+                        pass
+                    existing_proxy.remote_port = remote_port
+
+            updated_count += 1
+            details.append({"name": full_proxy_name, "action": "updated", "type": proxy_type,
+                          "local_port": local_port, "remote_port": existing_proxy.remote_port})
+        else:
+            # 新建代理
+            allocated_remote_port = remote_port
+
+            if proxy_type in ("tcp", "udp"):
+                if allocated_remote_port:
+                    # 检查端口是否已被占用
+                    port_taken = db.query(PortAllocation).filter(
+                        PortAllocation.frps_server_id == frps_server_id,
+                        PortAllocation.port == allocated_remote_port,
+                        PortAllocation.is_allocated == True
+                    ).first()
+                    if port_taken and port_taken.allocated_to != full_proxy_name:
+                        allocated_remote_port = None  # 需要重新分配
+                else:
+                    allocated_remote_port = None
+
+                if not allocated_remote_port:
+                    allocated_remote_port = port_service.get_next_available_port(frps_server_id, 6000, 65535)
+                    if allocated_remote_port is None:
+                        skipped_count += 1
+                        details.append({"name": full_proxy_name, "action": "skipped", "reason": "无法分配端口"})
+                        continue
+
+                try:
+                    port_service.allocate_port(frps_server_id, allocated_remote_port, full_proxy_name)
+                except ValueError:
+                    pass
+
+            new_proxy = Proxy(
+                frps_server_id=frps_server_id,
+                name=full_proxy_name,
+                group_name=group_name,
+                proxy_type=proxy_type,
+                local_ip=local_ip,
+                local_port=local_port,
+                remote_port=allocated_remote_port,
+                status="offline"
+            )
+
+            db.add(new_proxy)
+            existing_proxy_names[full_proxy_name] = new_proxy
+            created_count += 1
+            details.append({"name": full_proxy_name, "action": "created", "type": proxy_type,
+                          "local_port": local_port, "remote_port": allocated_remote_port})
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"导入完成：创建 {created_count} 个，更新 {updated_count} 个，跳过 {skipped_count} 个代理",
+        "group_name": group_name,
+        "config_format": config_format,
+        "total_parsed": len(proxies),
+        "created": created_count,
+        "updated": updated_count,
+        "skipped": skipped_count,
+        "overwrite": overwrite,
+        "details": details
+    }
+
+
+@router.post("/import-config")
+def import_config(
+    request: ImportConfigRequest,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script)
+):
+    """从配置内容导入分组和代理
+
+    接受 INI 或 TOML 格式的 frpc 配置内容，解析后创建分组和代理记录。
+    支持 auto/ini/toml 三种格式，以及重名覆盖。
+    支持通过 API Key 或登录认证调用。
+    """
+    return _do_import_config(
+        db=db,
+        frps_server_id=request.frps_server_id,
+        group_name=request.group_name.strip(),
+        config_content=request.config_content,
+        config_format=request.config_format,
+        overwrite=request.overwrite
+    )
+
+
+
+@lru_cache(maxsize=1)
+def _load_import_frpc_group_template() -> str:
+    """外置 bash 模板：backend/app/templates/import_frpc_group.sh"""
+    path = Path(__file__).resolve().parent.parent / "templates" / "import_frpc_group.sh"
+    if not path.is_file():
+        raise RuntimeError(f"缺少导入脚本模板文件: {path}")
+    return path.read_text(encoding="utf-8")
+
+
+def _build_group_import_shell_script(
+    frps_server_id: int,
+    group_name: str,
+    config_path: str,
+    config_format: str,
+    overwrite: bool,
+    import_url: str,
+    api_key: str,
+) -> str:
+    """生成在目标机执行的 bash 脚本：模板外置，仅注入变量与 python3 -c 片段。"""
+    py_src = (
+        "import json,sys; cfg=sys.stdin.read(); print(json.dumps({"
+        f'"frps_server_id":{frps_server_id},'
+        f'"group_name":{json.dumps(group_name)},'
+        '"config_content":cfg,'
+        f'"config_format":{json.dumps(config_format)},'
+        f'"overwrite":{json.dumps(overwrite)}'
+        "}))"
+    )
+    py_for_bash = py_src.replace("\\", "\\\\").replace('"', '\\"')
+
+    tpl = _load_import_frpc_group_template()
+    return (
+        tpl.replace("@@SCAN_PATH@@", shlex.quote(config_path))
+        .replace("@@API_URL@@", shlex.quote(import_url))
+        .replace("@@API_KEY@@", shlex.quote(api_key))
+        .replace("@@GROUP_LABEL@@", shlex.quote(group_name))
+        .replace("@@PY_FOR_BASH@@", py_for_bash)
+    )
+
+
+@router.get("/import-script", response_class=PlainTextResponse)
+def import_script(
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    group_name: str = Query(..., description="导入的目标分组名称"),
+    config_path: str = Query("/opt/frp", description="扫描路径（文件或目录）"),
+    config_format: str = Query("auto", description="配置格式"),
+    overwrite: bool = Query(True, description="是否覆盖已存在的同名代理，默认 true"),
+    req: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """配置导入脚本：在目标机执行，读取本地 frpc 配置并导入。
+
+    用法：
+      curl -sL "http://host/api/groups/import-script?frps_server_id=1&group_name=mygroup&config_path=/opt/frp&api_key=xxx" | bash
+    """
+    api_key = req.query_params.get("api_key") or ""
+    server_base = f"{req.url.scheme}://{req.url.netloc}"
+    import_url = f"{server_base}/api/groups/import-config"
+    script = _build_group_import_shell_script(
+        frps_server_id=frps_server_id,
+        group_name=group_name,
+        config_path=config_path,
+        config_format=config_format,
+        overwrite=overwrite,
+        import_url=import_url,
+        api_key=api_key,
+    )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")

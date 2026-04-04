@@ -72,5 +72,22 @@ export const groupApi = {
     if (params.api_key) query.set('api_key', params.api_key)
     if (params.install_path) query.set('install_path', params.install_path)
     return `/api/groups/${encodeURIComponent(params.group_name)}/quick-download?${query.toString()}`
+  },
+
+  // 从配置内容导入分组和代理
+  importConfig(data) {
+    return api.post('/groups/import-config', data)
+  },
+
+  // 配置导入脚本 URL（目标机 curl -sL "url" | bash）
+  getImportScriptUrl(params) {
+    const query = new URLSearchParams()
+    query.set('frps_server_id', params.frps_server_id)
+    query.set('group_name', params.group_name)
+    if (params.config_path) query.set('config_path', params.config_path)
+    if (params.config_format) query.set('config_format', params.config_format)
+    if (params.overwrite === false) query.set('overwrite', 'false')
+    if (params.api_key) query.set('api_key', params.api_key)
+    return `/api/groups/import-script?${query.toString()}`
   }
 }

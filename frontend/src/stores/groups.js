@@ -99,6 +99,11 @@ export const useGroupsStore = defineStore('groups', {
     // 自动分析分组
     async autoAnalyzeGroups(frpsServerId) {
       return await groupApi.autoAnalyzeGroups(frpsServerId)
+    },
+
+    // 从配置内容导入分组和代理
+    async importConfig(data) {
+      return await groupApi.importConfig(data)
     }
   }
 })

@@ -17,6 +17,19 @@
         </button>
         <button
           type="button"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
+          @click="showImportDialog = true"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 13h5l2-3h2l2 3h5" />
+            <path d="M4 17h5l2-3h2l2 3h5" />
+            <path d="M4 9l16 0" />
+          </svg>
+          命令导入
+        </button>
+        <button
+          type="button"
           class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
           @click="handleAutoAnalyze"
         >
@@ -264,6 +277,224 @@
       </div>
     </Teleport>
 
+    <!-- 命令导入对话框 -->
+    <Teleport to="body">
+      <div
+        v-if="showImportDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeImportDialog" />
+        <div
+          class="relative z-10 w-full max-w-xl rounded-xl border border-gray-200 bg-white p-0 shadow-xl"
+          @click.stop
+        >
+          <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-gray-900">命令导入</h2>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              aria-label="关闭"
+              @click="closeImportDialog"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M18 6l-12 12" />
+                <path d="M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="px-6 py-4 space-y-4">
+            <!-- 导入方式选择 -->
+            <div>
+              <label class="mb-2 block text-sm font-medium text-gray-700">导入方式</label>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  :class="importForm.mode === 'command' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                  class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+                  @click="importForm.mode = 'command'"
+                >
+                  生成命令（推荐）
+                </button>
+                <button
+                  type="button"
+                  :class="importForm.mode === 'paste' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                  class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+                  @click="importForm.mode = 'paste'"
+                >
+                  粘贴配置内容
+                </button>
+              </div>
+            </div>
+
+            <!-- 分组名称 -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">
+                分组名称 <span class="text-red-600">*</span>
+              </label>
+              <input
+                v-model="importForm.group_name"
+                type="text"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="例如: dlyy"
+                required
+              />
+            </div>
+
+            <!-- 生成命令模式 -->
+            <template v-if="importForm.mode === 'command'">
+              <!-- 扫描路径 -->
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">
+                  目标服务器扫描路径
+                </label>
+                <input
+                  v-model="importForm.config_path"
+                  type="text"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="/opt/frp"
+                />
+                <p class="mt-1 text-xs text-gray-400">
+                  指定<strong>文件</strong>则只读该文件；指定<strong>目录</strong>且其中有 .ini/.toml 时<strong>只使用该目录</strong>，不与当前目录合并。仅当指定目录下没有这些文件时，才退回到<strong>执行命令时的当前目录</strong>扫描。
+                </p>
+              </div>
+
+              <!-- 覆盖选项 -->
+              <div class="flex items-center gap-2">
+                <input
+                  id="import-overwrite-cmd"
+                  v-model="importForm.overwrite"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                />
+                <label for="import-overwrite-cmd" class="text-sm text-gray-700">
+                  覆盖已存在的同名代理（默认开启）
+                </label>
+              </div>
+
+              <!-- 生成命令按钮 -->
+              <button
+                type="button"
+                class="w-full rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600"
+                @click="generateImportCommand"
+              >
+                生成一键命令
+              </button>
+
+              <!-- 仅展示一条 curl | bash，详情可折叠 -->
+              <div v-if="importCurlCommand" class="space-y-2">
+                <div class="rounded-lg bg-gray-900 p-3">
+                  <div class="mb-2 flex items-center justify-between">
+                    <span class="text-xs font-medium text-gray-400">复制到目标服务器执行（一条命令即可）：</span>
+                    <button
+                      type="button"
+                      class="text-xs text-orange-400 transition-colors hover:text-orange-300"
+                      @click="copyImportCommand"
+                    >
+                      {{ importCopied ? '已复制' : '复制' }}
+                    </button>
+                  </div>
+                  <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ importCurlCommand }}</pre>
+                </div>
+                <details v-if="importCommandDetail" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <summary class="cursor-pointer font-medium text-gray-700 hover:text-gray-900">详情说明</summary>
+                  <p class="mt-2 whitespace-pre-wrap border-t border-gray-200 pt-2 text-gray-500">{{ importCommandDetail }}</p>
+                </details>
+              </div>
+            </template>
+
+            <!-- 粘贴导入模式 -->
+            <template v-if="importForm.mode === 'paste'">
+              <!-- 配置格式 -->
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">配置格式</label>
+                <select
+                  v-model="importForm.config_format"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="auto">自动检测</option>
+                  <option value="ini">INI 格式</option>
+                  <option value="toml">TOML 格式</option>
+                </select>
+              </div>
+
+              <!-- 粘贴配置内容 -->
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">
+                  配置内容 <span class="text-red-600">*</span>
+                </label>
+                <textarea
+                  v-model="importForm.config_content"
+                  rows="10"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="粘贴 frpc.ini 或 frpc.toml 的内容..."
+                />
+              </div>
+
+              <!-- 覆盖选项 -->
+              <div class="flex items-center gap-2">
+                <input
+                  id="import-overwrite-paste"
+                  v-model="importForm.overwrite"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                />
+                <label for="import-overwrite-paste" class="text-sm text-gray-700">
+                  覆盖已存在的同名代理
+                </label>
+              </div>
+
+              <!-- 导入结果 -->
+              <div v-if="importResult" class="rounded-lg border p-3 text-sm" :class="importResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+                <p class="font-medium" :class="importResult.success ? 'text-green-800' : 'text-red-800'">{{ importResult.message }}</p>
+                <div v-if="importResult.details && importResult.details.length > 0" class="mt-2 max-h-40 overflow-y-auto text-xs">
+                  <div
+                    v-for="(item, idx) in importResult.details"
+                    :key="idx"
+                    class="flex items-center gap-1 py-0.5"
+                    :class="{
+                      'text-green-700': item.action === 'created',
+                      'text-blue-700': item.action === 'updated',
+                      'text-gray-500': item.action === 'skipped'
+                    }"
+                  >
+                    <span class="font-mono">{{ item.action === 'created' ? '+' : item.action === 'updated' ? '~' : '-' }}</span>
+                    <span class="font-mono font-medium">{{ item.name }}</span>
+                    <span class="text-gray-400" v-if="item.type">({{ item.type }})</span>
+                    <span class="text-gray-400" v-if="item.local_port">:{{ item.local_port }}</span>
+                    <span class="text-gray-400" v-if="item.remote_port">->{{ item.remote_port }}</span>
+                    <span v-if="item.reason" class="text-gray-400">— {{ item.reason }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 导入按钮 -->
+              <button
+                type="button"
+                :disabled="importLoading"
+                class="w-full rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
+                @click="handleImport"
+              >
+                <span v-if="importLoading" class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white mr-1" />
+                导入
+              </button>
+            </template>
+          </div>
+          <div class="flex items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3">
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
+              @click="closeImportDialog"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 重命名分组对话框 -->
     <Teleport to="body">
       <div
@@ -434,7 +665,13 @@ watch(() => groupsStore.groups, async () => {
 
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
+const showImportDialog = ref(false)
 const showGroupProxiesDialog = ref(false)
+const importLoading = ref(false)
+const importResult = ref(null)
+const importCopied = ref(false)
+const importCurlCommand = ref('')
+const importCommandDetail = ref('')
 const currentGroup = ref(null)
 const selectedGroupForProxies = ref('')
 const selectedApiKeyId = computed({
@@ -532,6 +769,15 @@ const createForm = reactive({
 
 const renameForm = reactive({
   new_name: ''
+})
+
+const importForm = reactive({
+  mode: 'command',
+  group_name: '',
+  config_content: '',
+  config_path: '/opt/frp',
+  config_format: 'auto',
+  overwrite: true
 })
 
 const handleCreateGroup = async () => {
@@ -670,6 +916,116 @@ const closeRenameDialog = () => {
   renameForm.new_name = ''
 }
 
+const closeImportDialog = () => {
+  showImportDialog.value = false
+  importForm.mode = 'command'
+  importForm.group_name = ''
+  importForm.config_content = ''
+  importForm.config_path = '/opt/frp'
+  importForm.config_format = 'auto'
+  importForm.overwrite = true
+  importResult.value = null
+  importCurlCommand.value = ''
+  importCommandDetail.value = ''
+  importCopied.value = false
+}
+
+const handleImport = async () => {
+  if (!importForm.group_name.trim()) {
+    alert('请输入分组名称')
+    return
+  }
+
+  if (!importForm.config_content.trim()) {
+    alert('请输入配置内容')
+    return
+  }
+
+  importLoading.value = true
+  importResult.value = null
+
+  try {
+    const result = await groupsStore.importConfig({
+      frps_server_id: props.serverId,
+      group_name: importForm.group_name.trim(),
+      config_content: importForm.config_content,
+      config_format: importForm.config_format,
+      overwrite: importForm.overwrite
+    })
+    importResult.value = result
+    if (result.success) {
+      groupsStore.setPagination({ page: 1 })
+      await loadGroups(1)
+    }
+  } catch (error) {
+    importResult.value = {
+      success: false,
+      message: '导入失败: ' + (error.response?.data?.detail || error.message)
+    }
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const generateImportCommand = async () => {
+  if (!importForm.group_name.trim()) {
+    alert('请输入分组名称')
+    return
+  }
+
+  try {
+    const apiKey = selectedApiKeyFullKey.value
+    if (!apiKey) {
+      await updateFullKey()
+    }
+    if (!selectedApiKeyFullKey.value) {
+      alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
+      return
+    }
+
+    const path = groupApi.getImportScriptUrl({
+      frps_server_id: props.serverId,
+      group_name: importForm.group_name.trim(),
+      config_path: importForm.config_path.trim() || '/opt/frp',
+      config_format: importForm.config_format,
+      overwrite: importForm.overwrite,
+      api_key: selectedApiKeyFullKey.value
+    })
+    const origin = window.location.origin
+    importCurlCommand.value = `curl -sL "${origin}${path}" | bash`
+    importCommandDetail.value = [
+      `分组名称：${importForm.group_name.trim()}`,
+      `扫描路径：${importForm.config_path.trim() || '/opt/frp'}（目录内有配置则只用该目录；目录内没有时才扫当前目录）`,
+      `配置格式：${importForm.config_format}`,
+      `覆盖同名代理：${importForm.overwrite ? '是（默认）' : '否'}`,
+      '',
+      '执行后脚本会：拉取 bash → 按规则读取本地配置（目录有则用目录，否则用当前目录）→ POST 导入。'
+    ].join('\n')
+  } catch (error) {
+    alert('生成命令失败: ' + (error.response?.data?.detail || error.message))
+  }
+}
+
+const copyImportCommand = async () => {
+  if (importCurlCommand.value) {
+    try {
+      await navigator.clipboard.writeText(importCurlCommand.value)
+      importCopied.value = true
+      setTimeout(() => { importCopied.value = false }, 2000)
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea')
+      ta.value = importCurlCommand.value
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      importCopied.value = true
+      setTimeout(() => { importCopied.value = false }, 2000)
+    }
+  }
+}
+
 // 一键安装：后端生成完整安装脚本，前端只复制一条短命令
 const handleOneClickInstall = async (group, event) => {
   try {
@@ -745,6 +1101,7 @@ const handleOneClickDownload = async (group, event) => {
 // 使用统一的模态框功能
 useModal(showCreateDialog, closeCreateDialog)
 useModal(showRenameDialog, closeRenameDialog)
+useModal(showImportDialog, closeImportDialog)
 
 // 分页处理
 const handlePageChange = (newPage) => {
