@@ -15,6 +15,7 @@ from app.database import init_db, get_db, SessionLocal
 from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key, frp_package
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.init_db import create_default_api_key, create_default_user
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.version import get_version, check_gitee_update
 from app.auth import get_current_user
@@ -139,7 +140,7 @@ async def health_check(db: Session = Depends(get_db)):
     ver = get_version()
     try:
         # 测试数据库连接
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         return {
             "status": "healthy",
             "service": "frp-agent",

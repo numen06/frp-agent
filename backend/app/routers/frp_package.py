@@ -1,5 +1,6 @@
 """FRP 安装包管理路由"""
 import json
+import logging
 import os
 import re
 from datetime import datetime
@@ -19,6 +20,7 @@ from app.services.github_service import GithubService
 from app.script_templates import load_shell_template
 
 router = APIRouter(prefix="/api/packages", tags=["安装包管理"])
+logger = logging.getLogger(__name__)
 
 # 手动上传时的平台标识格式（与 GitHub 资源名中的平台段风格一致，不枚举具体值）
 _UPLOAD_PLATFORM_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
@@ -248,18 +250,40 @@ def _parse_filename_info(filename: str) -> Optional[dict]:
     return {"version": f"v{m.group(1)}", "platform": m.group(2)}
 
 
+def _normalize_optional_form(value: Optional[str]) -> Optional[str]:
+    """multipart 里空串应视为未填，避免仅含空格被当成有效值。"""
+    if value is None:
+        return None
+    s = value.strip()
+    return s if s else None
+
+
+def _safe_package_basename(name: str) -> str:
+    """仅保留文件名，去掉路径与非法字符（Windows/Unix）。"""
+    base = os.path.basename((name or "").replace("\\", "/").strip()) or "package.bin"
+    base = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", base)
+    if len(base) > 220:
+        base = base[:220]
+    return base
+
+
 @router.post("/upload", response_model=FrpPackageResponse)
 async def upload_package(
-    version: Optional[str] = Form(None),
-    platform: Optional[str] = Form(None),
     package_file: UploadFile = File(...),
+    version: Optional[str] = Form(default=None),
+    platform: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    filename = package_file.filename or ""
+    # File 必须声明在 Form 之前，否则部分环境下 multipart 解析会异常（FastAPI 官方建议）
+    version = _normalize_optional_form(version)
+    platform = _normalize_optional_form(platform)
+
+    raw_upload_name = (package_file.filename or "").strip()
+    filename: Optional[str] = _safe_package_basename(raw_upload_name) if raw_upload_name else None
 
     # 尝试从文件名自动解析
-    parsed = _parse_filename_info(filename)
+    parsed = _parse_filename_info(filename or "")
     if parsed:
         if not version:
             version = parsed["version"]
@@ -279,52 +303,112 @@ async def upload_package(
         )
 
     packages_dir = _ensure_packages_dir()
-    filename = package_file.filename or f"frp_{version}_{platform}.bin"
+    if filename is None:
+        filename = f"frp_{version}_{platform}.bin"
     target_name = f"{version}_{platform}_{filename}"
     save_path = os.path.join(packages_dir, target_name)
 
-    with open(save_path, "wb") as f:
-        content = await package_file.read()
-        f.write(content)
+    try:
+        with open(save_path, "wb") as f:
+            content = await package_file.read()
+            f.write(content)
+    except OSError as e:
+        logger.exception("写入安装包文件失败: %s", save_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"无法写入安装包文件（请检查 data/packages 目录权限与磁盘空间）: {e}",
+        ) from e
 
-    service = GithubService()
-    checksum = service.calculate_sha256(save_path)
-    size = os.path.getsize(save_path)
+    def _upload_path_key(p: Optional[str]) -> str:
+        if not p:
+            return ""
+        try:
+            return os.path.normcase(os.path.normpath(os.path.abspath(p)))
+        except OSError:
+            return os.path.normpath(p or "")
 
-    existed = db.query(FrpPackage).filter(
-        FrpPackage.version == version,
-        FrpPackage.platform == platform
-    ).first()
-    if existed:
-        if os.path.exists(existed.file_path) and existed.file_path != save_path:
-            os.remove(existed.file_path)
-        existed.filename = filename
-        existed.file_path = save_path
-        existed.file_size = size
-        existed.source = "upload"
-        existed.download_url = None
-        existed.sha256_checksum = checksum
-        existed.downloaded_at = datetime.utcnow()
+    save_key = _upload_path_key(save_path)
+    keeper = None
+    try:
+        service = GithubService()
+        checksum = service.calculate_sha256(save_path)
+        size = os.path.getsize(save_path)
+
+        existing_rows = (
+            db.query(FrpPackage)
+            .filter(FrpPackage.version == version, FrpPackage.platform == platform)
+            .order_by(FrpPackage.id.asc())
+            .all()
+        )
+
+        # 重名（同版本+同平台）一律覆盖：合并重复行，磁盘上新文件已写入 save_path
+        for row in existing_rows:
+            if row.file_path and _upload_path_key(row.file_path) == save_key:
+                keeper = row
+                break
+        if keeper is None and existing_rows:
+            keeper = existing_rows[0]
+
+        for row in existing_rows:
+            if keeper and row.id == keeper.id:
+                continue
+            if row.file_path and os.path.exists(row.file_path) and _upload_path_key(row.file_path) != save_key:
+                try:
+                    os.remove(row.file_path)
+                except OSError as rm_err:
+                    logger.warning("删除重复安装包文件失败: %s", rm_err)
+            db.delete(row)
+
+        if keeper:
+            if keeper.file_path and os.path.exists(keeper.file_path) and _upload_path_key(keeper.file_path) != save_key:
+                try:
+                    os.remove(keeper.file_path)
+                except OSError as rm_err:
+                    logger.warning("删除旧安装包文件失败（可忽略）: %s", rm_err)
+            keeper.filename = filename
+            keeper.file_path = save_path
+            keeper.file_size = size
+            keeper.source = "upload"
+            keeper.download_url = None
+            keeper.sha256_checksum = checksum
+            keeper.downloaded_at = datetime.utcnow()
+            db.commit()
+            db.refresh(keeper)
+            return keeper
+
+        item = FrpPackage(
+            version=version,
+            platform=platform,
+            filename=filename,
+            file_path=save_path,
+            file_size=size,
+            source="upload",
+            download_url=None,
+            is_active=True,
+            sha256_checksum=checksum,
+            downloaded_at=datetime.utcnow(),
+        )
+        db.add(item)
         db.commit()
-        db.refresh(existed)
-        return existed
-
-    item = FrpPackage(
-        version=version,
-        platform=platform,
-        filename=filename,
-        file_path=save_path,
-        file_size=size,
-        source="upload",
-        download_url=None,
-        is_active=True,
-        sha256_checksum=checksum,
-        downloaded_at=datetime.utcnow(),
-    )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+        db.refresh(item)
+        return item
+    except Exception as e:
+        logger.exception("保存安装包记录失败")
+        db.rollback()
+        same_path_as_existing = (
+            keeper is not None
+            and keeper.file_path
+            and _upload_path_key(keeper.file_path) == save_key
+        )
+        if os.path.exists(save_path) and not same_path_as_existing:
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"保存安装包失败: {e}",
+        ) from e
 
 
 @router.get("/releases")

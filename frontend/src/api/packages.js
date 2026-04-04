@@ -6,9 +6,8 @@ export const packagesApi = {
   },
 
   upload(formData) {
-    return api.post('/packages/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    // 勿手动设置 multipart Content-Type，否则缺少 boundary，服务端无法解析表单
+    return api.post('/packages/upload', formData)
   },
 
   sync(data) {
