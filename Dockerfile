@@ -40,7 +40,7 @@ FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/python:3
 
 # 维护者信息
 LABEL maintainer="frp-agent"
-LABEL version="1.0"
+LABEL version="1.1.0"
 LABEL description="FRP Agent Management Platform"
 
 # 设置工作目录

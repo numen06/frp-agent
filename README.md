@@ -1,25 +1,52 @@
-# frp-agent 管理系统
+# frp-agent
 
-一个简单易用的 frp 代理管理系统，通过 Web 界面轻松管理多个 frp 服务器和代理配置。
+> 轻量级 frp 代理可视化管理平台
 
-![FRP-AGENT 仪表板](docs/FRP-AGENT.png)
+frp-agent 是一个基于 Web 的 frp（Fast Reverse Proxy）客户端配置管理平台，提供代理全生命周期管理能力——从服务器接入、代理创建、配置生成到一键部署脚本，帮助团队高效管理大规模 frp 内网穿透服务。
 
-## 功能特性
+## 功能概览
 
-- **多服务器管理** - 统一管理多个 frp 服务器，实时查看连接状态
-- **代理管理** - 创建、编辑、删除代理配置，支持批量操作
-- **端口管理** - 自动分配端口，智能检测端口冲突
-- **状态监控** - 实时显示代理在线/离线状态，统计在线率
-- **配置生成** - 一键生成标准的 frpc 配置文件（支持 INI/TOML 格式）
-- **配置导入** - 支持导入现有配置文件，快速迁移
-- **分组管理** - 对代理进行分组管理，支持自动分析分组
-- **格式转换** - INI 和 TOML 格式互转，方便配置迁移
+### 核心能力
 
-## 快速开始
+- **多服务器统一管理** — 接入多个 frps 服务端，统一查看状态，支持连接测试
+- **代理实时同步** — 定时从 frps API 拉取代理状态（默认 30 分钟），自动发现新代理、更新在线/离线状态
+- **代理全量管理** — 创建、编辑、删除代理配置，支持按服务器 / 分组 / 状态 / 关键词筛选和批量操作
+- **端口自动管理** — 智能分配端口，冲突检测与自动递增，支持端口范围管理
+- **端口自动识别** — 从代理名称中的关键字（ssh、http、mysql、redis 等 40+ 种协议）自动识别本地服务端口
 
-### 快捷启动（推荐）
+### 配置与部署
 
-使用已打包好的镜像，一条命令即可启动：
+- **配置文件生成** — 按分组或自定义代理列表生成标准 frpc 配置文件，支持 INI 和 TOML 两种格式
+- **配置文件导入** — 支持上传或粘贴 INI / TOML 配置文件，自动解析并创建代理记录
+- **INI / TOML 格式互转** — 方便旧版配置向新版迁移
+- **一键安装脚本** — 为分组生成交付脚本（Linux Bash / Windows PowerShell），自动下载 frpc 二进制 + 拉取配置文件
+- **systemd 服务文件生成** — 一键生成 Linux systemd 服务单元文件
+
+### 安装包管理
+
+- **GitHub 自动同步** — 从 fatedier/frp 仓库同步各平台安装包，支持按版本 / 平台筛选
+- **手动上传** — 支持上传自定义编译的 frpc 二进制文件
+- **脚本模板自定义** — 可自定义各平台（Linux / Windows）的安装、升级脚本模板
+
+### 系统管理
+
+- **认证系统** — 支持 Basic Auth（数据库用户）+ API Key（Bearer Token / URL 参数），首次登录强制修改默认密码
+- **分组管理** — 从代理名称自动解析分组前缀（如 `dlyy_ssh` → `dlyy`），支持手动调整、批量端口重分配、一键安装
+- **数据对比分析** — 对比 frps 实际代理与本地数据库记录，识别差异
+- **代理历史记录** — 记录代理状态变更历史，便于问题追溯
+- **版本检查** — 通过 Gitee Release API 自动检查更新
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 前端 | Vue 3.4 + Vite 5 + Pinia + Tailwind CSS 4 + Flowbite + CodeMirror 6 |
+| 后端 | Python 3.11 + FastAPI + SQLAlchemy + SQLite + APScheduler + httpx |
+| 部署 | Docker 多阶段构建（Node 20 + Python 3.11） |
+
+## 部署方式
+
+### Docker 一键启动（推荐）
 
 ```bash
 docker run -d \
@@ -29,109 +56,35 @@ docker run -d \
   registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
 ```
 
-启动后访问 http://localhost 进入管理界面。
+启动后访问 `http://localhost:8000` 进入管理界面。
 
-### Docker Compose 部署
+### Docker Compose
 
 ```bash
-# 1. 克隆项目
-git clone <repository-url>
-cd frp-agent
-
-# 2. 创建数据目录
+git clone <repository-url> && cd frp-agent
 mkdir -p data
-
-# 3. 启动服务
-docker-compose up -d
-
-# 4. 查看日志
-docker-compose logs -f
+docker compose up -d
 ```
 
-启动后访问 http://localhost 进入管理界面。
+## 环境变量
 
-### 本地部署
-
-#### 启动后端
-
-```bash
-# 1. 进入后端目录
-cd backend
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 启动服务
-python app.py
-```
-
-后端服务将在 http://localhost:8000 启动。
-
-#### 启动前端
-
-```bash
-# 1. 进入前端目录
-cd frontend
-
-# 2. 安装依赖
-npm install
-
-# 3. 启动开发服务器
-npm run dev
-```
-
-前端开发服务器将在 http://localhost:5173 启动。
-
-## 主要功能
-
-### 仪表板
-
-- 查看所有服务器的汇总统计
-- 实时监控代理在线状态
-- 快速访问常用功能
-
-### 服务器管理
-
-- 添加、编辑、删除 frp 服务器
-- 测试服务器连接状态
-- 查看服务器详细信息
-
-### 代理管理
-
-- 创建和管理代理配置
-- 批量操作代理
-- 查看代理状态和端口使用情况
-
-### 配置导入
-
-支持通过命令行快速导入配置：
-
-```bash
-# 导入 INI 配置
-curl -u admin:admin -X POST \
-  -H "Content-Type: text/plain" \
-  --data-binary "@frpc.ini" \
-  http://localhost:8000/api/config/import/ini/服务器名
-
-# 导入 TOML 配置
-curl -u admin:admin -X POST \
-  -H "Content-Type: text/plain" \
-  --data-binary "@frpc.toml" \
-  http://localhost:8000/api/config/import/toml/服务器名
-```
-
-查看所有服务器名称：
-
-```bash
-curl -u admin:admin http://localhost:8000/api/servers | jq '.[].name'
-```
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `APP_HOST` | `0.0.0.0` | 监听地址 |
+| `APP_PORT` | `8000` | 监听端口 |
+| `APP_DEBUG` | `false` | 调试模式 |
+| `AUTH_USERNAME` | `admin` | 默认用户名 |
+| `AUTH_PASSWORD` | `admin` | 默认密码 |
+| `DATABASE_URL` | `sqlite:///./data/frp_agent.db` | 数据库连接 |
+| `SYNC_INTERVAL_SECONDS` | `1800` | 代理同步间隔（秒） |
+| `PACKAGES_DIR` | `data/packages` | 安装包存储目录 |
 
 ## 默认账号
 
 - **用户名**：`admin`
 - **密码**：`admin`
 
-首次登录后建议修改密码。
+首次登录后系统会提示修改密码。
 
 ## 许可证
 
