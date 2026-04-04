@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-自检：script_templates 目录下模板可加载，且依赖这些模板的 HTTP 接口返回 200。
+自检：app/script_templates 下模板可加载，且依赖这些模板的 HTTP 接口返回 200。
+
+覆盖：import-script、import-config（示例 INI）、quick-install/download、
+packages install/upgrade-script、config script linux/windows/systemd。
 
 在 backend 目录执行:
   ..\\.venv\\Scripts\\python.exe scripts\\test_shell_template_apis.py
@@ -20,22 +23,20 @@ from app.auth import get_current_user
 from app.database import SessionLocal
 from app.main import app
 from app.models.frp_package import FrpPackage
+from app.models.frps_server import FrpsServer
 from app.models.user import User
 from app.routers import frp_package, group
-from app.script_templates import load_shell_template
+from app.script_templates import list_script_template_names, load_shell_template
 
-EXPECTED_TEMPLATES = (
-    "import_frpc_group.sh",
-    "group_quick_install_linux.sh",
-    "group_quick_install_windows.ps1",
-    "pkg_install_linux.sh",
-    "pkg_install_windows.ps1",
-    "pkg_upgrade_linux.sh",
-    "pkg_upgrade_windows.ps1",
-    "frpc_startup_linux.sh",
-    "frpc_startup_windows.ps1",
-    "frpc.service.unit",
-)
+
+def _configure_stdio_utf8() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconf = getattr(stream, "reconfigure", None)
+        if callable(reconf):
+            try:
+                reconf(encoding="utf-8")
+            except Exception:
+                pass
 
 
 def _ok(name: str) -> None:
@@ -49,7 +50,7 @@ def _fail(name: str, detail: str) -> None:
 def test_templates_on_disk() -> bool:
     print("== 模板文件 load_shell_template ==")
     ok = True
-    for name in EXPECTED_TEMPLATES:
+    for name in list_script_template_names():
         try:
             body = load_shell_template(name)
             if len(body) < 20:
@@ -64,6 +65,7 @@ def test_templates_on_disk() -> bool:
 
 
 def main() -> int:
+    _configure_stdio_utf8()
     if not test_templates_on_disk():
         return 1
 
@@ -97,6 +99,42 @@ def main() -> int:
         else:
             _fail("GET /api/groups/import-script", f"status={r.status_code} head={r.text[:120]!r}")
             return 1
+
+        repo_root = BACKEND_ROOT.parent
+        sample_ini = repo_root / "test-data" / "sample-frpc-import.ini"
+        db = SessionLocal()
+        try:
+            frps_row = db.query(FrpsServer.id).order_by(FrpsServer.id.asc()).first()
+        finally:
+            db.close()
+        if sample_ini.is_file() and frps_row:
+            r = client.post(
+                "/api/groups/import-config",
+                json={
+                    "frps_server_id": frps_row[0],
+                    "group_name": "shell_template_api_smoke",
+                    "config_content": sample_ini.read_text(encoding="utf-8"),
+                    "config_format": "ini",
+                    "overwrite": True,
+                },
+                headers={"X-API-Key": "x"},
+            )
+            try:
+                data = r.json()
+            except Exception:
+                data = {}
+            if r.status_code == 200 and data.get("success"):
+                _ok("POST /api/groups/import-config (sample-frpc-import.ini)")
+            else:
+                _fail(
+                    "POST /api/groups/import-config",
+                    f"status={r.status_code} body={r.text[:200]!r}",
+                )
+                return 1
+        else:
+            print(
+                "  [SKIP] POST /api/groups/import-config：需要 test-data/sample-frpc-import.ini 且库中至少一台 frps"
+            )
 
         db = SessionLocal()
         try:
