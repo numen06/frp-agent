@@ -4,6 +4,12 @@
 
 frp-agent 是一个基于 Web 的 frp（Fast Reverse Proxy）客户端配置管理平台，提供代理全生命周期管理能力——从服务器接入、代理创建、配置生成到一键部署脚本，帮助团队高效管理大规模 frp 内网穿透服务。
 
+![仪表板](docs/FRP-AGENT.png)
+![多服务器接入](docs/多服务器接入.png)
+![代理追踪](docs/代理追踪.png)
+![一键生成命令](docs/一键生成命令.png)
+![INI转TOML](docs/INI转TOML.png)
+
 ## 功能概览
 
 ### 核心能力
