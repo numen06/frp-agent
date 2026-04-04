@@ -2,8 +2,6 @@
 import json
 import os
 import shlex
-from functools import lru_cache
-from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from fastapi.responses import PlainTextResponse
@@ -21,6 +19,7 @@ from app.models.frp_package import FrpPackage
 from app.models.port import PortAllocation
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
+from app.script_templates import load_shell_template
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -943,29 +942,8 @@ def _load_script_templates() -> dict:
 
 def _default_install_template(platform: str) -> str:
     if platform.startswith("windows_"):
-        return (
-            "mkdir -Force \"$env:FRP_DIR\" 2>$null\n"
-            "Write-Host \"Downloading {{filename}} ...\"\n"
-            "Invoke-WebRequest -Uri \"{{download_url}}\" -OutFile \"$env:TEMP\\{{filename}}\"\n"
-            "tar -xf \"$env:TEMP\\{{filename}}\" -C \"$env:TEMP\"\n"
-            "Copy-Item \"$env:TEMP\\frp_*\\frpc.exe\" \"$FRP_DIR\\frpc.exe\" -Force\n"
-            "Remove-Item \"$env:TEMP\\{{filename}}\" -Force -ErrorAction SilentlyContinue\n"
-            "{{config_line}}\n"
-        )
-    return (
-        "#!/bin/bash\n"
-        "set -e\n"
-        "FRP_DIR=\"{{install_path}}\"\n"
-        "mkdir -p \"$FRP_DIR\"\n"
-        "echo \"Downloading {{filename}} ...\"\n"
-        "cd /tmp && curl -fSL -o \"{{filename}}\" \"{{download_url}}\" \\\n"
-        "  && tar -xzf \"{{filename}}\" \\\n"
-        "  && cp -f frp_*/frpc \"$FRP_DIR/\" \\\n"
-        "  && rm -f \"{{filename}}\" \\\n"
-        "  && rm -rf frp_*\n"
-        "{{config_line}}\n"
-        "echo \"Done. frpc installed to $FRP_DIR\"\n"
-    )
+        return load_shell_template("group_quick_install_windows.ps1")
+    return load_shell_template("group_quick_install_linux.sh")
 
 
 def _get_latest_linux_amd64_package(db: Session):
@@ -1000,6 +978,9 @@ def _build_install_script(db, pkg, api_key, install_path, server_name, group_nam
 
     templates = _load_script_templates()
     template = templates.get(pkg.platform) or _default_install_template(pkg.platform)
+    done_echo = ""
+    if not pkg.platform.startswith("windows_"):
+        done_echo = 'echo "Done. frpc installed to $FRP_DIR"\n'
     script = (
         template.replace("{{filename}}", pkg.filename)
         .replace("{{download_url}}", download_url)
@@ -1007,6 +988,7 @@ def _build_install_script(db, pkg, api_key, install_path, server_name, group_nam
         .replace("{{config_line}}", config_line)
         .replace("{{platform}}", pkg.platform)
         .replace("{{version}}", pkg.version)
+        .replace("{{done_echo}}", done_echo)
     )
     return script
 
@@ -1015,19 +997,17 @@ def _build_download_script(db, pkg, api_key, install_path, server_name, group_na
     """构建下载+配置的 shell 命令"""
     download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
     config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
+    config_line = f"\ncurl -sL \"{config_url}\" -o \"$FRP_DIR/frpc.toml\"\n"
+    done_echo = 'echo "Done. frpc downloaded to $FRP_DIR"\n'
+    tpl = load_shell_template("group_quick_install_linux.sh")
     return (
-        f"#!/bin/bash\n"
-        f"set -e\n"
-        f"FRP_DIR=\"{install_path}\"\n"
-        f"mkdir -p \"$FRP_DIR\"\n"
-        f"echo \"Downloading {pkg.filename} ...\"\n"
-        f"cd /tmp && curl -fSL -o \"{pkg.filename}\" \"{download_url}\" \\\n"
-        f"  && tar -xzf \"{pkg.filename}\" \\\n"
-        f"  && cp -f frp_*/frpc \"$FRP_DIR/\" \\\n"
-        f"  && rm -f \"{pkg.filename}\" \\\n"
-        f"  && rm -rf frp_*\n"
-        f"curl -sL \"{config_url}\" -o \"$FRP_DIR/frpc.toml\"\n"
-        f"echo \"Done. frpc downloaded to $FRP_DIR\"\n"
+        tpl.replace("{{filename}}", pkg.filename)
+        .replace("{{download_url}}", download_url)
+        .replace("{{install_path}}", install_path)
+        .replace("{{config_line}}", config_line)
+        .replace("{{platform}}", pkg.platform)
+        .replace("{{version}}", pkg.version)
+        .replace("{{done_echo}}", done_echo)
     )
 
 
@@ -1309,15 +1289,6 @@ def import_config(
 
 
 
-@lru_cache(maxsize=1)
-def _load_import_frpc_group_template() -> str:
-    """外置 bash 模板：backend/app/templates/import_frpc_group.sh"""
-    path = Path(__file__).resolve().parent.parent / "templates" / "import_frpc_group.sh"
-    if not path.is_file():
-        raise RuntimeError(f"缺少导入脚本模板文件: {path}")
-    return path.read_text(encoding="utf-8")
-
-
 def _build_group_import_shell_script(
     frps_server_id: int,
     group_name: str,
@@ -1339,7 +1310,7 @@ def _build_group_import_shell_script(
     )
     py_for_bash = py_src.replace("\\", "\\\\").replace('"', '\\"')
 
-    tpl = _load_import_frpc_group_template()
+    tpl = load_shell_template("import_frpc_group.sh")
     return (
         tpl.replace("@@SCAN_PATH@@", shlex.quote(config_path))
         .replace("@@API_URL@@", shlex.quote(import_url))
