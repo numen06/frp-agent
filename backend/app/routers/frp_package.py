@@ -275,6 +275,17 @@ async def upload_package(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """单文件上传（保留兼容）。"""
+    result = await _do_upload_package(package_file, version, platform, db)
+    return result
+
+
+async def _do_upload_package(
+    package_file: UploadFile,
+    version: Optional[str],
+    platform: Optional[str],
+    db: Session,
+) -> FrpPackage:
     # File 必须声明在 Form 之前，否则部分环境下 multipart 解析会异常（FastAPI 官方建议）
     version = _normalize_optional_form(version)
     platform = _normalize_optional_form(platform)
@@ -409,6 +420,37 @@ async def upload_package(
             status_code=500,
             detail=f"保存安装包失败: {e}",
         ) from e
+
+
+@router.post("/upload/batch")
+async def upload_package_batch(
+    package_files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """批量上传安装包，每个文件必须能从文件名自动解析版本和平台。"""
+    if not package_files:
+        raise HTTPException(status_code=400, detail="未选择任何文件")
+
+    results = []
+    errors = []
+    for idx, package_file in enumerate(package_files):
+        try:
+            item = await _do_upload_package(package_file, None, None, db)
+            results.append({"index": idx, "filename": package_file.filename, "success": True, "item": item})
+        except HTTPException as exc:
+            errors.append({"index": idx, "filename": package_file.filename, "detail": exc.detail})
+        except Exception as exc:
+            logger.exception("批量上传第 %d 个文件失败: %s", idx, package_file.filename)
+            errors.append({"index": idx, "filename": package_file.filename, "detail": str(exc)})
+
+    return {
+        "total": len(package_files),
+        "success_count": len(results),
+        "fail_count": len(errors),
+        "items": results,
+        "errors": errors,
+    }
 
 
 @router.get("/releases")

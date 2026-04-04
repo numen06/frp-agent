@@ -179,7 +179,7 @@
     </div>
 
     <PackageSyncDialog v-model="showSyncDialog" :releases="releases" :loading="syncLoading" @submit="handleSync" />
-    <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" />
+    <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
     <PackageInstallDialog
       v-model="showInstallDialog"
       :packages="packages"
@@ -465,6 +465,33 @@ const handleUpload = async (payload) => {
     }
   } catch (e) {
     alert(`上传失败: ${e.message}`)
+  } finally {
+    uploadLoading.value = false
+  }
+}
+
+const handleUploadBatch = async ({ files }) => {
+  uploadLoading.value = true
+  try {
+    const fd = new FormData()
+    for (const f of files) {
+      fd.append('package_files', f)
+    }
+    const result = await packagesApi.uploadBatch(fd)
+    const { success_count, fail_count, errors } = result
+    if (fail_count > 0) {
+      const errorDetails = errors.map(e => `${e.filename}: ${e.detail}`).join('\n')
+      alert(`上传完成：成功 ${success_count} 个，失败 ${fail_count} 个\n\n失败详情：\n${errorDetails}`)
+    } else {
+      alert(`批量上传成功，共 ${success_count} 个文件`)
+    }
+    showUploadDialog.value = false
+    const ran = await loadVersionsMeta()
+    if (!ran) {
+      await loadPackages()
+    }
+  } catch (e) {
+    alert(`批量上传失败: ${e.message}`)
   } finally {
     uploadLoading.value = false
   }

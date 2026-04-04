@@ -10,6 +10,10 @@ export const packagesApi = {
     return api.post('/packages/upload', formData)
   },
 
+  uploadBatch(formData) {
+    return api.post('/packages/upload/batch', formData)
+  },
+
   sync(data) {
     return api.post('/packages/sync', data)
   },
