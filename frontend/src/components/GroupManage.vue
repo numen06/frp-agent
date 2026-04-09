@@ -181,6 +181,19 @@
                           </svg>
                           生成配置
                         </a>
+                        <a
+                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                          href="#"
+                          @click.prevent="handleGroupImportConfig(group.group_name); openMoreGroupName = ''"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                            <path d="M4 13h5l2-3h2l2 3h5" />
+                            <path d="M4 17h5l2-3h2l2 3h5" />
+                            <path d="M4 9l16 0" />
+                          </svg>
+                          一键导入配置
+                        </a>
                         <div class="my-1 border-t border-gray-100"></div>
                         <a
                           class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
@@ -900,6 +913,11 @@ const viewGroupProxies = (groupName) => {
 
 const generateGroupConfig = (groupName) => {
   emit('generate-config', groupName)
+}
+
+const handleGroupImportConfig = (groupName) => {
+  importForm.group_name = groupName
+  showImportDialog.value = true
 }
 
 const handleGroupProxiesChanged = async () => {
