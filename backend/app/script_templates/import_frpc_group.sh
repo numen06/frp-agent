@@ -1,11 +1,14 @@
 #!/bin/bash
-# frp-agent: 在目标机读取本地 frpc 配置并 POST 导入（由服务端注入 SCAN_PATH / API_* / JSON 构造片段）
+# frp-agent: 在目标机读取本地 frpc 配置并通过 curl -F 提交到服务端（纯 bash，不依赖 python3）
 set -e
 
 SCAN_PATH=@@SCAN_PATH@@
 API_URL=@@API_URL@@
 API_KEY=@@API_KEY@@
 GROUP_LABEL=@@GROUP_LABEL@@
+FRPS_ID=@@FRPS_ID@@
+CONFIG_FORMAT=@@CONFIG_FORMAT@@
+OVERWRITE=@@OVERWRITE@@
 
 CONFIG_CONTENT=""
 FIRST=true
@@ -54,11 +57,13 @@ if [ -z "$CONFIG_CONTENT" ]; then
   exit 1
 fi
 
-BODY=$(printf '%s' "$CONFIG_CONTENT" | python3 -c "@@PY_FOR_BASH@@")
 echo "[*] Uploading to group $GROUP_LABEL ..."
 RESULT=$(curl -s -S -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
-  -d "$BODY")
+  -F "frps_server_id=$FRPS_ID" \
+  -F "group_name=$GROUP_LABEL" \
+  -F "config_format=$CONFIG_FORMAT" \
+  -F "overwrite=$OVERWRITE" \
+  -F "config_content=$CONFIG_CONTENT")
 echo "$RESULT"
 echo "[+] Done."

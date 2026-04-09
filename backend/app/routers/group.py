@@ -3,7 +3,7 @@ import json
 import os
 import shlex
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Form
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
@@ -1288,6 +1288,27 @@ def import_config(
     )
 
 
+@router.post("/import-config-form")
+def import_config_form(
+    frps_server_id: int = Form(...),
+    group_name: str = Form(...),
+    config_content: str = Form(...),
+    config_format: str = Form("auto"),
+    overwrite: str = Form("true"),
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """表单方式导入配置：供 shell 脚本 curl -F 调用，不依赖 python3。"""
+    return _do_import_config(
+        db=db,
+        frps_server_id=frps_server_id,
+        group_name=group_name.strip(),
+        config_content=config_content,
+        config_format=config_format,
+        overwrite=overwrite.lower() in ("true", "1", "yes"),
+    )
+
+
 
 def _build_group_import_shell_script(
     frps_server_id: int,
@@ -1298,25 +1319,16 @@ def _build_group_import_shell_script(
     import_url: str,
     api_key: str,
 ) -> str:
-    """生成在目标机执行的 bash 脚本：模板外置，仅注入变量与 python3 -c 片段。"""
-    py_src = (
-        "import json,sys; cfg=sys.stdin.read(); print(json.dumps({"
-        f'"frps_server_id":{frps_server_id},'
-        f'"group_name":{json.dumps(group_name)},'
-        '"config_content":cfg,'
-        f'"config_format":{json.dumps(config_format)},'
-        f'"overwrite":{json.dumps(overwrite)}'
-        "}))"
-    )
-    py_for_bash = py_src.replace("\\", "\\\\").replace('"', '\\"')
-
+    """生成在目标机执行的 bash 脚本：纯 curl 表单提交，不依赖 python3。"""
     tpl = load_shell_template("import_frpc_group.sh")
     return (
         tpl.replace("@@SCAN_PATH@@", shlex.quote(config_path))
         .replace("@@API_URL@@", shlex.quote(import_url))
         .replace("@@API_KEY@@", shlex.quote(api_key))
         .replace("@@GROUP_LABEL@@", shlex.quote(group_name))
-        .replace("@@PY_FOR_BASH@@", py_for_bash)
+        .replace("@@FRPS_ID@@", str(frps_server_id))
+        .replace("@@CONFIG_FORMAT@@", shlex.quote(config_format))
+        .replace("@@OVERWRITE@@", "true" if overwrite else "false")
     )
 
 
@@ -1338,7 +1350,7 @@ def import_script(
     """
     api_key = req.query_params.get("api_key") or ""
     server_base = f"{req.url.scheme}://{req.url.netloc}"
-    import_url = f"{server_base}/api/groups/import-config"
+    import_url = f"{server_base}/api/groups/import-config-form"
     script = _build_group_import_shell_script(
         frps_server_id=frps_server_id,
         group_name=group_name,
