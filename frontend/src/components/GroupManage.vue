@@ -141,7 +141,7 @@
                       </button>
                       <div
                         v-if="openMoreGroupName === group.group_name"
-                        class="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                        class="absolute bottom-full right-0 z-50 mb-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
                         @click.stop
                       >
                         <a
