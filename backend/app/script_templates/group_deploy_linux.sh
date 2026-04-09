@@ -2,6 +2,7 @@
 # frp-client deploy script (install / optional upgrade / optional config overwrite + systemd)
 # platform: {{platform}}  version: {{version}}
 # 配置策略：先迁移 frpc.ini，再决定是否从平台拉取 frpc.toml；覆盖前自动带时间戳备份。
+# 可选：部署后轮询 frp-agent deploy-verify，失败则回退二进制与 toml 备份。
 set -e
 
 FRP_DIR="{{install_path}}"
@@ -10,6 +11,11 @@ CONFIG_FILE="$FRP_DIR/frpc.toml"
 INI_FILE="$FRP_DIR/frpc.ini"
 UPGRADE="{{upgrade}}"
 FORCE_CONFIG="{{force_config}}"
+VERIFY_ENABLED="{{verify_enabled}}"
+VERIFY_URL='{{verify_url}}'
+
+ROLLBACK_FRPC_AVAILABLE=0
+ROLLBACK_TOML_BAK=""
 
 # 若文件存在则复制一份带时间戳的备份（不删除原文件）
 backup_copy() {
@@ -18,6 +24,15 @@ backup_copy() {
     local bak="${f}.backup_$(date +%Y%m%d_%H%M%S)"
     cp "$f" "$bak"
     echo "已备份: $f -> $bak"
+}
+
+# 覆盖 frpc.toml 前备份，并记录路径供校验失败时回退（勿用于 ini 迁移）
+backup_toml_for_rollback() {
+    [ -f "$CONFIG_FILE" ] || return 0
+    local bak="${CONFIG_FILE}.backup_$(date +%Y%m%d_%H%M%S)"
+    cp "$CONFIG_FILE" "$bak"
+    ROLLBACK_TOML_BAK="$bak"
+    echo "已备份 frpc.toml（校验失败可回退）: $bak"
 }
 
 # ── 0. root 检测（systemd 需要）────────────────────────
@@ -56,6 +71,11 @@ if [ "$DO_DOWNLOAD" = "true" ]; then
             echo "停止 frpc 服务以便替换二进制..."
             systemctl stop frpc || true
         fi
+    fi
+    if [ "$INSTALLED" = "true" ] && [ -f "$FRPC_BIN" ]; then
+        cp "$FRPC_BIN" "$FRP_DIR/frpc.bak.deploy"
+        ROLLBACK_FRPC_AVAILABLE=1
+        echo "已备份当前 frpc 二进制 -> $FRP_DIR/frpc.bak.deploy"
     fi
     echo "正在下载 {{filename}} ..."
     mkdir -p "$FRP_DIR"
@@ -100,7 +120,7 @@ fi
 
 if [ "$DO_CONFIG" = "true" ]; then
     if [ -f "$CONFIG_FILE" ]; then
-        backup_copy "$CONFIG_FILE"
+        backup_toml_for_rollback
     fi
     TMP="${CONFIG_FILE}.tmp.$$"
     rm -f "$TMP"
@@ -147,7 +167,51 @@ else
     echo "未注册 systemd。可手动运行: $FRPC_BIN -c $CONFIG_FILE"
 fi
 
-# ── 6. 完成 ─────────────────────────────────────────
+# ── 6. 部署后校验与回退（可选）────────────────────────
+if [ "$VERIFY_ENABLED" = "true" ]; then
+    if ! command -v python3 &>/dev/null; then
+        echo "警告: 未找到 python3，跳过部署后代理校验（建议安装 python3，或生成脚本时使用 verify=false）。"
+    else
+        set +e
+        attempt=0
+        verify_ok=0
+        max_attempt={{verify_attempts}}
+        while [ "$attempt" -lt "$max_attempt" ]; do
+            json=$(curl -fsS "$VERIFY_URL" 2>/dev/null)
+            if [ $? -eq 0 ] && echo "$json" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('sync_ok') and d.get('ok') else 1)" 2>/dev/null; then
+                verify_ok=1
+                echo "部署校验通过（online 需 >= {{min_online}}，详见 frp-agent deploy-verify）。"
+                break
+            fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -lt "$max_attempt" ]; then
+                sleep {{verify_interval}}
+            fi
+        done
+        set -e
+        if [ "$verify_ok" -ne 1 ]; then
+            echo "部署校验未通过或无法拉取校验接口；尝试回退已备份的二进制/配置..." >&2
+            if [ "$IS_ROOT" = "true" ] && command -v systemctl &>/dev/null; then
+                systemctl stop frpc 2>/dev/null || true
+                if [ "$ROLLBACK_FRPC_AVAILABLE" = "1" ] && [ -f "$FRP_DIR/frpc.bak.deploy" ]; then
+                    cp -f "$FRP_DIR/frpc.bak.deploy" "$FRPC_BIN"
+                    chmod 755 "$FRPC_BIN"
+                    echo "已回退 frpc 二进制。"
+                fi
+                if [ -n "$ROLLBACK_TOML_BAK" ] && [ -f "$ROLLBACK_TOML_BAK" ]; then
+                    cp -f "$ROLLBACK_TOML_BAK" "$CONFIG_FILE"
+                    echo "已回退 frpc.toml。"
+                fi
+                systemctl restart frpc 2>/dev/null || systemctl start frpc 2>/dev/null || true
+                echo "回退后已重启 frpc；请执行 systemctl status frpc 确认。"
+            else
+                echo "非 root 或无 systemd，无法自动回退；请手动从 frpc.bak.deploy / .backup_* 恢复。" >&2
+            fi
+        fi
+    fi
+fi
+
+# ── 7. 完成 ─────────────────────────────────────────
 FINAL_VERSION=$("$FRPC_BIN" --version 2>&1 || echo "unknown")
 echo ""
 echo "========================================="

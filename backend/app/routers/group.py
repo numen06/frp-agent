@@ -3,6 +3,7 @@ import json
 import os
 import shlex
 from typing import List, Optional, Dict, Any
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Form
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.models.port import PortAllocation
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
 from app.script_templates import load_shell_template
+from app.scheduler import sync_server
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -999,23 +1001,41 @@ def _build_deploy_script(
     server_base,
     upgrade: bool,
     force_config: bool,
+    verify: bool = True,
+    min_online: int = 1,
+    verify_attempts: int = 18,
+    verify_interval: int = 5,
 ):
-    """构建统一部署脚本：可选升级二进制、可选强制覆盖配置、systemd 自启"""
+    """构建统一部署脚本：可选升级二进制、可选强制覆盖配置、systemd 自启、可选部署后校验与回退"""
     download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
     config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
     upgrade_s = "true" if upgrade else "false"
     force_config_s = "true" if force_config else "false"
+    verify_s = "true" if verify else "false"
+
+    gn_enc = quote(group_name, safe="")
+    sn_enc = quote(server_name, safe="")
+    key_q = quote(api_key, safe="") if api_key else ""
+    verify_url = (
+        f"{server_base}/api/groups/{gn_enc}/deploy-verify"
+        f"?server_name={sn_enc}&min_online={min_online}&api_key={key_q}"
+    )
 
     template = _default_deploy_template(pkg.platform)
     return (
         template.replace("{{filename}}", pkg.filename)
         .replace("{{download_url}}", download_url)
         .replace("{{config_url}}", config_url)
+        .replace("{{verify_url}}", verify_url)
         .replace("{{install_path}}", install_path)
         .replace("{{platform}}", pkg.platform)
         .replace("{{version}}", pkg.version)
         .replace("{{upgrade}}", upgrade_s)
         .replace("{{force_config}}", force_config_s)
+        .replace("{{verify_enabled}}", verify_s)
+        .replace("{{verify_attempts}}", str(verify_attempts))
+        .replace("{{verify_interval}}", str(verify_interval))
+        .replace("{{min_online}}", str(min_online))
     )
 
 
@@ -1132,6 +1152,56 @@ def quick_download(
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
 
 
+@router.get("/{group_name}/deploy-verify")
+async def deploy_verify(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称（与平台中名称一致）"),
+    min_online: int = Query(1, ge=0, description="至少多少条代理为 online 视为通过"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """部署后校验：先向 frps 同步该服务器代理状态，再统计本分组 online 数量。
+
+    供现场 deploy 脚本轮询；需 API Key 或登录（支持 URL ?api_key=）。
+    """
+    server = db.query(FrpsServer).filter(FrpsServer.name == server_name).first()
+    if not server:
+        raise HTTPException(status_code=404, detail=f"未找到名为「{server_name}」的 frps 服务器")
+
+    try:
+        await sync_server(db, server)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"frps 同步失败，无法获取最新代理状态: {str(e)}",
+        )
+
+    proxies = (
+        db.query(Proxy)
+        .filter(
+            Proxy.group_name == group_name,
+            Proxy.frps_server_id == server.id,
+        )
+        .all()
+    )
+    total = len(proxies)
+    online = sum(1 for p in proxies if p.status == "online")
+    if total == 0:
+        ok = False
+    else:
+        ok = online >= min_online
+
+    return {
+        "group_name": group_name,
+        "server_name": server_name,
+        "online": online,
+        "total": total,
+        "min_online": min_online,
+        "ok": ok,
+        "sync_ok": True,
+    }
+
+
 @router.get("/{group_name}/deploy", response_class=PlainTextResponse)
 def group_deploy(
     group_name: str,
@@ -1140,6 +1210,10 @@ def group_deploy(
     install_path: str = Query("/opt/frp", description="安装路径"),
     upgrade: bool = Query(False, description="是否升级 frpc 二进制（已安装时）"),
     force_config: bool = Query(False, description="是否强制覆盖 frpc.toml"),
+    verify: bool = Query(True, description="是否在脚本中启用部署后代理校验与失败回退"),
+    min_online: int = Query(1, ge=0, description="校验时至少 online 代理数"),
+    verify_attempts: int = Query(18, ge=1, le=120, description="校验最大轮询次数"),
+    verify_interval: int = Query(5, ge=1, le=60, description="校验轮询间隔（秒）"),
     request: Request = None,
     db: Session = Depends(get_db),
     auth_info: dict = Depends(_auth_for_script),
@@ -1149,6 +1223,7 @@ def group_deploy(
     用法：
       curl -sL "http://host/api/groups/mygroup/deploy?server_name=xxx&api_key=xxx" | sudo bash
       curl -sL "...&upgrade=true&force_config=true" | sudo bash
+      curl -sL "...&verify=false" | sudo bash
     """
     api_key = request.query_params.get("api_key") or auth_info.get("key") or ""
     server_base = f"{request.url.scheme}://{request.url.netloc}"
@@ -1170,6 +1245,10 @@ def group_deploy(
         server_base,
         upgrade,
         force_config,
+        verify=verify,
+        min_online=min_online,
+        verify_attempts=verify_attempts,
+        verify_interval=verify_interval,
     )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
 

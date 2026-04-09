@@ -182,6 +182,8 @@ def main() -> int:
                 and "frp-client deploy script" in r.text
                 and "backup_copy" in r.text
                 and "迁移 INI" in r.text
+                and "deploy-verify" in r.text
+                and 'VERIFY_ENABLED="true"' in r.text
                 and 'UPGRADE="true"' in r.text
                 and 'FORCE_CONFIG="true"' in r.text
                 and "{{upgrade}}" not in r.text
@@ -189,6 +191,19 @@ def main() -> int:
                 _ok("GET /api/groups/{g}/deploy")
             else:
                 _fail("deploy", f"status={r.status_code} head={r.text[:200]!r}")
+                return 1
+
+            r = client.get(
+                "/api/groups/g/deploy-verify",
+                params={"server_name": "__no_such_frps_for_deploy_verify__", "min_online": 1},
+            )
+            if r.status_code == 404:
+                _ok("GET /api/groups/{g}/deploy-verify (404 未知服务器)")
+            else:
+                _fail(
+                    "deploy-verify",
+                    f"expect 404 for unknown server, got {r.status_code} {r.text[:160]!r}",
+                )
                 return 1
 
             r = client.get(

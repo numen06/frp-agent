@@ -526,7 +526,7 @@
           </div>
           <div class="space-y-4 px-6 py-4">
             <p class="text-sm text-gray-600">
-              在目标 Linux 服务器上执行下方命令。首次安装会自动下载 frpc、拉取本分组配置并注册 <code class="rounded bg-gray-100 px-1 text-xs">systemd</code>（需 <code class="rounded bg-gray-100 px-1 text-xs">sudo</code>）。
+              在目标 Linux 服务器上执行下方命令。首次安装会自动下载 frpc、拉取本分组配置并注册 <code class="rounded bg-gray-100 px-1 text-xs">systemd</code>（需 <code class="rounded bg-gray-100 px-1 text-xs">sudo</code>）。部署结束后可轮询 frp-agent 校验本分组代理在线数；不通过时会尝试用备份回退二进制与配置（需目标机可访问 frp-agent 且已安装 <code class="rounded bg-gray-100 px-1 text-xs">python3</code>）。
             </p>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">分组</label>
@@ -567,6 +567,17 @@
                 />
                 <label for="deploy-force-config" class="text-sm text-gray-800">
                   覆盖配置文件（强制重新拉取 frpc.toml）
+                </label>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  id="deploy-verify"
+                  v-model="deployForm.verify_after_deploy"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label for="deploy-verify" class="text-sm text-gray-800">
+                  部署后校验代理在线（失败则自动回退已备份的 frpc / frpc.toml）
                 </label>
               </div>
             </div>
@@ -899,7 +910,8 @@ const deployForm = reactive({
   install_path: '/opt/frp',
   platform: 'linux_amd64',
   upgrade: false,
-  force_config: false
+  force_config: false,
+  verify_after_deploy: true
 })
 
 const deployCurlCommand = computed(() => {
@@ -913,7 +925,8 @@ const deployCurlCommand = computed(() => {
     install_path: deployForm.install_path?.trim() || '/opt/frp',
     platform: deployForm.platform,
     upgrade: deployForm.upgrade,
-    force_config: deployForm.force_config
+    force_config: deployForm.force_config,
+    verify: deployForm.verify_after_deploy
   })
   return `curl -sL "${window.location.origin}${path}" | sudo bash`
 })
@@ -1046,7 +1059,8 @@ const handleGroupImportConfig = (groupName) => {
 }
 
 const handleGroupProxiesChanged = async () => {
-  await loadGroups(groupsStore.pagination.page)
+  groupsStore.setPagination({ page: 1 })
+  await loadGroups(1)
 }
 
 const closeCreateDialog = () => {
@@ -1080,6 +1094,7 @@ const closeDeployDialog = () => {
   deployForm.platform = 'linux_amd64'
   deployForm.upgrade = false
   deployForm.force_config = false
+  deployForm.verify_after_deploy = true
   deployCopied.value = false
 }
 
@@ -1089,6 +1104,7 @@ const openDeployDialog = async (group) => {
   deployForm.platform = 'linux_amd64'
   deployForm.upgrade = false
   deployForm.force_config = false
+  deployForm.verify_after_deploy = true
   let apiKey = selectedApiKeyFullKey.value
   if (!apiKey) {
     await updateFullKey()
