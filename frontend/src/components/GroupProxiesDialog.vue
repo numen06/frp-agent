@@ -404,12 +404,15 @@ const syncFromFrps = async () => {
 
     if (response.analysis) {
       const a = response.analysis
-      let msg = `同步完成\n\n`
-      msg += `数据库代理: ${a.total_in_db}\n`
-      msg += `frps 在线代理: ${a.total_in_frps}\n`
-      if (a.missing_in_frps?.length) msg += `\n仅数据库有(${a.missing_in_frps.length}): ${a.missing_in_frps.map(p => p.name).join(', ')}\n`
-      if (a.only_in_frps?.length) msg += `\n仅 frps 有(${a.only_in_frps.length}): ${a.only_in_frps.map(p => p.name).join(', ')}\n`
-      if (a.status_changed?.length) msg += `\n状态变化(${a.status_changed.length}): ${a.status_changed.map(p => p.name).join(', ')}\n`
+      const msg = [
+        '同步完成（当前筛选口径）',
+        '',
+        `数据库代理：${a.total_in_db ?? 0}`,
+        `frps 代理：${a.total_in_frps ?? 0}`,
+        `状态变化：${a.status_changed?.length || 0}`,
+        `仅数据库有：${a.missing_in_frps?.length || 0}`,
+        `仅 frps 有：${a.only_in_frps?.length || 0}`
+      ].join('\n')
       alert(msg)
     } else {
       alert('同步成功')
