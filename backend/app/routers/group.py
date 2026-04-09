@@ -142,9 +142,14 @@ def get_groups(
             "offline_count": 0
         }
     
-    # 2. 从 Proxy 表统计代理数量（按 frps_server_id+name 去重，与 /api/proxies 一致）
+    # 2. 从 Proxy 表统计代理数量（按 frps_server_id+name 去重，优先保留信息完整的记录）
     keep_ids_subq = (
-        db.query(func.max(Proxy.id).label("keep_id"))
+        db.query(
+            func.coalesce(
+                func.max(case((Proxy.local_port > 0, Proxy.id))),
+                func.max(Proxy.id),
+            ).label("keep_id")
+        )
         .group_by(Proxy.frps_server_id, Proxy.name)
         .subquery()
     )
@@ -234,9 +239,14 @@ def get_group_proxies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取指定分组的所有代理（按 frps_server_id+name 去重，与 /api/proxies 一致）"""
+    """获取指定分组的所有代理（按 frps_server_id+name 去重，优先保留信息完整的记录）"""
     keep_ids_subq = (
-        db.query(func.max(Proxy.id).label("keep_id"))
+        db.query(
+            func.coalesce(
+                func.max(case((Proxy.local_port > 0, Proxy.id))),
+                func.max(Proxy.id),
+            ).label("keep_id")
+        )
         .group_by(Proxy.frps_server_id, Proxy.name)
         .subquery()
     )

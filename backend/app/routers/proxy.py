@@ -28,9 +28,14 @@ def get_dashboard_stats(
     """
     from sqlalchemy import case
 
-    # 按 (frps_server_id, name) 去重，与列表接口 get_proxies 一致，只统计每组 id 最大的一条
+    # 按 (frps_server_id, name) 去重：优先保留 local_port > 0（信息完整）的记录，同条件下取 id 最大
     keep_ids_subq = (
-        db.query(func.max(Proxy.id).label("keep_id"))
+        db.query(
+            func.coalesce(
+                func.max(case((Proxy.local_port > 0, Proxy.id))),
+                func.max(Proxy.id),
+            ).label("keep_id")
+        )
         .group_by(Proxy.frps_server_id, Proxy.name)
         .subquery()
     )
@@ -144,17 +149,43 @@ async def get_proxies(
                         parsed["proxy_type"] = proxy_type
                         frps_proxy_list.append(parsed)
 
-                # 创建frps代理名称映射
+                # 以当前筛选条件构建「展示口径」的 frps 代理列表，确保反馈数据与页面一致
+                filtered_frps_proxy_list = frps_proxy_list
+                if group_name:
+                    filtered_frps_proxy_list = [
+                        p for p in filtered_frps_proxy_list
+                        if Proxy.parse_group_name(p["name"]) == group_name
+                    ]
+                if status_filter:
+                    filtered_frps_proxy_list = [
+                        p for p in filtered_frps_proxy_list if p.get("status") == status_filter
+                    ]
+                if search:
+                    filtered_frps_proxy_list = [
+                        p for p in filtered_frps_proxy_list
+                        if search in p["name"] or search in Proxy.parse_group_name(p["name"])
+                    ]
+
+                # 两套映射：
+                # 1) filtered：用于当前页面反馈统计
+                # 2) server-wide：用于避免误判 only_in_frps 并防止重复创建
+                filtered_frps_proxy_map = {p["name"]: p for p in filtered_frps_proxy_list}
                 frps_proxy_map = {p["name"]: p for p in frps_proxy_list}
 
-                # 获取所有匹配的代理（不仅仅是当前页）
+                # 获取所有匹配的代理（当前筛选口径）
                 all_matching_proxies = query.all()
-                db_proxy_map = {p.name: p for p in all_matching_proxies}
+                filtered_db_proxy_map = {p.name: p for p in all_matching_proxies}
+
+                # 获取该服务器下所有数据库代理（全量口径）
+                all_server_db_proxies = (
+                    db.query(Proxy).filter(Proxy.frps_server_id == frps_server_id).all()
+                )
+                server_db_proxy_map = {p.name: p for p in all_server_db_proxies}
 
                 # 对比分析
                 analysis = {
                     "total_in_db": len(all_matching_proxies),
-                    "total_in_frps": len(frps_proxy_list),
+                    "total_in_frps": len(filtered_frps_proxy_list),
                     "online_proxies": [],  # frps中在线的代理
                     "missing_in_frps": [],  # 本地有但frps没有的（可能frps丢失）
                     "only_in_frps": [],  # 仅在frps中存在的（新发现的）
@@ -163,7 +194,7 @@ async def get_proxies(
 
                 # 更新本地代理状态（更新所有匹配的代理，不仅仅是当前页）
                 for db_proxy in all_matching_proxies:
-                    frps_proxy = frps_proxy_map.get(db_proxy.name)
+                    frps_proxy = filtered_frps_proxy_map.get(db_proxy.name)
 
                     if frps_proxy:
                         # frps中存在，更新状态
@@ -205,11 +236,11 @@ async def get_proxies(
                             }
                         )
 
-                # 检查frps中有但本地没有的代理，自动添加到数据库
+                # 检查 frps 中有但本地没有的代理，自动添加到数据库（按服务器全量口径判断，避免重复创建）
                 for frps_name, frps_proxy in frps_proxy_map.items():
-                    if frps_name not in db_proxy_map:
+                    if frps_name not in server_db_proxy_map:
                         # 自动创建新代理到数据库
-                        group_name = Proxy.parse_group_name(frps_name)
+                        parsed_group_name = Proxy.parse_group_name(frps_name)
                         new_proxy = Proxy(
                             frps_server_id=server.id,
                             name=frps_name,
@@ -218,19 +249,21 @@ async def get_proxies(
                             local_ip=frps_proxy.get("local_ip", "127.0.0.1"),
                             local_port=0,  # 需要后续识别
                             status=frps_proxy["status"],
-                            group_name=group_name,
+                            group_name=parsed_group_name,
                         )
                         db.add(new_proxy)
 
-                        analysis["only_in_frps"].append(
-                            {
-                                "name": frps_name,
-                                "group": group_name,
-                                "status": frps_proxy["status"],
-                                "remote_port": frps_proxy.get("remote_port"),
-                                "note": "已自动添加到本地数据库",
-                            }
-                        )
+                        # only_in_frps 反馈按当前页面筛选口径展示，避免“反馈对不上”
+                        if frps_name not in filtered_db_proxy_map and frps_name in filtered_frps_proxy_map:
+                            analysis["only_in_frps"].append(
+                                {
+                                    "name": frps_name,
+                                    "group": parsed_group_name,
+                                    "status": frps_proxy["status"],
+                                    "remote_port": frps_proxy.get("remote_port"),
+                                    "note": "已自动添加到本地数据库",
+                                }
+                            )
 
                 db.commit()
                 result["analysis"] = analysis
@@ -260,10 +293,13 @@ async def get_proxies(
                     "note": "使用本地数据库数据",
                 }
 
-    # 按 (frps_server_id, name) 去重：同一服务器下代理名称唯一，只保留每组中 id 最大的记录
-    keep_ids_subq = db.query(func.max(Proxy.id).label("keep_id")).group_by(
-        Proxy.frps_server_id, Proxy.name
-    )
+    # 按 (frps_server_id, name) 去重：优先保留 local_port > 0（信息完整）的记录，同条件下取 id 最大
+    keep_ids_subq = db.query(
+        func.coalesce(
+            func.max(case((Proxy.local_port > 0, Proxy.id))),
+            func.max(Proxy.id),
+        ).label("keep_id")
+    ).group_by(Proxy.frps_server_id, Proxy.name)
     if frps_server_id:
         keep_ids_subq = keep_ids_subq.filter(Proxy.frps_server_id == frps_server_id)
     if group_name:
@@ -301,15 +337,19 @@ def clean_duplicate_proxies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """清理重复代理：同一服务器下同一名称的代理只保留 id 最大的一条"""
+    """清理重复代理：同一服务器下同一名称的代理优先保留信息完整的（local_port > 0），同条件下保留 id 最大的"""
+    from sqlalchemy import case as sa_case
     base_query = db.query(Proxy)
     if frps_server_id:
         base_query = base_query.filter(Proxy.frps_server_id == frps_server_id)
 
-    # 找出每组 (frps_server_id, name) 要保留的 id
-    keep_ids_subq = db.query(func.max(Proxy.id).label("keep_id")).group_by(
-        Proxy.frps_server_id, Proxy.name
-    )
+    # 找出每组 (frps_server_id, name) 要保留的 id：优先 local_port > 0，同条件下取 max(id)
+    keep_ids_subq = db.query(
+        func.coalesce(
+            func.max(sa_case((Proxy.local_port > 0, Proxy.id))),
+            func.max(Proxy.id),
+        ).label("keep_id")
+    ).group_by(Proxy.frps_server_id, Proxy.name)
     if frps_server_id:
         keep_ids_subq = keep_ids_subq.filter(Proxy.frps_server_id == frps_server_id)
     keep_ids = {row[0] for row in keep_ids_subq.all()}

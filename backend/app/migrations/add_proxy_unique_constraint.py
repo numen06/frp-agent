@@ -10,14 +10,23 @@ from app.database import engine
 
 
 def upgrade():
-    """先清理重复数据，再添加唯一约束"""
+    """先清理重复数据，再添加唯一约束
+
+    对每组 (frps_server_id, name) 的重复记录：
+    优先保留 local_port > 0（信息完整）的记录，同条件下保留 id 最大的。
+    """
     with engine.connect() as conn:
-        # 1. 清理重复记录：每组 (frps_server_id, name) 保留 id 最大的一条
-        # SQLite 在 DELETE 的子查询中不能直接引用同一表，使用临时表
+        # 1. 清理重复记录
+        # 临时表：每组保留一条（优先 local_port > 0，同条件下取 max id）
         conn.execute(text("DROP TABLE IF EXISTS proxies_keep"))
         conn.execute(text("""
             CREATE TEMP TABLE proxies_keep AS
-            SELECT MAX(id) as id FROM proxies GROUP BY frps_server_id, name
+            SELECT COALESCE(
+                       MAX(CASE WHEN local_port > 0 THEN id END),
+                       MAX(id)
+                   ) AS id
+            FROM proxies
+            GROUP BY frps_server_id, name
         """))
         conn.execute(text("""
             DELETE FROM proxies WHERE id NOT IN (SELECT id FROM proxies_keep)
