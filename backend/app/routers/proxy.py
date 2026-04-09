@@ -28,15 +28,27 @@ def get_dashboard_stats(
     """
     from sqlalchemy import case
 
-    # 总汇总
-    total_row = db.query(
-        func.count(Proxy.id).label("total"),
-        func.sum(case((Proxy.status == "online", 1), else_=0)).label("online"),
-        func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline"),
-        func.count(func.distinct(Proxy.remote_port)).label("port_count"),
-    ).first()
+    # 按 (frps_server_id, name) 去重，与列表接口 get_proxies 一致，只统计每组 id 最大的一条
+    keep_ids_subq = (
+        db.query(func.max(Proxy.id).label("keep_id"))
+        .group_by(Proxy.frps_server_id, Proxy.name)
+        .subquery()
+    )
+    keep_id_col = keep_ids_subq.c.keep_id
 
-    # 按服务器分组统计
+    # 总汇总（去重后）
+    total_row = (
+        db.query(
+            func.count(Proxy.id).label("total"),
+            func.sum(case((Proxy.status == "online", 1), else_=0)).label("online"),
+            func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline"),
+            func.count(func.distinct(Proxy.remote_port)).label("port_count"),
+        )
+        .filter(Proxy.id.in_(db.query(keep_id_col)))
+        .first()
+    )
+
+    # 按服务器分组统计（去重后）
     server_stats = (
         db.query(
             Proxy.frps_server_id,
@@ -45,6 +57,7 @@ def get_dashboard_stats(
             func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline"),
             func.count(func.distinct(Proxy.remote_port)).label("port_count"),
         )
+        .filter(Proxy.id.in_(db.query(keep_id_col)))
         .group_by(Proxy.frps_server_id)
         .all()
     )

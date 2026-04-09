@@ -142,7 +142,14 @@ def get_groups(
             "offline_count": 0
         }
     
-    # 2. 从 Proxy 表统计代理数量
+    # 2. 从 Proxy 表统计代理数量（按 frps_server_id+name 去重，与 /api/proxies 一致）
+    keep_ids_subq = (
+        db.query(func.max(Proxy.id).label("keep_id"))
+        .group_by(Proxy.frps_server_id, Proxy.name)
+        .subquery()
+    )
+    keep_id_col = keep_ids_subq.c.keep_id
+
     proxy_query = db.query(
         Proxy.group_name,
         Proxy.frps_server_id,
@@ -151,9 +158,10 @@ def get_groups(
         func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline_count")
     ).filter(
         Proxy.group_name.isnot(None),
-        Proxy.group_name != ""
+        Proxy.group_name != "",
+        Proxy.id.in_(db.query(keep_id_col)),
     ).group_by(Proxy.group_name, Proxy.frps_server_id)
-    
+
     if frps_server_id:
         proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
     
@@ -226,12 +234,22 @@ def get_group_proxies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取指定分组的所有代理"""
-    query = db.query(Proxy).filter(Proxy.group_name == group_name)
-    
+    """获取指定分组的所有代理（按 frps_server_id+name 去重，与 /api/proxies 一致）"""
+    keep_ids_subq = (
+        db.query(func.max(Proxy.id).label("keep_id"))
+        .group_by(Proxy.frps_server_id, Proxy.name)
+        .subquery()
+    )
+    keep_id_col = keep_ids_subq.c.keep_id
+
+    query = db.query(Proxy).filter(
+        Proxy.group_name == group_name,
+        Proxy.id.in_(db.query(keep_id_col)),
+    )
+
     if frps_server_id:
         query = query.filter(Proxy.frps_server_id == frps_server_id)
-    
+
     proxies = query.all()
     
     return {
