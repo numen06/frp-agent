@@ -180,6 +180,8 @@ def main() -> int:
             if (
                 r.status_code == 200
                 and "frp-client deploy script" in r.text
+                and "backup_copy" in r.text
+                and "迁移 INI" in r.text
                 and 'UPGRADE="true"' in r.text
                 and 'FORCE_CONFIG="true"' in r.text
                 and "{{upgrade}}" not in r.text

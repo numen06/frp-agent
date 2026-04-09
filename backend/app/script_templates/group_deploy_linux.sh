@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 # frp-client deploy script (install / optional upgrade / optional config overwrite + systemd)
 # platform: {{platform}}  version: {{version}}
+# 配置策略：先迁移 frpc.ini，再决定是否从平台拉取 frpc.toml；覆盖前自动带时间戳备份。
 set -e
 
 FRP_DIR="{{install_path}}"
 FRPC_BIN="$FRP_DIR/frpc"
 CONFIG_FILE="$FRP_DIR/frpc.toml"
+INI_FILE="$FRP_DIR/frpc.ini"
 UPGRADE="{{upgrade}}"
 FORCE_CONFIG="{{force_config}}"
+
+# 若文件存在则复制一份带时间戳的备份（不删除原文件）
+backup_copy() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    local bak="${f}.backup_$(date +%Y%m%d_%H%M%S)"
+    cp "$f" "$bak"
+    echo "已备份: $f -> $bak"
+}
 
 # ── 0. root 检测（systemd 需要）────────────────────────
 IS_ROOT=false
@@ -59,38 +70,48 @@ if [ "$DO_DOWNLOAD" = "true" ]; then
     echo "frpc 二进制已就绪: $NEW_VERSION"
 fi
 
-# ── 3. 处理配置文件 ─────────────────────────────────
+mkdir -p "$FRP_DIR"
+
+# ── 3. frpc.ini 迁移（必须在拉取 frpc.toml 之前）──────
+if [ -f "$INI_FILE" ]; then
+    if [ ! -f "$CONFIG_FILE" ]; then
+        backup_copy "$INI_FILE"
+        echo "迁移 INI -> TOML: $INI_FILE -> $CONFIG_FILE"
+        mv "$INI_FILE" "$CONFIG_FILE"
+    else
+        echo "检测到 frpc.ini 与 frpc.toml 并存，不合并内容；将 ini 备份移走（保留现有 toml）。"
+        backup_copy "$INI_FILE"
+        mv "$INI_FILE" "${INI_FILE}.backup_$(date +%Y%m%d_%H%M%S)"
+    fi
+fi
+
+# ── 4. 是否从平台拉取配置（迁移完成后根据当前文件判断）──
+# 规则：无 frpc.toml 时必须拉取；已有 toml 时仅 force_config=true 才覆盖（含迁移得到的 toml）。
 DO_CONFIG=false
-if [ "$INSTALLED" = "false" ]; then
+if [ "$FORCE_CONFIG" = "true" ]; then
     DO_CONFIG=true
-    echo "首次安装，需要下载配置文件。"
-elif [ "$FORCE_CONFIG" = "true" ]; then
-    DO_CONFIG=true
-    echo "已启用覆盖配置，将重新下载配置文件。"
+    echo "已启用覆盖配置，将从平台重新下载 frpc.toml。"
 elif [ ! -f "$CONFIG_FILE" ]; then
     DO_CONFIG=true
-    echo "配置文件不存在，将下载配置。"
+    echo "未找到 frpc.toml，将从平台下载配置。"
 else
-    echo "配置文件已存在且未启用覆盖，跳过配置下载。"
+    echo "已存在 frpc.toml 且未启用覆盖，跳过从平台下载配置。"
 fi
 
 if [ "$DO_CONFIG" = "true" ]; then
-    mkdir -p "$FRP_DIR"
-    echo "正在下载配置文件 ..."
-    curl -sL "{{config_url}}" -o "$CONFIG_FILE"
-    echo "配置文件已保存: $CONFIG_FILE"
-fi
-
-# ── 4. frpc.ini -> frpc.toml 迁移 ───────────────────
-INI_FILE="$FRP_DIR/frpc.ini"
-if [ -f "$INI_FILE" ]; then
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "迁移到 TOML: 将 $INI_FILE 重命名为 $CONFIG_FILE"
-        mv "$INI_FILE" "$CONFIG_FILE"
-    else
-        echo "警告: $INI_FILE 存在但 $CONFIG_FILE 已存在，备份旧 ini。"
-        mv "$INI_FILE" "${INI_FILE}.backup_$(date +%Y%m%d_%H%M%S)"
+    if [ -f "$CONFIG_FILE" ]; then
+        backup_copy "$CONFIG_FILE"
     fi
+    TMP="${CONFIG_FILE}.tmp.$$"
+    rm -f "$TMP"
+    echo "正在下载配置文件 ..."
+    if ! curl -fsSL "{{config_url}}" -o "$TMP"; then
+        rm -f "$TMP"
+        echo "错误: 下载配置失败（请检查网络与 API）。" >&2
+        exit 1
+    fi
+    mv -f "$TMP" "$CONFIG_FILE"
+    echo "配置文件已保存: $CONFIG_FILE"
 fi
 
 # ── 5. systemd 服务 ─────────────────────────────────
