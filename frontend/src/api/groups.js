@@ -74,6 +74,18 @@ export const groupApi = {
     return `/api/groups/${encodeURIComponent(params.group_name)}/quick-download?${query.toString()}`
   },
 
+  // 统一部署脚本 URL（Linux）：可选 upgrade / force_config
+  getDeployScriptUrl(params) {
+    const query = new URLSearchParams()
+    query.set('server_name', params.server_name)
+    if (params.platform) query.set('platform', params.platform)
+    if (params.install_path) query.set('install_path', params.install_path)
+    if (params.upgrade) query.set('upgrade', 'true')
+    if (params.force_config) query.set('force_config', 'true')
+    if (params.api_key) query.set('api_key', params.api_key)
+    return `/api/groups/${encodeURIComponent(params.group_name)}/deploy?${query.toString()}`
+  },
+
   // 从配置内容导入分组和代理
   importConfig(data) {
     return api.post('/groups/import-config', data)

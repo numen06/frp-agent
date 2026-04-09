@@ -946,15 +946,14 @@ def _default_install_template(platform: str) -> str:
     return load_shell_template("group_quick_install_linux.sh")
 
 
-def _get_latest_linux_amd64_package(db: Session):
-    """查找最新版本 linux_amd64 平台的激活安装包"""
+def _get_latest_package_for_platform(db: Session, platform: str):
+    """查找指定平台最新版本的激活安装包（优先 versions_cache 中的 latest_version）"""
     cache = _load_versions_cache()
     latest_version = cache.get("latest_version")
     if not latest_version:
-        # 没有 cache 时，从数据库取最新版本号
         row = db.query(FrpPackage.version).filter(
             FrpPackage.is_active == True,
-            FrpPackage.platform == "linux_amd64"
+            FrpPackage.platform == platform
         ).order_by(FrpPackage.id.desc()).first()
         if not row:
             return None, None
@@ -962,12 +961,62 @@ def _get_latest_linux_amd64_package(db: Session):
 
     pkg = db.query(FrpPackage).filter(
         FrpPackage.is_active == True,
-        FrpPackage.platform == "linux_amd64",
+        FrpPackage.platform == platform,
         FrpPackage.version == latest_version
     ).first()
     if not pkg:
+        pkg = db.query(FrpPackage).filter(
+            FrpPackage.is_active == True,
+            FrpPackage.platform == platform
+        ).order_by(FrpPackage.id.desc()).first()
+        if pkg:
+            return pkg, pkg.version
         return None, None
     return pkg, latest_version
+
+
+def _get_latest_linux_amd64_package(db: Session):
+    """查找最新版本 linux_amd64 平台的激活安装包"""
+    return _get_latest_package_for_platform(db, "linux_amd64")
+
+
+def _default_deploy_template(platform: str) -> str:
+    if platform.startswith("windows_"):
+        raise HTTPException(
+            status_code=400,
+            detail="分组一键部署脚本当前仅支持 Linux；Windows 请使用「一键安装」生成的 PowerShell 脚本。",
+        )
+    return load_shell_template("group_deploy_linux.sh")
+
+
+def _build_deploy_script(
+    db,
+    pkg,
+    api_key,
+    install_path,
+    server_name,
+    group_name,
+    server_base,
+    upgrade: bool,
+    force_config: bool,
+):
+    """构建统一部署脚本：可选升级二进制、可选强制覆盖配置、systemd 自启"""
+    download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
+    config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
+    upgrade_s = "true" if upgrade else "false"
+    force_config_s = "true" if force_config else "false"
+
+    template = _default_deploy_template(pkg.platform)
+    return (
+        template.replace("{{filename}}", pkg.filename)
+        .replace("{{download_url}}", download_url)
+        .replace("{{config_url}}", config_url)
+        .replace("{{install_path}}", install_path)
+        .replace("{{platform}}", pkg.platform)
+        .replace("{{version}}", pkg.version)
+        .replace("{{upgrade}}", upgrade_s)
+        .replace("{{force_config}}", force_config_s)
+    )
 
 
 def _build_install_script(db, pkg, api_key, install_path, server_name, group_name, server_base):
@@ -1080,6 +1129,48 @@ def quick_download(
         raise HTTPException(status_code=404, detail="未找到可用的 linux_amd64 安装包，请先同步安装包")
 
     script = _build_download_script(db, pkg, api_key, install_path, server_name, group_name, server_base)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.get("/{group_name}/deploy", response_class=PlainTextResponse)
+def group_deploy(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称"),
+    platform: str = Query("linux_amd64", description="目标平台"),
+    install_path: str = Query("/opt/frp", description="安装路径"),
+    upgrade: bool = Query(False, description="是否升级 frpc 二进制（已安装时）"),
+    force_config: bool = Query(False, description="是否强制覆盖 frpc.toml"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """统一部署脚本：首次自动安装并注册 systemd；可选升级二进制、可选覆盖配置。
+
+    用法：
+      curl -sL "http://host/api/groups/mygroup/deploy?server_name=xxx&api_key=xxx" | sudo bash
+      curl -sL "...&upgrade=true&force_config=true" | sudo bash
+    """
+    api_key = request.query_params.get("api_key") or auth_info.get("key") or ""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    pkg, _version = _get_latest_package_for_platform(db, platform)
+    if not pkg:
+        raise HTTPException(
+            status_code=404,
+            detail=f"未找到可用的 {platform} 安装包，请先同步或上传安装包",
+        )
+
+    script = _build_deploy_script(
+        db,
+        pkg,
+        api_key,
+        install_path,
+        server_name,
+        group_name,
+        server_base,
+        upgrade,
+        force_config,
+    )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
 
 
