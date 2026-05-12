@@ -44,7 +44,7 @@
             <div class="hidden lg:flex items-center gap-2">
               <label class="text-xs text-gray-500 whitespace-nowrap">默认APPKey</label>
               <select
-                class="form-control form-control-sm min-w-[200px]"
+                class="block min-w-[200px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 :value="apiKeysStore.selectedKeyId ?? ''"
                 @change="handleDefaultKeyChange"
               >
@@ -77,18 +77,18 @@
               </button>
               <div
                 ref="notifyDropdown.dropdownRef"
-                class="dropdown-menu w-72"
-                :class="{ show: notifyDropdown.isOpen.value }"
+                class="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                :class="notifyDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
                 <div class="px-3 py-2 text-xs font-semibold text-gray-500">消息通知</div>
-                <div class="dropdown-divider"></div>
+                <div class="my-1 border-t border-gray-200"></div>
                 <template v-if="notifications.length > 0">
                   <a
                     v-for="item in notifications"
                     :key="item.id"
                     href="#"
-                    class="dropdown-item"
+                    class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     @click.prevent="handleNotificationClick(item); notifyDropdown.close()"
                   >
                     <span class="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500"></span>
@@ -116,13 +116,13 @@
               </button>
               <div
                 ref="userDropdown.dropdownRef"
-                class="dropdown-menu"
-                :class="{ show: userDropdown.isOpen.value }"
+                class="absolute right-0 z-50 mt-2 min-w-[10rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                :class="userDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
-                <a href="#" class="dropdown-item" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
-                <div class="dropdown-divider"></div>
-                <a href="#" class="dropdown-item text-red-600" @click.prevent="handleLogout(); userDropdown.close()">退出登录</a>
+                <a href="#" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
+                <div class="my-1 border-t border-gray-200"></div>
+                <a href="#" class="block px-3 py-2 text-sm text-red-600 hover:bg-red-50" @click.prevent="handleLogout(); userDropdown.close()">退出登录</a>
               </div>
             </div>
           </div>
@@ -195,26 +195,40 @@
     </Transition>
 
     <!-- 版本与更新 -->
-    <div v-if="showVersionModal" class="modal-backdrop fade show" @click="closeVersionModal"></div>
-    <div
-      class="modal modal-blur fade"
-      :class="{ show: showVersionModal }"
-      tabindex="-1"
-      role="dialog"
-      @click.self="closeVersionModal"
-    >
-      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document" style="max-width: 520px;">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title flex items-center gap-2">
-              <svg class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <Teleport to="body">
+      <div
+        v-if="showVersionModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="version-modal-title"
+        tabindex="-1"
+        @click.self="closeVersionModal"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionModal"></div>
+        <div
+          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+          @click.stop
+        >
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+            <h2 id="version-modal-title" class="flex items-center gap-2 text-lg font-semibold text-gray-900">
+              <svg class="h-5 w-5 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
               </svg>
               版本与更新
-            </h5>
-            <button type="button" class="btn-close" aria-label="关闭" @click="closeVersionModal"></button>
+            </h2>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              aria-label="关闭"
+              @click="closeVersionModal"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div class="modal-body text-sm">
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <!-- 版本对比卡片 -->
             <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -307,7 +321,7 @@
               </a>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
             <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" :disabled="checkLoading" @click="closeVersionModal">
               关闭
             </button>
@@ -324,7 +338,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <UserManageDialog
       :show="showUserManageDialog"

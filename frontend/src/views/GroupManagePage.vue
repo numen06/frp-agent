@@ -13,10 +13,8 @@
       :server-id="currentServerId"
       @generate-config="handleGenerateGroupConfig"
     />
-    <div v-else class="card">
-      <div class="card-body text-center text-muted py-5">
-        请先选择服务器
-      </div>
+    <div v-else class="overflow-hidden rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500 shadow-sm">
+      请先选择服务器
     </div>
 
 

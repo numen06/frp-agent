@@ -1,26 +1,58 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: visible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">平台脚本模板编辑</h5>
-            <button type="button" class="btn-close" @click="closeDialog"></button>
-          </div>
-          <div class="modal-body">
-            <div class="grid gap-3">
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <select v-model="platform" class="form-control">
+    <div
+      v-if="visible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+      <div
+        class="relative z-10 flex max-h-[min(92vh,800px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">平台脚本模板编辑</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+            <div class="grid gap-4">
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <select
+                  v-model="platform"
+                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
                   <option value="">请选择平台</option>
                   <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
                 </select>
-                <button class="btn btn-outline-primary" @click="loadTemplate">加载模板</button>
-                <button class="btn btn-primary" :disabled="saving" @click="saveTemplate">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-600 px-3.5 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                  @click="loadTemplate"
+                >
+                  加载模板
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="saving"
+                  @click="saveTemplate"
+                >
                   {{ saving ? '保存中...' : '保存模板' }}
                 </button>
               </div>
-              <div class="code-editor-wrapper">
+              <div class="code-editor-wrapper min-h-[200px]">
                 <CodeEditor
                   v-model="content"
                   language="shell"
@@ -29,7 +61,6 @@
                 />
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>

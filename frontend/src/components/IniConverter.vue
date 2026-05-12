@@ -1,159 +1,194 @@
 <template>
   <div>
-    <p class="text-gray-700 mb-4">
+    <p class="mb-4 text-gray-700">
       将旧版 FRP 的 INI 格式配置文件转换为新版的 TOML 格式
     </p>
-    
-    <!-- Tab 导航 -->
-    <div class="card">
-      <div class="card-header">
-        <ul class="nav nav-tabs card-header-tabs">
-          <li class="nav-item">
-            <a href="#" class="nav-link" :class="{ active: activeTab === 'web' }" @click.prevent="activeTab = 'web'">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-              </svg>
-              Web 转换工具
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" :class="{ active: activeTab === 'command' }" @click.prevent="activeTab = 'command'">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M7 8l-4 4l4 4" />
-                <path d="M17 8l4 4l-4 4" />
-                <path d="M14 4l-4 16" />
-              </svg>
-              命令行工具
-            </a>
-          </li>
-        </ul>
-      </div>
-      <div class="card-body">
-        <div class="tab-content">
-          <!-- Web 转换工具 Tab -->
-          <div class="tab-pane" :class="{ active: activeTab === 'web', show: activeTab === 'web' }" id="web-converter">
-            <!-- 文件上传区域 -->
-            <div class="mb-4">
-              <label class="form-label">上传 INI 文件</label>
-              <div class="flex items-center gap-2">
-                <fwb-file-input
-                  v-model="uploadedIniFile"
-                  accept=".ini,.txt,.conf"
-                  size="md"
-                  class="flex-1"
-                />
-                <button class="btn btn-outline-secondary" @click="clearInput">清空</button>
-              </div>
-              <small class="form-hint">支持 .ini、.txt、.conf 格式文件</small>
-            </div>
-            
-            <div class="text-center text-muted my-3">或</div>
-            
-            <div class="mb-3">
-              <label class="form-label">直接输入 INI 配置内容</label>
-              <CodeEditor
-                v-model="iniContent"
-                language="javascript"
-                :height="'280px'"
-                placeholder="粘贴您的 frpc.ini 配置内容..."
-              />
-            </div>
-            
-            <button class="btn btn-primary mb-3" @click="convertIniToToml" :disabled="converting">
-              <svg v-if="!converting" xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-              </svg>
-              <span v-if="converting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-              {{ converting ? '转换中...' : '转换为 TOML' }}
+
+    <div class="flex border-b border-gray-200">
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+        :class="
+          activeTab === 'web'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-600 hover:text-gray-900'
+        "
+        @click="activeTab = 'web'"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+          <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+        </svg>
+        Web 转换工具
+      </button>
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+        :class="
+          activeTab === 'command'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-600 hover:text-gray-900'
+        "
+        @click="activeTab = 'command'"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M7 8l-4 4l4 4" />
+          <path d="M17 8l4 4l-4 4" />
+          <path d="M14 4l-4 16" />
+        </svg>
+        命令行工具
+      </button>
+    </div>
+
+    <div class="pt-5">
+      <div v-show="activeTab === 'web'">
+        <div class="mb-4">
+          <label class="mb-1 block text-sm font-medium text-gray-700">上传 INI 文件</label>
+          <div class="flex items-center gap-2">
+            <fwb-file-input
+              v-model="uploadedIniFile"
+              accept=".ini,.txt,.conf"
+              size="md"
+              class="flex-1"
+            />
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              @click="clearInput"
+            >
+              清空
             </button>
-            
-            <div v-if="errorMessage" class="alert alert-danger mb-3">
-              <strong>错误：</strong>{{ errorMessage }}
-            </div>
-            
-            <div v-if="tomlContent" class="mt-4">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label mb-0">转换结果（TOML 格式）</label>
-                <button class="btn btn-sm btn-secondary" @click="downloadToml">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                    <path d="M12 11v6" />
-                    <path d="M9 14l3 -3l3 3" />
-                  </svg>
-                  下载 TOML
-                </button>
-              </div>
-              <CodeEditor
-                v-model="tomlContent"
-                language="yaml"
-                :height="'280px'"
-                :readonly="true"
-              />
+          </div>
+          <p class="mt-1 text-xs text-gray-500">支持 .ini、.txt、.conf 格式文件</p>
+        </div>
+
+        <div class="my-3 text-center text-sm text-gray-500">或</div>
+
+        <div class="mb-3">
+          <label class="mb-1 block text-sm font-medium text-gray-700">直接输入 INI 配置内容</label>
+          <CodeEditor
+            v-model="iniContent"
+            language="javascript"
+            :height="'280px'"
+            placeholder="粘贴您的 frpc.ini 配置内容..."
+          />
+        </div>
+
+        <button
+          type="button"
+          class="mb-3 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="convertIniToToml"
+          :disabled="converting"
+        >
+          <svg
+            v-if="!converting"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4 shrink-0"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+            stroke="currentColor"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+          </svg>
+          <span
+            v-if="converting"
+            class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white"
+            role="status"
+            aria-hidden="true"
+          />
+          {{ converting ? '转换中...' : '转换为 TOML' }}
+        </button>
+
+        <div v-if="errorMessage" class="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
+          <strong>错误：</strong>{{ errorMessage }}
+        </div>
+
+        <div v-if="tomlContent" class="mt-4">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-gray-700">转换结果（TOML 格式）</span>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              @click="downloadToml"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                <path d="M12 11v6" />
+                <path d="M9 14l3 -3l3 3" />
+              </svg>
+              下载 TOML
+            </button>
+          </div>
+          <CodeEditor
+            v-model="tomlContent"
+            language="yaml"
+            :height="'280px'"
+            :readonly="true"
+          />
+        </div>
+      </div>
+
+      <div v-show="activeTab === 'command'">
+        <div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900">
+          <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-4 w-4 shrink-0 text-blue-600" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+              <path d="M12 9h.01" />
+              <path d="M11 12h1v4h1" />
+            </svg>
+            <div class="min-w-0 flex-1">
+              <strong class="font-semibold">通过 curl 命令行工具转换：</strong>
+              <p class="mt-1 text-sm text-blue-800/90">选择 API Key 后，复制下方命令即可在终端执行</p>
             </div>
           </div>
-          
-          <!-- 命令行工具 Tab -->
-          <div class="tab-pane" :class="{ active: activeTab === 'command', show: activeTab === 'command' }" id="command-line">
-            <div class="alert alert-info">
-              <div class="d-flex align-items-start">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
-                  <path d="M12 9h.01" />
-                  <path d="M11 12h1v4h1" />
-                </svg>
-                <div class="flex-fill">
-                  <strong>通过 curl 命令行工具转换：</strong>
-                  <p class="text-muted mb-0 mt-1">选择 API Key 后，复制下方命令即可在终端执行</p>
-                </div>
-              </div>
-            </div>
-            
-            <div class="mb-3">
-              <label class="form-label">选择 API Key</label>
-              <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
-                <option v-for="apiKey in apiKeysStore.availableKeys" :key="apiKey.id" :value="apiKey.id">
-                  {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
-                </option>
-              </AppSelect>
-              <small class="form-hint">默认使用全局 APPKey，可按需临时切换</small>
-            </div>
-            
-            <div class="mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label mb-0">使用示例（可直接复制执行）</label>
-                <div class="d-flex align-items-center gap-2">
-                  <button class="btn btn-sm btn-primary" @click="copyExampleCommand($event)">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
-                      <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
-                    </svg>
-                    复制命令
-                  </button>
-                </div>
-              </div>
-              <pre class="m-0 rounded-lg bg-gray-900 p-3 text-sm whitespace-pre-wrap wrap-break-word text-gray-100"><code class="text-gray-100">{{ exampleCommand }}</code></pre>
-            </div>
-            
-            <div class="alert alert-secondary">
-              <h4 class="alert-title">使用说明</h4>
-              <div class="text-muted">
-                <ol class="mb-0">
-                  <li>将命令中的 <code>frpc.ini</code> 替换为您的实际 INI 文件路径</li>
-                  <li>如果未选择 API Key，请将 <code>YOUR_API_KEY</code> 替换为您的实际 API Key</li>
-                  <li>执行命令后，转换结果会保存到 <code>frpc.toml</code> 文件</li>
-                </ol>
-              </div>
-            </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="mb-1 block text-sm font-medium text-gray-700">选择 API Key</label>
+          <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
+            <option v-for="apiKey in apiKeysStore.availableKeys" :key="apiKey.id" :value="apiKey.id">
+              {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
+            </option>
+          </AppSelect>
+          <p class="mt-1 text-xs text-gray-500">默认使用全局 APPKey，可按需临时切换</p>
+        </div>
+
+        <div class="mb-3">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-gray-700">使用示例（可直接复制执行）</span>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+              @click="copyExampleCommand($event)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
+                <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
+              </svg>
+              复制命令
+            </button>
           </div>
+          <pre class="m-0 rounded-lg bg-gray-900 p-3 text-sm whitespace-pre-wrap wrap-break-word text-gray-100"><code class="text-gray-100">{{ exampleCommand }}</code></pre>
+        </div>
+
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-700">
+          <h4 class="mb-2 text-sm font-semibold text-gray-900">使用说明</h4>
+          <ol class="list-decimal space-y-1 pl-5 text-sm text-gray-600">
+            <li>将命令中的 <code class="rounded bg-gray-200 px-1 py-0.5 text-gray-800">frpc.ini</code> 替换为您的实际 INI 文件路径</li>
+            <li>如果未选择 API Key，请将 <code class="rounded bg-gray-200 px-1 py-0.5 text-gray-800">YOUR_API_KEY</code> 替换为您的实际 API Key</li>
+            <li>执行命令后，转换结果会保存到 <code class="rounded bg-gray-200 px-1 py-0.5 text-gray-800">frpc.toml</code> 文件</li>
+          </ol>
         </div>
       </div>
     </div>

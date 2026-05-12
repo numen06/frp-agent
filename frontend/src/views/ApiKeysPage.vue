@@ -1,52 +1,59 @@
 <template>
   <div>
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">API Key 管理</h3>
-        <div class="card-actions">
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click.stop="openCreateDialog">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+        <h3 class="text-base font-semibold text-gray-900">API Key 管理</h3>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+            @click.stop="openCreateDialog"
+          >
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
             </svg>
             创建密钥
           </button>
         </div>
       </div>
-      <div v-if="loading" class="card-body">
-        <div class="text-center py-4">
-          <div class="spinner-border spinner-border-sm" role="status"></div>
-          <span class="ms-2 text-muted">加载中...</span>
+      <div v-if="loading" class="p-5">
+        <div class="flex items-center justify-center gap-2 py-4 text-center text-sm text-gray-600">
+          <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
+          <span>加载中...</span>
         </div>
       </div>
       <div v-else class="overflow-x-auto">
         <table class="w-full border-collapse text-left text-sm text-gray-700">
           <thead>
             <tr>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200" style="min-width:140px">描述</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200" style="min-width:200px">密钥</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:160px">过期时间</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200" style="min-width:70px">状态</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:160px">创建时间</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:160px">最后使用</th>
-              <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:180px">操作</th>
+              <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:140px">描述</th>
+              <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:200px">密钥</th>
+              <th class="whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:160px">过期时间</th>
+              <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:70px">状态</th>
+              <th class="whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:160px">创建时间</th>
+              <th class="whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:160px">最后使用</th>
+              <th class="whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500" style="min-width:180px">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="keys.length === 0">
-              <td colspan="7" class="text-center text-muted py-8">
+              <td colspan="7" class="py-4 text-center text-sm text-gray-500">
                 暂无 API Key，点击上方按钮创建
               </td>
             </tr>
             <tr v-else v-for="key in keys" :key="key.id" :class="rowClass(key)">
-              <td class="px-4 py-3 border-b border-gray-100 align-middle">
+              <td class="border-b border-gray-100 px-4 py-3 align-middle">
                 <div class="flex items-center gap-2">
                   <span class="truncate" :title="key.description">{{ key.description }}</span>
-                  <span v-if="apiKeysStore.selectedKeyId === key.id" class="badge bg-blue shrink-0">默认</span>
+                  <span
+                    v-if="apiKeysStore.selectedKeyId === key.id"
+                    class="inline-flex shrink-0 items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                  >默认</span>
                 </div>
               </td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle">
+              <td class="border-b border-gray-100 px-4 py-3 align-middle">
                 <div class="flex items-center gap-1">
-                  <code class="flex-1 text-xs text-gray-600 truncate">{{ key.key }}</code>
+                  <code class="flex-1 truncate text-xs text-gray-600">{{ key.key }}</code>
                   <button
                     class="inline-flex shrink-0 items-center justify-center rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                     title="复制完整密钥"
@@ -59,21 +66,21 @@
                   </button>
                 </div>
               </td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">
+              <td class="whitespace-nowrap border-b border-gray-100 px-4 py-3 align-middle">
                 <span v-if="key.expires_at">{{ formatDateTime(key.expires_at) }}</span>
                 <span v-else class="text-gray-400">永不过期</span>
               </td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                <span v-if="key.is_expired" class="badge bg-red">已过期</span>
-                <span v-else-if="!key.is_active" class="badge bg-secondary">已禁用</span>
-                <span v-else class="badge bg-success">正常</span>
+              <td class="border-b border-gray-100 px-4 py-3 align-middle">
+                <span v-if="key.is_expired" class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">已过期</span>
+                <span v-else-if="!key.is_active" class="inline-flex items-center rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-700">已禁用</span>
+                <span v-else class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">正常</span>
               </td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatDateTime(key.created_at) }}</td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">
+              <td class="whitespace-nowrap border-b border-gray-100 px-4 py-3 align-middle">{{ formatDateTime(key.created_at) }}</td>
+              <td class="whitespace-nowrap border-b border-gray-100 px-4 py-3 align-middle">
                 <span v-if="key.last_used_at">{{ formatDateTime(key.last_used_at) }}</span>
                 <span v-else class="text-gray-400">从未使用</span>
               </td>
-              <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">
+              <td class="whitespace-nowrap border-b border-gray-100 px-4 py-3 align-middle">
                 <div class="flex items-center gap-1.5">
                   <button
                     class="inline-flex h-8 items-center justify-center rounded-lg border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
@@ -109,165 +116,205 @@
       </div>
     </div>
 
-    <!-- 创建/编辑对话框 -->
     <Teleport to="body">
-      <div class="modal-backdrop fade show" v-if="dialogVisible" @click="closeDialog"></div>
-      <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-        <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">{{ editingKey ? '编辑 API Key' : '创建 API Key' }}</h5>
-              <button type="button" class="btn-close" @click="closeDialog"></button>
+      <!-- 创建/编辑对话框 -->
+      <div
+        v-if="dialogVisible"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        @click.self="closeDialog"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+        <div
+          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+          @click.stop
+        >
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+            <h2 class="text-lg font-semibold text-gray-900">{{ editingKey ? '编辑 API Key' : '创建 API Key' }}</h2>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              aria-label="关闭"
+              @click="closeDialog"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+            <div class="mb-4">
+              <label class="mb-1 block text-sm font-medium text-gray-700">描述 <span class="text-red-600">*</span></label>
+              <input
+                type="text"
+                class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                v-model="formData.description"
+                placeholder="请输入密钥描述，用于标识用途"
+                maxlength="200"
+                ref="descInput"
+              />
             </div>
-            <div class="modal-body">
-              <div class="mb-3">
-                <label class="form-label required">描述</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="formData.description"
-                  placeholder="请输入密钥描述，用于标识用途"
-                  maxlength="200"
-                  ref="descInput"
-                />
+            <div class="mb-4">
+              <label class="mb-1 block text-sm font-medium text-gray-700">过期时间</label>
+              <input
+                type="datetime-local"
+                class="mb-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                v-model="formData.expires_at"
+              />
+              <div class="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="setExpiresDays(7)"
+                >7天</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="setExpiresDays(30)"
+                >30天</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="setExpiresDays(90)"
+                >90天</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="setExpiresDays(180)"
+                >180天</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="setExpiresDays(365)"
+                >1年</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  @click="clearExpiresAt"
+                >永不过期</button>
               </div>
-              <div class="mb-3">
-                <label class="form-label">过期时间</label>
-                <input
-                  type="datetime-local"
-                  class="form-control mb-2"
-                  v-model="formData.expires_at"
-                />
-                <div class="d-flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="setExpiresDays(7)"
-                  >7天</button>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="setExpiresDays(30)"
-                  >30天</button>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="setExpiresDays(90)"
-                  >90天</button>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="setExpiresDays(180)"
-                  >180天</button>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="setExpiresDays(365)"
-                  >1年</button>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                    @click="clearExpiresAt"
-                  >永不过期</button>
-                </div>
-                <small class="form-hint">留空表示永不过期，或使用快捷选项</small>
-              </div>
-              <div v-if="editingKey" class="mb-3">
-                <label class="form-label">状态</label>
-                <div>
-                  <label class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" v-model="formData.is_active" />
-                    <span class="form-check-label">启用</span>
-                  </label>
-                </div>
-              </div>
+              <small class="mt-1 block text-xs text-gray-500">留空表示永不过期，或使用快捷选项</small>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="closeDialog">取消</button>
-              <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" @click="saveKey" :disabled="!formData.description?.trim() || saving">
-                {{ saving ? '保存中...' : '保存' }}
-              </button>
+            <div v-if="editingKey" class="mb-0">
+              <label class="mb-1 block text-sm font-medium text-gray-700">状态</label>
+              <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" v-model="formData.is_active" />
+                <span>启用</span>
+              </label>
             </div>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="closeDialog">取消</button>
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" @click="saveKey" :disabled="!formData.description?.trim() || saving">
+              {{ saving ? '保存中...' : '保存' }}
+            </button>
           </div>
         </div>
       </div>
-    </Teleport>
 
-    <!-- 创建成功对话框（显示完整密钥） -->
-    <Teleport to="body">
-      <div class="modal-backdrop fade show" v-if="showKeyDialog" @click="showKeyDialog = false"></div>
-      <div class="modal modal-blur fade" :class="{ show: showKeyDialog }" tabindex="-1" role="dialog" @click.self="showKeyDialog = false">
-        <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">API Key 创建成功</h5>
-              <button type="button" class="btn-close" @click="showKeyDialog = false"></button>
+      <!-- 创建成功对话框（显示完整密钥） -->
+      <div
+        v-if="showKeyDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        @click.self="showKeyDialog = false"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="showKeyDialog = false"></div>
+        <div
+          class="relative z-10 flex max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+          @click.stop
+        >
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+            <h2 class="text-lg font-semibold text-gray-900">API Key 创建成功</h2>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              aria-label="关闭"
+              @click="showKeyDialog = false"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+              <strong class="font-semibold">重要提示：</strong>请妥善保管此密钥，创建后将无法再次查看完整密钥！
             </div>
-            <div class="modal-body">
-              <div class="alert alert-warning" role="alert">
-                <strong>重要提示：</strong>请妥善保管此密钥，创建后将无法再次查看完整密钥！
+            <div class="mb-4">
+              <label class="mb-1 block text-sm font-medium text-gray-700">描述</label>
+              <p class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">{{ createdKeyData?.description }}</p>
+            </div>
+            <div class="mb-4">
+              <label class="mb-1 block text-sm font-medium text-gray-700">API Key</label>
+              <div class="flex min-w-0">
+                <input
+                  type="text"
+                  class="min-w-0 flex-1 rounded-l-lg border border-r-0 border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 shadow-sm outline-none focus:z-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  :value="createdKeyData?.key"
+                  readonly
+                  ref="keyInput"
+                />
+                <button
+                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-r-lg border border-gray-300 bg-white px-3 text-gray-700 transition-colors hover:bg-gray-50"
+                  type="button"
+                  @click.stop="copyCreatedKey($event)"
+                >
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  复制
+                </button>
               </div>
-              <div class="mb-3">
-                <label class="form-label">描述</label>
-                <p class="form-control-plaintext">{{ createdKeyData?.description }}</p>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">API Key</label>
-                <div class="input-group">
-                  <input
-                    type="text"
-                    class="form-control font-monospace"
-                    :value="createdKeyData?.key"
-                    readonly
-                    ref="keyInput"
-                  />
-                  <button
-                    class="inline-flex items-center justify-center gap-2 rounded-r-lg border border-l-0 border-gray-300 px-3 text-gray-700 transition-colors hover:bg-gray-100"
-                    type="button"
-                    @click.stop="copyCreatedKey($event)"
-                  >
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                    复制
-                  </button>
+            </div>
+            <div class="mb-0">
+              <label class="mb-1 block text-sm font-medium text-gray-700">使用方式</label>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div class="mb-3 last:mb-0">
+                  <strong class="text-sm font-semibold text-gray-900">Header 认证</strong>
+                  <div class="mt-1 break-all">
+                    <code class="text-xs text-gray-600">Authorization: Bearer {{ createdKeyData?.key }}</code>
+                  </div>
                 </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">使用方式</label>
-                <div class="card">
-                  <div class="card-body">
-                    <div class="mb-2">
-                      <strong>Header 认证</strong>
-                      <div class="mt-1">
-                        <code class="text-muted">Authorization: Bearer {{ createdKeyData?.key }}</code>
-                      </div>
-                    </div>
-                    <div class="mb-0">
-                      <strong>URL 参数</strong>
-                      <div class="mt-1">
-                        <code class="text-muted">?api_key={{ createdKeyData?.key }}</code>
-                      </div>
-                    </div>
+                <div>
+                  <strong class="text-sm font-semibold text-gray-900">URL 参数</strong>
+                  <div class="mt-1 break-all">
+                    <code class="text-xs text-gray-600">?api_key={{ createdKeyData?.key }}</code>
                   </div>
                 </div>
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="showKeyDialog = false">我已保存</button>
-            </div>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="showKeyDialog = false">我已保存</button>
           </div>
         </div>
       </div>
     </Teleport>
 
     <!-- 提示消息 -->
-    <div v-if="toastMessage" class="position-fixed top-0 inset-e-0 p-3" style="z-index: 1050; min-width: 300px;">
-      <div class="alert alert-dismissible" :class="toastType === 'success' ? 'alert-success' : 'alert-danger'" role="alert">
-        {{ toastMessage }}
-        <a class="btn-close" @click="toastMessage = ''" aria-label="close"></a>
-      </div>
+    <div
+      v-if="toastMessage"
+      class="fixed right-4 top-4 z-60 flex max-w-sm min-w-[280px] items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg"
+      :class="toastType === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-red-200 bg-red-50 text-red-900'"
+      role="status"
+    >
+      <span class="flex-1 pt-0.5">{{ toastMessage }}</span>
+      <button
+        type="button"
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-current opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100"
+        aria-label="关闭"
+        @click="toastMessage = ''"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>

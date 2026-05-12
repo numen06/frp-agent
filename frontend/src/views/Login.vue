@@ -16,15 +16,15 @@
 
       <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
         <h2 class="mb-5 text-center text-2xl font-semibold text-gray-900">登录到账户</h2>
-        <div v-if="errorMessage" class="alert alert-danger mb-4" role="alert">
+        <div v-if="errorMessage" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
           {{ errorMessage }}
         </div>
         <form @submit.prevent="handleLogin" autocomplete="off" novalidate class="space-y-4">
           <div>
-            <label class="form-label">用户名</label>
+            <label class="mb-1 block text-sm font-medium text-gray-700">用户名</label>
             <input
               type="text"
-              class="form-control"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               v-model="loginForm.username"
               placeholder="请输入用户名"
               autocomplete="off"
@@ -33,10 +33,10 @@
             />
           </div>
           <div>
-            <label class="form-label">密码</label>
+            <label class="mb-1 block text-sm font-medium text-gray-700">密码</label>
             <input
               type="password"
-              class="form-control"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               v-model="loginForm.password"
               placeholder="请输入密码"
               autocomplete="off"
@@ -44,8 +44,17 @@
               @keyup.enter="handleLogin"
             />
           </div>
-          <button type="submit" class="btn btn-primary w-full" :disabled="loading">
-            <span v-if="loading" class="spinner-border mr-2" role="status" aria-hidden="true"></span>
+          <button
+            type="submit"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="loading"
+          >
+            <span
+              v-if="loading"
+              class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white"
+              role="status"
+              aria-hidden="true"
+            ></span>
             {{ loading ? '登录中...' : '登录' }}
           </button>
         </form>

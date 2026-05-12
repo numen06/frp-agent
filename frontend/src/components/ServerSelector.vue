@@ -1,18 +1,16 @@
 <template>
-  <div class="card mb-3">
-    <div class="card-header">
-      <h3 class="card-title">服务器选择</h3>
+  <div class="mb-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="border-b border-gray-200 px-5 py-3.5">
+      <h3 class="text-base font-semibold text-gray-900">服务器选择</h3>
     </div>
-    <div class="card-body">
-      <div class="row g-3 align-items-center">
-        <div class="col-auto">
-          <label class="form-label">当前服务器：</label>
-        </div>
-        <div class="col-auto">
+    <div class="p-5">
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="text-sm font-medium text-gray-700 whitespace-nowrap">当前服务器：</label>
+        <div class="min-w-[12rem] flex-1 sm:flex-initial">
           <AppSelect
             :number="true"
-            v-model="selectedServerId" 
-            @change="handleServerChange" 
+            v-model="selectedServerId"
+            @change="handleServerChange"
             :disabled="serversStore.loading"
           >
             <option :value="null">请选择服务器...</option>
@@ -21,16 +19,20 @@
             </option>
           </AppSelect>
         </div>
-        <div class="col-auto">
-          <button 
-            class="btn btn-outline-secondary" 
-            @click="handleTestServer" 
-            :disabled="!selectedServerId || serversStore.loading"
-          >
-            <span v-if="testing" class="spinner-border spinner-border-sm me-2" role="status"></span>
-            测试连接
-          </button>
-        </div>
+        <button
+          type="button"
+          class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50"
+          @click="handleTestServer"
+          :disabled="!selectedServerId || serversStore.loading"
+        >
+          <span
+            v-if="testing"
+            class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"
+            role="status"
+            aria-label="测试中"
+          ></span>
+          测试连接
+        </button>
       </div>
     </div>
   </div>
@@ -54,12 +56,10 @@ const serversStore = useServersStore()
 const selectedServerId = ref(props.modelValue)
 const testing = ref(false)
 
-// 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
   selectedServerId.value = newVal
 })
 
-// 监听内部值变化
 watch(selectedServerId, (newVal) => {
   emit('update:modelValue', newVal)
 })
@@ -73,7 +73,7 @@ const handleServerChange = () => {
 
 const handleTestServer = async () => {
   if (!selectedServerId.value) return
-  
+
   testing.value = true
   try {
     await serversStore.testServer(selectedServerId.value)
@@ -100,4 +100,3 @@ onMounted(async () => {
   }
 })
 </script>
-

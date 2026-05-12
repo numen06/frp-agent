@@ -1,9 +1,9 @@
 <template>
   <div>
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">FRP 安装包管理</h3>
-        <div class="card-actions flex flex-wrap gap-2 items-center">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+        <h3 class="text-base font-semibold text-gray-900">FRP 安装包管理</h3>
+        <div class="flex flex-wrap items-center gap-2">
           <button
             class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
@@ -33,7 +33,7 @@
             </svg>
             脚本生成
           </button>
-          <div class="dropdown">
+          <div class="relative">
             <button
               ref="moreActionsDropdown.triggerRef"
               type="button"
@@ -48,29 +48,29 @@
             </button>
             <div
               ref="moreActionsDropdown.dropdownRef"
-              class="dropdown-menu"
-              :class="{ show: moreActionsDropdown.isOpen.value }"
+              class="absolute right-0 z-50 mt-2 min-w-[11rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+              :class="moreActionsDropdown.isOpen.value ? 'block' : 'hidden'"
               @click.stop
             >
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
-                :class="{ 'opacity-50 pointer-events-none': checkUpdateLoading }"
+                :class="{ 'pointer-events-none opacity-50': checkUpdateLoading }"
                 @click.prevent="handleMoreCheckUpdate"
               >
                 {{ checkUpdateLoading ? '检查中...' : '检查更新' }}
               </a>
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
-                :class="{ 'opacity-50 pointer-events-none': syncPlatformsLoading }"
+                :class="{ 'pointer-events-none opacity-50': syncPlatformsLoading }"
                 @click.prevent="handleMoreSyncPlatforms"
               >
                 {{ syncPlatformsLoading ? '同步中...' : '同步平台类型' }}
               </a>
-              <div class="dropdown-divider"></div>
+              <div class="my-1 border-t border-gray-100"></div>
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
                 @click.prevent="showTemplateDialog = true; moreActionsDropdown.close()"
               >
@@ -80,8 +80,8 @@
           </div>
         </div>
       </div>
-      <div class="card-body">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div class="p-5">
+        <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <select v-model="filters.version" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部版本</option>
             <option v-if="versionsMeta.latest_version" value="__latest__">
@@ -104,9 +104,9 @@
             <option value="upload">upload</option>
           </select>
         </div>
-        <div v-if="loading" class="text-center py-8">
-          <div class="spinner-border spinner-border-sm" role="status"></div>
-          <span class="ms-2 text-muted">加载中...</span>
+        <div v-if="loading" class="py-8 text-center">
+          <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
+          <span class="ml-2 align-middle text-sm text-gray-500">加载中...</span>
         </div>
         <div v-else class="overflow-x-auto">
           <table class="w-full border-collapse text-left text-sm text-gray-700">
@@ -125,12 +125,15 @@
             </thead>
             <tbody>
               <tr v-if="packages.length === 0">
-                <td colspan="9" class="text-center text-muted py-8">暂无安装包</td>
+                <td colspan="9" class="py-8 text-center text-gray-500">暂无安装包</td>
               </tr>
               <tr v-for="item in packages" :key="item.id">
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ item.id }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.version }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.version }}</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ item.platform }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
@@ -138,7 +141,10 @@
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatSize(item.file_size) }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.source }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.source }}</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatDate(item.downloaded_at) }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle"><code class="text-xs text-gray-500">{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>

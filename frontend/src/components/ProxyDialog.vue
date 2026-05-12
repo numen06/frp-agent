@@ -1,27 +1,56 @@
 <template>
   <Teleport to="body">
-    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="handleBackdropClick"></div>
-    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="handleBackdropClick">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ editingProxy ? '编辑代理' : '添加代理' }}</h5>
-          <button type="button" class="btn-close" @click="closeDialog"></button>
+    <div
+      v-if="dialogVisible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="handleBackdropClick"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="handleBackdropClick"></div>
+      <div
+        class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">{{ editingProxy ? '编辑代理' : '添加代理' }}</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">代理名称 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="proxyForm.name" @input="handleNameInput" required />
-            <small class="form-hint">建议格式: 分组_服务类型（例如: dlyy_rdp）</small>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">代理名称 <span class="text-red-600">*</span></label>
+            <input
+              type="text"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              v-model="proxyForm.name"
+              @input="handleNameInput"
+              required
+            />
+            <small class="mt-1 block text-xs text-gray-500">建议格式: 分组_服务类型（例如: dlyy_rdp）</small>
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">分组名称</label>
-            <input type="text" class="form-control" v-model="proxyForm.group_name" placeholder="留空则自动从名称解析" />
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">分组名称</label>
+            <input
+              type="text"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              v-model="proxyForm.group_name"
+              placeholder="留空则自动从名称解析"
+            />
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">代理类型 <span class="text-danger">*</span></label>
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">代理类型 <span class="text-red-600">*</span></label>
             <AppSelect v-model="proxyForm.proxy_type" required>
               <option value="tcp">TCP</option>
               <option value="udp">UDP</option>
@@ -31,28 +60,57 @@
               <option value="xtcp">XTCP</option>
             </AppSelect>
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">本地 IP <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="proxyForm.local_ip" required />
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">本地 IP <span class="text-red-600">*</span></label>
+            <input
+              type="text"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              v-model="proxyForm.local_ip"
+              required
+            />
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">本地端口 <span class="text-danger">*</span></label>
-            <input type="number" class="form-control" v-model.number="proxyForm.local_port" min="0" max="65535" required />
-            <small class="form-hint">输入 0 可根据名称自动识别</small>
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">本地端口 <span class="text-red-600">*</span></label>
+            <input
+              type="number"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              v-model.number="proxyForm.local_port"
+              min="0"
+              max="65535"
+              required
+            />
+            <small class="mt-1 block text-xs text-gray-500">输入 0 可根据名称自动识别</small>
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">远程端口</label>
-            <input type="number" class="form-control" v-model.number="proxyForm.remote_port" min="1" max="65535" />
-            <small class="form-hint">TCP/UDP 类型需要</small>
+
+          <div class="mb-0">
+            <label class="mb-1 block text-sm font-medium text-gray-700">远程端口</label>
+            <input
+              type="number"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              v-model.number="proxyForm.remote_port"
+              min="1"
+              max="65535"
+            />
+            <small class="mt-1 block text-xs text-gray-500">TCP/UDP 类型需要</small>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn me-auto" @click="closeDialog">取消</button>
-          <button type="button" class="btn btn-primary" @click="handleSubmit">保存</button>
-        </div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <button
+            type="button"
+            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            @click="closeDialog"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            @click="handleSubmit"
+          >
+            保存
+          </button>
         </div>
       </div>
     </div>

@@ -1,78 +1,112 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-backdrop fade show" @click.prevent.stop="close"></div>
-    <div v-if="visible" class="modal modal-blur fade" :class="{ show: visible }" tabindex="-1" role="dialog" @click.self.prevent.stop="close">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ forceMode ? '强制修改密码' : '用户管理' }}</h5>
-          <button type="button" class="btn-close" @click.prevent.stop="close"></button>
+    <div
+      v-if="visible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self.prevent.stop="close"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click.prevent.stop="close"></div>
+      <div
+        class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">{{ forceMode ? '强制修改密码' : '用户管理' }}</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click.prevent.stop="close"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
-          <!-- 强制修改密码提示 -->
-          <div v-if="forceMode" class="alert alert-danger mb-3" role="alert">
-            <h4 class="alert-title">安全提示</h4>
-            <div>{{ forceReason || '检测到您使用的是默认密码，为了账户安全，请立即修改密码。修改完成后才能继续使用系统。' }}</div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div v-if="forceMode" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800" role="alert">
+            <p class="mb-1 font-semibold">安全提示</p>
+            <div class="text-sm">{{ forceReason || '检测到您使用的是默认密码，为了账户安全，请立即修改密码。修改完成后才能继续使用系统。' }}</div>
           </div>
 
-          <!-- 账号信息 -->
-          <div v-if="!forceMode" class="card mb-3">
-            <div class="card-header">
-              <h3 class="card-title">账号信息</h3>
+          <div v-if="!forceMode" class="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50">
+            <div class="border-b border-gray-200 bg-white px-4 py-3">
+              <h3 class="text-sm font-semibold text-gray-900">账号信息</h3>
             </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-12">
-                  <div class="text-muted">用户名</div>
-                  <div class="fw-bold">{{ userSettings.username }}</div>
-                </div>
-              </div>
+            <div class="px-4 py-3">
+              <div class="text-xs text-gray-500">用户名</div>
+              <div class="mt-0.5 font-semibold text-gray-900">{{ userSettings.username }}</div>
             </div>
           </div>
 
-          <!-- 修改密码 -->
-          <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">修改密码</h3>
+          <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div class="border-b border-gray-200 px-4 py-3">
+              <h3 class="text-sm font-semibold text-gray-900">修改密码</h3>
             </div>
-            <div class="card-body">
-              <form @submit.prevent="handleChangePassword">
-                <div class="mb-3">
-                  <label class="form-label">当前密码 <span class="text-danger">*</span></label>
-                  <input type="password" class="form-control" v-model="passwordForm.old_password" required />
+            <div class="px-4 py-4">
+              <form @submit.prevent="handleChangePassword" class="space-y-4">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">当前密码 <span class="text-red-600">*</span></label>
+                  <input
+                    type="password"
+                    class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    v-model="passwordForm.old_password"
+                    required
+                  />
                 </div>
-                
-                <div class="mb-3">
-                  <label class="form-label">新密码 <span class="text-danger">*</span></label>
-                  <input type="password" class="form-control" v-model="passwordForm.new_password" required minlength="6" />
-                  <small class="form-hint">密码长度至少 6 位</small>
+
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">新密码 <span class="text-red-600">*</span></label>
+                  <input
+                    type="password"
+                    class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    v-model="passwordForm.new_password"
+                    required
+                    minlength="6"
+                  />
+                  <small class="mt-1 block text-xs text-gray-500">密码长度至少 6 位</small>
                 </div>
-                
-                <div class="mb-3">
-                  <label class="form-label">确认新密码 <span class="text-danger">*</span></label>
-                  <input type="password" class="form-control" v-model="passwordForm.confirm_password" required />
+
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">确认新密码 <span class="text-red-600">*</span></label>
+                  <input
+                    type="password"
+                    class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    v-model="passwordForm.confirm_password"
+                    required
+                  />
                 </div>
-                
-                <div class="form-footer">
-                  <button type="button" class="btn btn-secondary me-auto" @click.prevent.stop="close">取消</button>
-                  <button type="submit" class="btn btn-primary">保存修改</button>
+
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
+                  <button
+                    type="button"
+                    class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                    @click.prevent.stop="close"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  >
+                    保存修改
+                  </button>
                 </div>
               </form>
             </div>
           </div>
 
-          <!-- 注意事项 -->
-          <div class="alert alert-warning mt-3" role="alert">
-            <h4 class="alert-title">注意事项</h4>
-            <div class="text-muted">
-              <ul class="mb-0">
-                <li>修改密码后需要重新登录</li>
-                <li>请妥善保管新密码，避免泄露</li>
-                <li>建议使用强密码（包含字母、数字和特殊字符）</li>
-              </ul>
-            </div>
+          <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900" role="alert">
+            <p class="mb-2 font-semibold">注意事项</p>
+            <ul class="mb-0 list-inside list-disc space-y-1 text-sm text-amber-900/90">
+              <li>修改密码后需要重新登录</li>
+              <li>请妥善保管新密码，避免泄露</li>
+              <li>建议使用强密码（包含字母、数字和特殊字符）</li>
+            </ul>
           </div>
-        </div>
         </div>
       </div>
     </div>
@@ -117,12 +151,10 @@ const passwordForm = reactive({
   confirm_password: ''
 })
 
-// 监听 show 变化，加载用户设置
 watch(() => props.show, async (newVal) => {
   if (newVal) {
     localHidden.value = false
     await loadUserSettings()
-    // 重置表单
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
@@ -145,31 +177,30 @@ const handleChangePassword = async () => {
     alert('请填写所有字段')
     return
   }
-  
+
   if (passwordForm.new_password.length < 6) {
     alert('新密码长度至少 6 位')
     return
   }
-  
+
   if (passwordForm.new_password !== passwordForm.confirm_password) {
     alert('两次输入的新密码不一致')
     return
   }
-  
+
   try {
     await settingsApi.changePassword({
       old_password: passwordForm.old_password,
       new_password: passwordForm.new_password
     })
-    
+
     if (props.forceMode) {
       alert('密码修改成功！请重新登录')
-      // 清除强制修改密码的查询参数
       router.replace({ query: {} })
     } else {
       alert('密码修改成功，请重新登录')
     }
-    
+
     authStore.logout()
     router.push('/login')
   } catch (error) {
@@ -181,15 +212,11 @@ const close = () => {
   localHidden.value = true
   if (props.forceMode) {
     emit('cancel-force')
-    // 清除强制改密查询参数，避免当前会话内被路由监听立即重新拉起
     router.replace({ query: {} })
   }
   emit('update:show', false)
 }
 
-// 使用统一的模态框功能，允许用户先关闭，下次进入再继续提示
-// 将props.show转换为ref以适配useModal
 const showRef = computed(() => visible.value)
 useModal(showRef, close)
 </script>
-

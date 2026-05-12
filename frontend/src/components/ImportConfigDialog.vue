@@ -1,45 +1,89 @@
 <template>
   <Teleport to="body">
-    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">导入 frpc 配置文件</h5>
-          <button type="button" class="btn-close" @click="closeDialog"></button>
+    <div
+      v-if="dialogVisible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+      <div
+        class="relative z-10 flex max-h-[min(90vh,560px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">导入 frpc 配置文件</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
-          <p class="text-muted mb-3">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <p class="mb-4 text-sm text-gray-600">
             上传 frpc 配置文件（INI 或 TOML 格式），系统将自动解析并导入代理信息。
           </p>
-          
-          <div class="mb-3">
-            <label class="form-label">当前服务器</label>
-            <input type="text" class="form-control" :value="currentServerName" readonly />
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">当前服务器</label>
+            <input
+              type="text"
+              class="block w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800"
+              :value="currentServerName"
+              readonly
+            />
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">选择分组 <span class="text-danger">*</span></label>
+
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">选择分组 <span class="text-red-600">*</span></label>
             <AppSelect v-model="importForm.group_name" required>
               <option value="">请选择分组...</option>
               <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
             </AppSelect>
-            <small class="form-hint">导入的代理将被分配到此分组</small>
+            <small class="mt-1 block text-xs text-gray-500">导入的代理将被分配到此分组</small>
           </div>
-          
-          <div class="mb-3">
-            <label class="form-label">配置文件 <span class="text-danger">*</span></label>
-            <input type="file" class="form-control" @change="handleFileChange" accept=".ini,.toml" required />
-            <small class="form-hint">支持 .ini 和 .toml 格式的 frpc 配置文件</small>
+
+          <div class="mb-0">
+            <label class="mb-1 block text-sm font-medium text-gray-700">配置文件 <span class="text-red-600">*</span></label>
+            <input
+              type="file"
+              class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+              @change="handleFileChange"
+              accept=".ini,.toml"
+              required
+            />
+            <small class="mt-1 block text-xs text-gray-500">支持 .ini 和 .toml 格式的 frpc 配置文件</small>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn me-auto" @click="closeDialog">取消</button>
-          <button type="button" class="btn btn-primary" @click="handleImport" :disabled="importing">
-            <span v-if="importing" class="spinner-border spinner-border-sm me-2" role="status"></span>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <button
+            type="button"
+            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            @click="closeDialog"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            @click="handleImport"
+            :disabled="importing"
+          >
+            <span
+              v-if="importing"
+              class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white"
+              role="status"
+              aria-label="导入中"
+            ></span>
             开始导入
           </button>
-        </div>
         </div>
       </div>
     </div>

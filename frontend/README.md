@@ -1,6 +1,6 @@
 # frp-agent 前端
 
-基于 Vue 3 + Vite + Tabler UI 的前端应用。
+基于 Vue 3 + Vite + Tailwind CSS + Flowbite Vue 的前端应用。
 
 ## 开发
 
@@ -33,7 +33,7 @@ npm run preview
 - Vite
 - Vue Router
 - Pinia
-- Tabler UI (@tabler/core)
-- Tabler Icons (@tabler/icons-vue)
+- Tailwind CSS 4
+- Flowbite / flowbite-vue
 - Axios
 

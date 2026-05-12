@@ -8,19 +8,18 @@
     />
 
     <!-- 代理列表 -->
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">代理列表</h3>
-        <div class="card-actions">
-          <div class="d-flex gap-2">
-            <div class="dropdown" v-if="proxiesStore.selectedCount > 0">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+        <h3 class="text-base font-semibold text-gray-900">代理列表</h3>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="relative" v-if="proxiesStore.selectedCount > 0">
               <button 
                 ref="batchActionsDropdown.triggerRef"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 dropdown-toggle" 
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600" 
                 @click.prevent="batchActionsDropdown.toggle()"
                 :aria-expanded="batchActionsDropdown.isOpen.value"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M4 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
                   <path d="M6 4v4" />
@@ -36,20 +35,20 @@
               </button>
               <div 
                 ref="batchActionsDropdown.dropdownRef"
-                class="dropdown-menu"
-                :class="{ show: batchActionsDropdown.isOpen.value }"
+                class="absolute right-0 z-50 mt-2 min-w-[11rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                :class="batchActionsDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
-                <a class="dropdown-item" href="#" @click.prevent="handleBatchDetectPorts(); batchActionsDropdown.close()">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <a class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="handleBatchDetectPorts(); batchActionsDropdown.close()">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
                     <path d="M21 21l-6 -6" />
                   </svg>
                   批量识别端口
                 </a>
-                <a class="dropdown-item" href="#" @click.prevent="handleGenerateConfigForSelected(); batchActionsDropdown.close()">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <a class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="handleGenerateConfigForSelected(); batchActionsDropdown.close()">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M14 3v4a1 1 0 0 0 1 1h4" />
                     <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
@@ -58,15 +57,15 @@
                 </a>
               </div>
             </div>
-            <div class="dropdown">
+            <div class="relative">
               <button 
                 ref="addActionsDropdown.triggerRef"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 dropdown-toggle" 
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50" 
                 @click.prevent="addActionsDropdown.toggle()"
                 :aria-expanded="addActionsDropdown.isOpen.value"
                 :disabled="!currentServerId"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M12 5l0 14" />
                   <path d="M5 12l14 0" />
@@ -75,20 +74,20 @@
               </button>
               <div 
                 ref="addActionsDropdown.dropdownRef"
-                class="dropdown-menu"
-                :class="{ show: addActionsDropdown.isOpen.value }"
+                class="absolute right-0 z-50 mt-2 min-w-[11rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                :class="addActionsDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
-                <a class="dropdown-item" href="#" @click.prevent="showAddProxyDialog = true; addActionsDropdown.close()" :class="{ disabled: !currentServerId }">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <a class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="showAddProxyDialog = true; addActionsDropdown.close()" :class="{ 'pointer-events-none opacity-50': !currentServerId }">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M12 5l0 14" />
                     <path d="M5 12l14 0" />
                   </svg>
                   添加代理
                 </a>
-                <a class="dropdown-item" href="#" @click.prevent="showImportConfigDialog = true; addActionsDropdown.close()" :class="{ disabled: !currentServerId }">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <a class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="showImportConfigDialog = true; addActionsDropdown.close()" :class="{ 'pointer-events-none opacity-50': !currentServerId }">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M14 3v4a1 1 0 0 0 1 1h4" />
                     <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
@@ -100,8 +99,8 @@
               </div>
             </div>
             <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
-              <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
                 <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
@@ -109,8 +108,8 @@
               同步
             </button>
             <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" @click="refreshProxies" :disabled="proxiesStore.loading">
-              <span v-if="proxiesStore.loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
                 <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
@@ -122,11 +121,10 @@
             </button>
           </div>
         </div>
-      </div>
       <!-- 搜索和过滤区域 -->
-      <div class="card-body border-bottom">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div class="d-flex gap-2 flex-wrap">
+      <div class="border-b border-gray-200 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <div style="width: 250px;">
               <TableSearch
                 v-model="proxiesStore.filters.search"
@@ -147,11 +145,11 @@
         </div>
       </div>
       <!-- 批量操作工具栏 -->
-      <div v-if="proxiesStore.selectedCount > 0" class="card-body border-bottom">
-        <div class="alert alert-info mb-0">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div class="fw-bold">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
-            <div class="d-flex gap-2 flex-wrap">
+      <div v-if="proxiesStore.selectedCount > 0" class="border-b border-gray-200 bg-blue-50 p-5">
+        <div class="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="font-semibold text-blue-950">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
+            <div class="flex flex-wrap items-center gap-2">
               <AppSelect class="w-auto" size="sm" v-model="bulkGroupName">
                 <option value="">选择目标分组...</option>
                 <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
@@ -186,13 +184,13 @@
             </thead>
             <tbody>
               <tr v-if="proxiesStore.loading">
-                <td colspan="9" class="text-center py-4">
-                  <div class="spinner-border spinner-border-sm" role="status"></div>
-                  <span class="ms-2">加载中...</span>
+                <td colspan="9" class="py-4 text-center text-sm text-gray-600">
+                  <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
+                  <span class="ml-2 align-middle">加载中...</span>
                 </td>
               </tr>
               <tr v-else-if="proxiesStore.proxies.length === 0">
-                <td colspan="9" class="text-center text-muted py-4">
+                <td colspan="9" class="py-4 text-center text-sm text-gray-500">
                   暂无代理数据，请先添加代理或导入配置
                 </td>
               </tr>
@@ -204,28 +202,31 @@
                   />
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <div class="text-truncate" :title="proxy.name">{{ proxy.name }}</div>
+                  <div class="max-w-full truncate" :title="proxy.name">{{ proxy.name }}</div>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <a 
                     v-if="proxy.group_name" 
                     href="#" 
-                    class="badge text-bg-primary text-decoration-none"
+                    class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 no-underline hover:bg-blue-200"
                     @click.prevent="navigateToGroupManage(proxy.group_name)"
                     :title="`点击查看分组 ${proxy.group_name} 的详细信息`"
                   >
                     {{ proxy.group_name }}
                   </a>
-                  <span class="text-muted" v-else>-</span>
+                  <span class="text-sm text-gray-500" v-else>-</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge text-bg-secondary">{{ proxy.proxy_type.toUpperCase() }}</span>
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">{{ proxy.proxy_type.toUpperCase() }}</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_ip }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_port || '-' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.remote_port || '-' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge" :class="proxy.status === 'online' ? 'text-bg-success' : 'text-bg-danger'">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    :class="proxy.status === 'online' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                  >
                     {{ proxy.status === 'online' ? '在线' : '离线' }}
                   </span>
                 </td>
@@ -266,7 +267,7 @@
           </table>
       </div>
       <!-- 分页 -->
-      <div class="card-footer" v-if="proxiesStore.pagination.total > 0">
+      <div class="border-t border-gray-200 px-5 py-3.5" v-if="proxiesStore.pagination.total > 0">
         <TablePagination
           :total="proxiesStore.pagination.total"
           :page="proxiesStore.pagination.page"

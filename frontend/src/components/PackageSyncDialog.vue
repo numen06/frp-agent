@@ -1,45 +1,94 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: visible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">从 GitHub 同步安装包</h5>
-            <button type="button" class="btn-close" @click="closeDialog"></button>
+    <div
+      v-if="visible"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+      <div
+        class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        @click.stop
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">从 GitHub 同步安装包</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">版本</label>
+            <select
+              v-model="form.version"
+              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">请选择版本</option>
+              <option v-for="item in releases" :key="item.version" :value="item.version">
+                {{ item.version }}
+              </option>
+            </select>
           </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">版本</label>
-              <select v-model="form.version" class="form-control">
-                <option value="">请选择版本</option>
-                <option v-for="item in releases" :key="item.version" :value="item.version">
-                  {{ item.version }}
-                </option>
-              </select>
+          <div class="mb-0">
+            <label class="mb-1 block text-sm font-medium text-gray-700">平台（可多选）</label>
+            <div v-if="platformsForVersion.length" class="mb-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-blue-600 px-2.5 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                @click="selectAll"
+              >
+                全选
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                @click="deselectAll"
+              >
+                取消全选
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                @click="invertSelection"
+              >
+                反选
+              </button>
+              <span class="ml-auto text-xs font-medium text-gray-600">已选 {{ form.platforms.length }} / {{ platformsForVersion.length }}</span>
             </div>
-            <div class="mb-3">
-              <label class="form-label">平台（可多选）</label>
-              <div v-if="platformsForVersion.length" class="flex gap-2 mb-2">
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="selectAll">全选</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" @click="deselectAll">取消全选</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" @click="invertSelection">反选</button>
-                <span class="form-label mb-0 ms-auto">已选 {{ form.platforms.length }} / {{ platformsForVersion.length }}</span>
-              </div>
-              <div class="grid gap-2" style="max-height: 260px; overflow-y: auto;">
-                <label v-for="p in platformsForVersion" :key="p" class="form-check">
-                  <input v-model="form.platforms" class="form-check-input" type="checkbox" :value="p" />
-                  <span class="form-check-label">{{ p }}</span>
-                </label>
-              </div>
+            <div class="grid max-h-[260px] gap-2 overflow-y-auto">
+              <label v-for="p in platformsForVersion" :key="p" class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-100 px-2 py-1.5 hover:bg-gray-50">
+                <input v-model="form.platforms" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" type="checkbox" :value="p" />
+                <span class="text-sm text-gray-800">{{ p }}</span>
+              </label>
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn" @click="closeDialog">取消</button>
-            <button type="button" class="btn btn-primary" :disabled="loading" @click="submit">
-              {{ loading ? '同步中...' : '开始同步' }}
-            </button>
-          </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <button
+            type="button"
+            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            @click="closeDialog"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="loading"
+            @click="submit"
+          >
+            {{ loading ? '同步中...' : '开始同步' }}
+          </button>
         </div>
       </div>
     </div>
