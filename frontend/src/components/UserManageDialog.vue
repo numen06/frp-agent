@@ -10,7 +10,7 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click.prevent.stop="close"></div>
       <div
-        class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
         @click.stop
       >
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
@@ -47,7 +47,7 @@
               <h3 class="text-sm font-semibold text-gray-900">修改密码</h3>
             </div>
             <div class="px-4 py-4">
-              <form @submit.prevent="handleChangePassword" class="space-y-4">
+              <form id="user-password-form" @submit.prevent="handleChangePassword" class="space-y-4">
                 <div>
                   <label class="mb-1 block text-sm font-medium text-gray-700">当前密码 <span class="text-red-600">*</span></label>
                   <input
@@ -79,22 +79,6 @@
                     required
                   />
                 </div>
-
-                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
-                  <button
-                    type="button"
-                    class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                    @click.prevent.stop="close"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="submit"
-                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                  >
-                    保存修改
-                  </button>
-                </div>
               </form>
             </div>
           </div>
@@ -107,6 +91,22 @@
               <li>建议使用强密码（包含字母、数字和特殊字符）</li>
             </ul>
           </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <button
+            type="button"
+            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            @click.prevent.stop="close"
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            form="user-password-form"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            保存修改
+          </button>
         </div>
       </div>
     </div>

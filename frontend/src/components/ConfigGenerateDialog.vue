@@ -8,12 +8,12 @@
       aria-labelledby="config-gen-title"
     >
       <div
-        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/40 backdrop-blur-sm"
         aria-hidden="true"
         @click="closeDialog"
       />
       <div
-        class="relative z-10 flex w-full max-w-3xl max-h-[min(90vh,900px)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        class="relative z-10 flex w-full max-w-3xl max-h-[min(90vh,900px)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
         @click.stop
       >
         <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">

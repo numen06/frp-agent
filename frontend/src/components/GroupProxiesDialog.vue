@@ -7,12 +7,12 @@
       aria-modal="true"
     >
       <div
-        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/40 backdrop-blur-sm"
         aria-hidden="true"
         @click="handleBackdropClick"
       />
       <div
-        class="group-proxies-dialog relative z-10 flex max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        class="group-proxies-dialog relative z-10 flex max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
         role="document"
         @click.stop
       >
