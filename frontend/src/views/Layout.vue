@@ -16,7 +16,7 @@
               </svg>
             </button>
             <router-link to="/dashboard" class="flex items-center gap-2 text-blue-600">
-              <FrpLogo :size="28" color="currentColor" />
+              <FrpLogo :size="40" color="currentColor" />
               <span class="font-extrabold text-blue-600">FRP</span>
               <span class="font-semibold text-gray-500">-AGENT</span>
             </router-link>
@@ -63,8 +63,12 @@
                 aria-label="消息通知"
                 @click.prevent="notifyDropdown.toggle()"
               >
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-4.2A2.1 2.1 0 0016.6 11H7.4a2.1 2.1 0 00-2 1.8L4 17h5m1.5 0a1.5 1.5 0 003 0" />
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M15 17h5l-1.405-4.215A2 2 0 0016.646 11H7.354a2 2 0 00-1.973 1.788L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
                 </svg>
                 <span
                   v-if="unreadNotificationCount > 0"

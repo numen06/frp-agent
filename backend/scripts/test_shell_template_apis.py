@@ -169,6 +169,44 @@ def main() -> int:
                 return 1
 
             r = client.get(
+                f"/api/groups/g/deploy",
+                params={
+                    "server_name": "s",
+                    "api_key": "x",
+                    "upgrade": "true",
+                    "force_config": "true",
+                },
+            )
+            if (
+                r.status_code == 200
+                and "frp-client deploy script" in r.text
+                and "backup_copy" in r.text
+                and "迁移 INI" in r.text
+                and "deploy-verify" in r.text
+                and 'VERIFY_ENABLED="true"' in r.text
+                and 'UPGRADE="true"' in r.text
+                and 'FORCE_CONFIG="true"' in r.text
+                and "{{upgrade}}" not in r.text
+            ):
+                _ok("GET /api/groups/{g}/deploy")
+            else:
+                _fail("deploy", f"status={r.status_code} head={r.text[:200]!r}")
+                return 1
+
+            r = client.get(
+                "/api/groups/g/deploy-verify",
+                params={"server_name": "__no_such_frps_for_deploy_verify__", "min_online": 1},
+            )
+            if r.status_code == 404:
+                _ok("GET /api/groups/{g}/deploy-verify (404 未知服务器)")
+            else:
+                _fail(
+                    "deploy-verify",
+                    f"expect 404 for unknown server, got {r.status_code} {r.text[:160]!r}",
+                )
+                return 1
+
+            r = client.get(
                 "/api/packages/install-script",
                 params={"package_id": pkg.id, "install_path": "/opt/frp", "api_key": "x"},
             )
@@ -188,7 +226,9 @@ def main() -> int:
                 _fail("upgrade-script", f"status={r.status_code} head={r.text[:120]!r}")
                 return 1
         else:
-            print("  [SKIP] 无激活的 linux_amd64 安装包：quick-install / quick-download / install-script / upgrade-script")
+            print(
+                "  [SKIP] 无激活的 linux_amd64 安装包：quick-install / quick-download / deploy / install-script / upgrade-script"
+            )
 
         r = client.get("/api/config/script/linux", params={"frpc_path": "/bin/frpc", "config_path": "/etc/frp.toml"})
         if r.status_code == 200 and "/bin/frpc" in r.text and "case" in r.text:

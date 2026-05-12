@@ -4,7 +4,7 @@
       <div class="mb-6 text-center">
         <a href="/" class="inline-flex flex-col items-center no-underline">
           <div class="mb-3 animate-float text-blue-600">
-            <FrpLogo :size="48" color="currentColor" :animated="true" />
+            <FrpLogo :size="72" color="currentColor" :animated="true" />
           </div>
           <div class="flex items-baseline text-3xl font-bold tracking-tight">
             <span class="text-blue-600 font-extrabold">FRP</span>

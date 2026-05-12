@@ -3,7 +3,8 @@ import json
 import os
 import shlex
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from urllib.parse import quote
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Form
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
@@ -20,6 +21,7 @@ from app.models.port import PortAllocation
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
 from app.script_templates import load_shell_template
+from app.scheduler import sync_server
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -140,7 +142,19 @@ def get_groups(
             "offline_count": 0
         }
     
-    # 2. 从 Proxy 表统计代理数量
+    # 2. 从 Proxy 表统计代理数量（按 frps_server_id+name 去重，优先保留信息完整的记录）
+    keep_ids_subq = (
+        db.query(
+            func.coalesce(
+                func.max(case((Proxy.local_port > 0, Proxy.id))),
+                func.max(Proxy.id),
+            ).label("keep_id")
+        )
+        .group_by(Proxy.frps_server_id, Proxy.name)
+        .subquery()
+    )
+    keep_id_col = keep_ids_subq.c.keep_id
+
     proxy_query = db.query(
         Proxy.group_name,
         Proxy.frps_server_id,
@@ -149,9 +163,10 @@ def get_groups(
         func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline_count")
     ).filter(
         Proxy.group_name.isnot(None),
-        Proxy.group_name != ""
+        Proxy.group_name != "",
+        Proxy.id.in_(db.query(keep_id_col)),
     ).group_by(Proxy.group_name, Proxy.frps_server_id)
-    
+
     if frps_server_id:
         proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
     
@@ -224,12 +239,27 @@ def get_group_proxies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取指定分组的所有代理"""
-    query = db.query(Proxy).filter(Proxy.group_name == group_name)
-    
+    """获取指定分组的所有代理（按 frps_server_id+name 去重，优先保留信息完整的记录）"""
+    keep_ids_subq = (
+        db.query(
+            func.coalesce(
+                func.max(case((Proxy.local_port > 0, Proxy.id))),
+                func.max(Proxy.id),
+            ).label("keep_id")
+        )
+        .group_by(Proxy.frps_server_id, Proxy.name)
+        .subquery()
+    )
+    keep_id_col = keep_ids_subq.c.keep_id
+
+    query = db.query(Proxy).filter(
+        Proxy.group_name == group_name,
+        Proxy.id.in_(db.query(keep_id_col)),
+    )
+
     if frps_server_id:
         query = query.filter(Proxy.frps_server_id == frps_server_id)
-    
+
     proxies = query.all()
     
     return {
@@ -946,15 +976,14 @@ def _default_install_template(platform: str) -> str:
     return load_shell_template("group_quick_install_linux.sh")
 
 
-def _get_latest_linux_amd64_package(db: Session):
-    """查找最新版本 linux_amd64 平台的激活安装包"""
+def _get_latest_package_for_platform(db: Session, platform: str):
+    """查找指定平台最新版本的激活安装包（优先 versions_cache 中的 latest_version）"""
     cache = _load_versions_cache()
     latest_version = cache.get("latest_version")
     if not latest_version:
-        # 没有 cache 时，从数据库取最新版本号
         row = db.query(FrpPackage.version).filter(
             FrpPackage.is_active == True,
-            FrpPackage.platform == "linux_amd64"
+            FrpPackage.platform == platform
         ).order_by(FrpPackage.id.desc()).first()
         if not row:
             return None, None
@@ -962,12 +991,80 @@ def _get_latest_linux_amd64_package(db: Session):
 
     pkg = db.query(FrpPackage).filter(
         FrpPackage.is_active == True,
-        FrpPackage.platform == "linux_amd64",
+        FrpPackage.platform == platform,
         FrpPackage.version == latest_version
     ).first()
     if not pkg:
+        pkg = db.query(FrpPackage).filter(
+            FrpPackage.is_active == True,
+            FrpPackage.platform == platform
+        ).order_by(FrpPackage.id.desc()).first()
+        if pkg:
+            return pkg, pkg.version
         return None, None
     return pkg, latest_version
+
+
+def _get_latest_linux_amd64_package(db: Session):
+    """查找最新版本 linux_amd64 平台的激活安装包"""
+    return _get_latest_package_for_platform(db, "linux_amd64")
+
+
+def _default_deploy_template(platform: str) -> str:
+    if platform.startswith("windows_"):
+        raise HTTPException(
+            status_code=400,
+            detail="分组一键部署脚本当前仅支持 Linux；Windows 请使用「一键安装」生成的 PowerShell 脚本。",
+        )
+    return load_shell_template("group_deploy_linux.sh")
+
+
+def _build_deploy_script(
+    db,
+    pkg,
+    api_key,
+    install_path,
+    server_name,
+    group_name,
+    server_base,
+    upgrade: bool,
+    force_config: bool,
+    verify: bool = True,
+    min_online: int = 1,
+    verify_attempts: int = 18,
+    verify_interval: int = 5,
+):
+    """构建统一部署脚本：可选升级二进制、可选强制覆盖配置、systemd 自启、可选部署后校验与回退"""
+    download_url = f"{server_base}/api/packages/{pkg.id}/download?api_key={api_key}"
+    config_url = f"{server_base}/api/frpc/config/{server_name}/{group_name}?format=toml&api_key={api_key}"
+    upgrade_s = "true" if upgrade else "false"
+    force_config_s = "true" if force_config else "false"
+    verify_s = "true" if verify else "false"
+
+    gn_enc = quote(group_name, safe="")
+    sn_enc = quote(server_name, safe="")
+    key_q = quote(api_key, safe="") if api_key else ""
+    verify_url = (
+        f"{server_base}/api/groups/{gn_enc}/deploy-verify"
+        f"?server_name={sn_enc}&min_online={min_online}&api_key={key_q}"
+    )
+
+    template = _default_deploy_template(pkg.platform)
+    return (
+        template.replace("{{filename}}", pkg.filename)
+        .replace("{{download_url}}", download_url)
+        .replace("{{config_url}}", config_url)
+        .replace("{{verify_url}}", verify_url)
+        .replace("{{install_path}}", install_path)
+        .replace("{{platform}}", pkg.platform)
+        .replace("{{version}}", pkg.version)
+        .replace("{{upgrade}}", upgrade_s)
+        .replace("{{force_config}}", force_config_s)
+        .replace("{{verify_enabled}}", verify_s)
+        .replace("{{verify_attempts}}", str(verify_attempts))
+        .replace("{{verify_interval}}", str(verify_interval))
+        .replace("{{min_online}}", str(min_online))
+    )
 
 
 def _build_install_script(db, pkg, api_key, install_path, server_name, group_name, server_base):
@@ -1080,6 +1177,107 @@ def quick_download(
         raise HTTPException(status_code=404, detail="未找到可用的 linux_amd64 安装包，请先同步安装包")
 
     script = _build_download_script(db, pkg, api_key, install_path, server_name, group_name, server_base)
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.get("/{group_name}/deploy-verify")
+async def deploy_verify(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称（与平台中名称一致）"),
+    min_online: int = Query(1, ge=0, description="至少多少条代理为 online 视为通过"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """部署后校验：先向 frps 同步该服务器代理状态，再统计本分组 online 数量。
+
+    供现场 deploy 脚本轮询；需 API Key 或登录（支持 URL ?api_key=）。
+    """
+    server = db.query(FrpsServer).filter(FrpsServer.name == server_name).first()
+    if not server:
+        raise HTTPException(status_code=404, detail=f"未找到名为「{server_name}」的 frps 服务器")
+
+    try:
+        await sync_server(db, server)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"frps 同步失败，无法获取最新代理状态: {str(e)}",
+        )
+
+    proxies = (
+        db.query(Proxy)
+        .filter(
+            Proxy.group_name == group_name,
+            Proxy.frps_server_id == server.id,
+        )
+        .all()
+    )
+    total = len(proxies)
+    online = sum(1 for p in proxies if p.status == "online")
+    if total == 0:
+        ok = False
+    else:
+        ok = online >= min_online
+
+    return {
+        "group_name": group_name,
+        "server_name": server_name,
+        "online": online,
+        "total": total,
+        "min_online": min_online,
+        "ok": ok,
+        "sync_ok": True,
+    }
+
+
+@router.get("/{group_name}/deploy", response_class=PlainTextResponse)
+def group_deploy(
+    group_name: str,
+    server_name: str = Query(..., description="frps 服务器名称"),
+    platform: str = Query("linux_amd64", description="目标平台"),
+    install_path: str = Query("/opt/frp", description="安装路径"),
+    upgrade: bool = Query(False, description="是否升级 frpc 二进制（已安装时）"),
+    force_config: bool = Query(False, description="是否强制覆盖 frpc.toml"),
+    verify: bool = Query(True, description="是否在脚本中启用部署后代理校验与失败回退"),
+    min_online: int = Query(1, ge=0, description="校验时至少 online 代理数"),
+    verify_attempts: int = Query(18, ge=1, le=120, description="校验最大轮询次数"),
+    verify_interval: int = Query(5, ge=1, le=60, description="校验轮询间隔（秒）"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """统一部署脚本：首次自动安装并注册 systemd；可选升级二进制、可选覆盖配置。
+
+    用法：
+      curl -sL "http://host/api/groups/mygroup/deploy?server_name=xxx&api_key=xxx" | sudo bash
+      curl -sL "...&upgrade=true&force_config=true" | sudo bash
+      curl -sL "...&verify=false" | sudo bash
+    """
+    api_key = request.query_params.get("api_key") or auth_info.get("key") or ""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    pkg, _version = _get_latest_package_for_platform(db, platform)
+    if not pkg:
+        raise HTTPException(
+            status_code=404,
+            detail=f"未找到可用的 {platform} 安装包，请先同步或上传安装包",
+        )
+
+    script = _build_deploy_script(
+        db,
+        pkg,
+        api_key,
+        install_path,
+        server_name,
+        group_name,
+        server_base,
+        upgrade,
+        force_config,
+        verify=verify,
+        min_online=min_online,
+        verify_attempts=verify_attempts,
+        verify_interval=verify_interval,
+    )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
 
 
@@ -1288,6 +1486,27 @@ def import_config(
     )
 
 
+@router.post("/import-config-form")
+def import_config_form(
+    frps_server_id: int = Form(...),
+    group_name: str = Form(...),
+    config_content: str = Form(...),
+    config_format: str = Form("auto"),
+    overwrite: str = Form("true"),
+    db: Session = Depends(get_db),
+    auth_info: dict = Depends(_auth_for_script),
+):
+    """表单方式导入配置：供 shell 脚本 curl -F 调用，不依赖 python3。"""
+    return _do_import_config(
+        db=db,
+        frps_server_id=frps_server_id,
+        group_name=group_name.strip(),
+        config_content=config_content,
+        config_format=config_format,
+        overwrite=overwrite.lower() in ("true", "1", "yes"),
+    )
+
+
 
 def _build_group_import_shell_script(
     frps_server_id: int,
@@ -1298,25 +1517,16 @@ def _build_group_import_shell_script(
     import_url: str,
     api_key: str,
 ) -> str:
-    """生成在目标机执行的 bash 脚本：模板外置，仅注入变量与 python3 -c 片段。"""
-    py_src = (
-        "import json,sys; cfg=sys.stdin.read(); print(json.dumps({"
-        f'"frps_server_id":{frps_server_id},'
-        f'"group_name":{json.dumps(group_name)},'
-        '"config_content":cfg,'
-        f'"config_format":{json.dumps(config_format)},'
-        f'"overwrite":{json.dumps(overwrite)}'
-        "}))"
-    )
-    py_for_bash = py_src.replace("\\", "\\\\").replace('"', '\\"')
-
+    """生成在目标机执行的 bash 脚本：纯 curl 表单提交，不依赖 python3。"""
     tpl = load_shell_template("import_frpc_group.sh")
     return (
         tpl.replace("@@SCAN_PATH@@", shlex.quote(config_path))
         .replace("@@API_URL@@", shlex.quote(import_url))
         .replace("@@API_KEY@@", shlex.quote(api_key))
         .replace("@@GROUP_LABEL@@", shlex.quote(group_name))
-        .replace("@@PY_FOR_BASH@@", py_for_bash)
+        .replace("@@FRPS_ID@@", str(frps_server_id))
+        .replace("@@CONFIG_FORMAT@@", shlex.quote(config_format))
+        .replace("@@OVERWRITE@@", "true" if overwrite else "false")
     )
 
 
@@ -1338,7 +1548,7 @@ def import_script(
     """
     api_key = req.query_params.get("api_key") or ""
     server_base = f"{req.url.scheme}://{req.url.netloc}"
-    import_url = f"{server_base}/api/groups/import-config"
+    import_url = f"{server_base}/api/groups/import-config-form"
     script = _build_group_import_shell_script(
         frps_server_id=frps_server_id,
         group_name=group_name,

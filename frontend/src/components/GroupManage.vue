@@ -112,10 +112,10 @@
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100"
-                      title="一键安装"
-                      aria-label="一键安装"
-                      @click="handleOneClickInstall(group, $event)"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                      title="一键部署（安装/升级/覆盖配置）"
+                      aria-label="一键部署"
+                      @click="openDeployDialog(group)"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
@@ -125,80 +125,19 @@
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-700 transition-colors hover:bg-purple-100"
-                      title="一键下载"
-                      aria-label="一键下载"
-                      @click="handleOneClickDownload(group, $event)"
+                      type="button"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      title="更多"
+                      aria-label="更多操作"
+                      @click.stop="toggleGroupMore(group.group_name, $event)"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                        <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
-                        <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
+                        <circle cx="5" cy="12" r="1" fill="currentColor" />
+                        <circle cx="12" cy="12" r="1" fill="currentColor" />
+                        <circle cx="19" cy="12" r="1" fill="currentColor" />
                       </svg>
                     </button>
-                    <div class="relative">
-                      <button
-                        type="button"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
-                        title="更多"
-                        aria-label="更多操作"
-                        @click.stop="toggleGroupMore(group.group_name)"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                          <circle cx="5" cy="12" r="1" fill="currentColor" />
-                          <circle cx="12" cy="12" r="1" fill="currentColor" />
-                          <circle cx="19" cy="12" r="1" fill="currentColor" />
-                        </svg>
-                      </button>
-                      <div
-                        v-if="openMoreGroupName === group.group_name"
-                        class="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-                        @click.stop
-                      >
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-                          href="#"
-                          @click.prevent="editGroup(group); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
-                            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
-                            <path d="M16 5l3 3" />
-                          </svg>
-                          修改
-                        </a>
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-                          href="#"
-                          @click.prevent="generateGroupConfig(group.group_name); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                          </svg>
-                          生成配置
-                        </a>
-                        <div class="my-1 border-t border-gray-100"></div>
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
-                          href="#"
-                          @click.prevent="deleteGroup(group); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M4 7l16 0" />
-                            <path d="M10 11l0 6" />
-                            <path d="M14 11l0 6" />
-                            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-                            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-                          </svg>
-                          删除
-                        </a>
-                      </div>
-                    </div>
                   </div>
                 </td>
               </tr>
@@ -495,6 +434,128 @@
       </div>
     </Teleport>
 
+    <!-- 一键部署（Linux） -->
+    <Teleport to="body">
+      <div
+        v-if="showDeployDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeDeployDialog" />
+        <div
+          class="relative z-10 w-full max-w-xl rounded-xl border border-gray-200 bg-white p-0 shadow-xl"
+          @click.stop
+        >
+          <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-gray-900">一键部署（Linux）</h2>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              aria-label="关闭"
+              @click="closeDeployDialog"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M18 6l-12 12" />
+                <path d="M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="space-y-4 px-6 py-4">
+            <p class="text-sm text-gray-600">
+              在目标 Linux 服务器上执行下方命令。首次安装会自动下载 frpc、拉取本分组配置并注册 <code class="rounded bg-gray-100 px-1 text-xs">systemd</code>（需 <code class="rounded bg-gray-100 px-1 text-xs">sudo</code>）。部署结束后可轮询 frp-agent 校验本分组代理在线数；不通过时会尝试用备份回退二进制与配置（需目标机可访问 frp-agent 且已安装 <code class="rounded bg-gray-100 px-1 text-xs">python3</code>）。
+            </p>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">分组</label>
+              <input
+                v-model="deployForm.group_name"
+                type="text"
+                readonly
+                class="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">安装目录</label>
+              <input
+                v-model="deployForm.install_path"
+                type="text"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="/opt/frp"
+              />
+            </div>
+            <div class="flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <div class="flex items-center gap-2">
+                <input
+                  id="deploy-upgrade"
+                  v-model="deployForm.upgrade"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label for="deploy-upgrade" class="text-sm text-gray-800">
+                  升级 frpc 二进制（已安装时下载并替换新版本）
+                </label>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  id="deploy-force-config"
+                  v-model="deployForm.force_config"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label for="deploy-force-config" class="text-sm text-gray-800">
+                  覆盖配置文件（强制重新拉取 frpc.toml）
+                </label>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  id="deploy-verify"
+                  v-model="deployForm.verify_after_deploy"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label for="deploy-verify" class="text-sm text-gray-800">
+                  部署后校验代理在线（失败则自动回退已备份的 frpc / frpc.toml）
+                </label>
+              </div>
+            </div>
+            <div v-if="deployCurlCommand" class="rounded-lg bg-gray-900 p-3">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-medium text-gray-400">复制到目标机执行：</span>
+                <button
+                  type="button"
+                  class="text-xs text-emerald-400 transition-colors hover:text-emerald-300"
+                  @click="copyDeployCommand"
+                >
+                  {{ deployCopied ? '已复制' : '复制' }}
+                </button>
+              </div>
+              <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ deployCurlCommand }}</pre>
+            </div>
+            <p v-else class="text-sm text-amber-700">
+              请先在密钥管理中创建并选择默认 API Key，以便生成带鉴权的一键命令。
+            </p>
+            <p class="text-xs text-gray-500">
+              兼容：仍可使用
+              <code class="rounded bg-gray-100 px-1">/quick-install</code>
+              、
+              <code class="rounded bg-gray-100 px-1">/quick-download</code>
+              端点（行为与旧版一致）。
+            </p>
+          </div>
+          <div class="flex items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3">
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
+              @click="closeDeployDialog"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 重命名分组对话框 -->
     <Teleport to="body">
       <div
@@ -553,6 +614,73 @@
         </div>
       </div>
     </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="openMoreGroupName"
+        class="fixed z-50 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="{
+          top: `${moreMenuPosition.top}px`,
+          right: `${moreMenuPosition.right}px`,
+          transform: 'translateY(-100%)'
+        }"
+        @click.stop
+      >
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="editGroup(currentMoreGroup); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+            <path d="M16 5l3 3" />
+          </svg>
+          修改
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="generateGroupConfig(openMoreGroupName); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+          </svg>
+          生成配置
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleGroupImportConfig(openMoreGroupName); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 13h5l2-3h2l2 3h5" />
+            <path d="M4 17h5l2-3h2l2 3h5" />
+            <path d="M4 9l16 0" />
+          </svg>
+          一键导入配置
+        </a>
+        <div class="my-1 border-t border-gray-100"></div>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+          href="#"
+          @click.prevent="deleteGroup(currentMoreGroup); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 7l16 0" />
+            <path d="M10 11l0 6" />
+            <path d="M14 11l0 6" />
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+          </svg>
+          删除
+        </a>
+      </div>
+    </Teleport>
     <GroupProxiesDialog
       v-model="showGroupProxiesDialog"
       :server-id="props.serverId"
@@ -593,6 +721,14 @@ const apiKeysStore = useApiKeysStore()
 
 // 更多下拉菜单状态
 const openMoreGroupName = ref('')
+const moreMenuPosition = ref({ top: 0, right: 0 })
+const moreMenuButtonRef = ref(null)
+
+// 当前更多菜单对应的分组对象
+const currentMoreGroup = computed(() => {
+  if (!openMoreGroupName.value) return null
+  return groupsStore.groups.find(g => g.group_name === openMoreGroupName.value) || null
+})
 
 // 加载分组数据
 const loadGroups = async (page = 1) => {
@@ -666,6 +802,8 @@ watch(() => groupsStore.groups, async () => {
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
 const showImportDialog = ref(false)
+const showDeployDialog = ref(false)
+const deployCopied = ref(false)
 const showGroupProxiesDialog = ref(false)
 const importLoading = ref(false)
 const importResult = ref(null)
@@ -778,6 +916,32 @@ const importForm = reactive({
   config_path: '/opt/frp',
   config_format: 'auto',
   overwrite: true
+})
+
+const deployForm = reactive({
+  group_name: '',
+  install_path: '/opt/frp',
+  platform: 'linux_amd64',
+  upgrade: false,
+  force_config: false,
+  verify_after_deploy: true
+})
+
+const deployCurlCommand = computed(() => {
+  if (!deployForm.group_name?.trim() || !selectedApiKeyFullKey.value) {
+    return ''
+  }
+  const path = groupApi.getDeployScriptUrl({
+    group_name: deployForm.group_name.trim(),
+    server_name: currentServerName.value,
+    api_key: selectedApiKeyFullKey.value,
+    install_path: deployForm.install_path?.trim() || '/opt/frp',
+    platform: deployForm.platform,
+    upgrade: deployForm.upgrade,
+    force_config: deployForm.force_config,
+    verify: deployForm.verify_after_deploy
+  })
+  return `curl -sL "${window.location.origin}${path}" | sudo bash`
 })
 
 const handleCreateGroup = async () => {
@@ -902,8 +1066,14 @@ const generateGroupConfig = (groupName) => {
   emit('generate-config', groupName)
 }
 
+const handleGroupImportConfig = (groupName) => {
+  importForm.group_name = groupName
+  showImportDialog.value = true
+}
+
 const handleGroupProxiesChanged = async () => {
-  await loadGroups(groupsStore.pagination.page)
+  groupsStore.setPagination({ page: 1 })
+  await loadGroups(1)
 }
 
 const closeCreateDialog = () => {
@@ -928,6 +1098,54 @@ const closeImportDialog = () => {
   importCurlCommand.value = ''
   importCommandDetail.value = ''
   importCopied.value = false
+}
+
+const closeDeployDialog = () => {
+  showDeployDialog.value = false
+  deployForm.group_name = ''
+  deployForm.install_path = '/opt/frp'
+  deployForm.platform = 'linux_amd64'
+  deployForm.upgrade = false
+  deployForm.force_config = false
+  deployForm.verify_after_deploy = true
+  deployCopied.value = false
+}
+
+const openDeployDialog = async (group) => {
+  deployForm.group_name = group.group_name
+  deployForm.install_path = '/opt/frp'
+  deployForm.platform = 'linux_amd64'
+  deployForm.upgrade = false
+  deployForm.force_config = false
+  deployForm.verify_after_deploy = true
+  let apiKey = selectedApiKeyFullKey.value
+  if (!apiKey) {
+    await updateFullKey()
+    apiKey = selectedApiKeyFullKey.value
+  }
+  if (!apiKey) {
+    alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
+  }
+  showDeployDialog.value = true
+}
+
+const copyDeployCommand = async () => {
+  const cmd = deployCurlCommand.value
+  if (!cmd) return
+  try {
+    await navigator.clipboard.writeText(cmd)
+    deployCopied.value = true
+    setTimeout(() => { deployCopied.value = false }, 2000)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = cmd
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    deployCopied.value = true
+    setTimeout(() => { deployCopied.value = false }, 2000)
+  }
 }
 
 const handleImport = async () => {
@@ -1026,82 +1244,38 @@ const copyImportCommand = async () => {
   }
 }
 
-// 一键安装：后端生成完整安装脚本，前端只复制一条短命令
-const handleOneClickInstall = async (group, event) => {
-  try {
-    let apiKey = selectedApiKeyFullKey.value
-    if (!apiKey) {
-      await updateFullKey()
-      apiKey = selectedApiKeyFullKey.value
-    }
-    if (!apiKey) {
-      alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
-      return
-    }
-
-    const serverName = currentServerName.value
-    const url = groupApi.getQuickInstallUrl({
-      group_name: group.group_name,
-      server_name: serverName,
-      api_key: apiKey,
-      install_path: '/opt/frp'
-    })
-    const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-
-    await copyWithTooltip(cmd, event)
-  } catch (error) {
-    console.error('一键安装失败:', error)
-    alert('一键安装失败: ' + error.message)
-  }
-}
-
 // 更多下拉菜单切换
-const toggleGroupMore = (groupName) => {
-  openMoreGroupName.value = openMoreGroupName.value === groupName ? '' : groupName
+const toggleGroupMore = (groupName, event) => {
+  if (openMoreGroupName.value === groupName) {
+    openMoreGroupName.value = ''
+    return
+  }
+  openMoreGroupName.value = groupName
+  // 计算按钮的位置
+  nextTick(() => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    moreMenuPosition.value = {
+      top: rect.top,
+      right: window.innerWidth - rect.right
+    }
+  })
 }
 
 // 点击页面其他区域关闭更多菜单
 const closeMoreOnOutsideClick = (e) => {
-  if (openMoreGroupName.value && !e.target.closest('.relative')) {
+  if (openMoreGroupName.value && !e.target.closest('[aria-label="更多操作"]') && !e.target.closest('.fixed.z-50')) {
     openMoreGroupName.value = ''
   }
 }
 onMounted(() => document.addEventListener('click', closeMoreOnOutsideClick))
 onUnmounted(() => document.removeEventListener('click', closeMoreOnOutsideClick))
 
-// 一键下载：后端生成完整下载脚本，前端只复制一条短命令
-const handleOneClickDownload = async (group, event) => {
-  try {
-    let apiKey = selectedApiKeyFullKey.value
-    if (!apiKey) {
-      await updateFullKey()
-      apiKey = selectedApiKeyFullKey.value
-    }
-    if (!apiKey) {
-      alert('无法获取有效的 API Key，请先在密钥管理中创建或设置默认密钥')
-      return
-    }
-
-    const serverName = currentServerName.value
-    const url = groupApi.getQuickDownloadUrl({
-      group_name: group.group_name,
-      server_name: serverName,
-      api_key: apiKey,
-      install_path: '/opt/frp'
-    })
-    const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-
-    await copyWithTooltip(cmd, event)
-  } catch (error) {
-    console.error('一键下载失败:', error)
-    alert('一键下载失败: ' + error.message)
-  }
-}
-
 // 使用统一的模态框功能
 useModal(showCreateDialog, closeCreateDialog)
 useModal(showRenameDialog, closeRenameDialog)
 useModal(showImportDialog, closeImportDialog)
+useModal(showDeployDialog, closeDeployDialog)
 
 // 分页处理
 const handlePageChange = (newPage) => {
