@@ -18,3 +18,23 @@
     @apply bg-gray-50 text-gray-900 font-sans;
   }
 }
+
+@layer utilities {
+  /* 细滚动条：减少「无溢出也占满轨道」的视觉干扰（配合 overflow-y-auto 的模态框） */
+  .overflow-y-auto {
+    scrollbar-width: thin;
+  }
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
