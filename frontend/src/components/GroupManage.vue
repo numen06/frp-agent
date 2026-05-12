@@ -124,82 +124,20 @@
                         <path d="M8 17l4 4l4 -4" />
                       </svg>
                     </button>
-                    <div class="relative">
-                      <button
-                        type="button"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
-                        title="更多"
-                        aria-label="更多操作"
-                        @click.stop="toggleGroupMore(group.group_name)"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                          <circle cx="5" cy="12" r="1" fill="currentColor" />
-                          <circle cx="12" cy="12" r="1" fill="currentColor" />
-                          <circle cx="19" cy="12" r="1" fill="currentColor" />
-                        </svg>
-                      </button>
-                      <div
-                        v-if="openMoreGroupName === group.group_name"
-                        class="absolute bottom-full right-0 z-50 mb-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-                        @click.stop
-                      >
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-                          href="#"
-                          @click.prevent="editGroup(group); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
-                            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
-                            <path d="M16 5l3 3" />
-                          </svg>
-                          修改
-                        </a>
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-                          href="#"
-                          @click.prevent="generateGroupConfig(group.group_name); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                          </svg>
-                          生成配置
-                        </a>
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-                          href="#"
-                          @click.prevent="handleGroupImportConfig(group.group_name); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M4 13h5l2-3h2l2 3h5" />
-                            <path d="M4 17h5l2-3h2l2 3h5" />
-                            <path d="M4 9l16 0" />
-                          </svg>
-                          一键导入配置
-                        </a>
-                        <div class="my-1 border-t border-gray-100"></div>
-                        <a
-                          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
-                          href="#"
-                          @click.prevent="deleteGroup(group); openMoreGroupName = ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                            <path d="M4 7l16 0" />
-                            <path d="M10 11l0 6" />
-                            <path d="M14 11l0 6" />
-                            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-                            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-                          </svg>
-                          删除
-                        </a>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      title="更多"
+                      aria-label="更多操作"
+                      @click.stop="toggleGroupMore(group.group_name, $event)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <circle cx="5" cy="12" r="1" fill="currentColor" />
+                        <circle cx="12" cy="12" r="1" fill="currentColor" />
+                        <circle cx="19" cy="12" r="1" fill="currentColor" />
+                      </svg>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -676,6 +614,73 @@
         </div>
       </div>
     </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="openMoreGroupName"
+        class="fixed z-50 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="{
+          top: `${moreMenuPosition.top}px`,
+          right: `${moreMenuPosition.right}px`,
+          transform: 'translateY(-100%)'
+        }"
+        @click.stop
+      >
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="editGroup(currentMoreGroup); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+            <path d="M16 5l3 3" />
+          </svg>
+          修改
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="generateGroupConfig(openMoreGroupName); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+          </svg>
+          生成配置
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleGroupImportConfig(openMoreGroupName); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 13h5l2-3h2l2 3h5" />
+            <path d="M4 17h5l2-3h2l2 3h5" />
+            <path d="M4 9l16 0" />
+          </svg>
+          一键导入配置
+        </a>
+        <div class="my-1 border-t border-gray-100"></div>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+          href="#"
+          @click.prevent="deleteGroup(currentMoreGroup); openMoreGroupName = ''"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 7l16 0" />
+            <path d="M10 11l0 6" />
+            <path d="M14 11l0 6" />
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+          </svg>
+          删除
+        </a>
+      </div>
+    </Teleport>
     <GroupProxiesDialog
       v-model="showGroupProxiesDialog"
       :server-id="props.serverId"
@@ -716,6 +721,14 @@ const apiKeysStore = useApiKeysStore()
 
 // 更多下拉菜单状态
 const openMoreGroupName = ref('')
+const moreMenuPosition = ref({ top: 0, right: 0 })
+const moreMenuButtonRef = ref(null)
+
+// 当前更多菜单对应的分组对象
+const currentMoreGroup = computed(() => {
+  if (!openMoreGroupName.value) return null
+  return groupsStore.groups.find(g => g.group_name === openMoreGroupName.value) || null
+})
 
 // 加载分组数据
 const loadGroups = async (page = 1) => {
@@ -1232,13 +1245,26 @@ const copyImportCommand = async () => {
 }
 
 // 更多下拉菜单切换
-const toggleGroupMore = (groupName) => {
-  openMoreGroupName.value = openMoreGroupName.value === groupName ? '' : groupName
+const toggleGroupMore = (groupName, event) => {
+  if (openMoreGroupName.value === groupName) {
+    openMoreGroupName.value = ''
+    return
+  }
+  openMoreGroupName.value = groupName
+  // 计算按钮的位置
+  nextTick(() => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    moreMenuPosition.value = {
+      top: rect.top,
+      right: window.innerWidth - rect.right
+    }
+  })
 }
 
 // 点击页面其他区域关闭更多菜单
 const closeMoreOnOutsideClick = (e) => {
-  if (openMoreGroupName.value && !e.target.closest('.relative')) {
+  if (openMoreGroupName.value && !e.target.closest('[aria-label="更多操作"]') && !e.target.closest('.fixed.z-50')) {
     openMoreGroupName.value = ''
   }
 }
