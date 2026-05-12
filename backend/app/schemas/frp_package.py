@@ -20,6 +20,15 @@ class FrpPackageResponse(BaseModel):
         from_attributes = True
 
 
+class FrpPackagePaginatedResponse(BaseModel):
+    """安装包列表分页响应"""
+
+    items: List[FrpPackageResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class FrpPackageSyncRequest(BaseModel):
     version: str = Field(..., min_length=1, max_length=50)
     platforms: Optional[List[str]] = None

@@ -123,8 +123,22 @@
     <div v-if="serversStore.servers.length > 0" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
         <h3 class="text-base font-semibold text-gray-900">服务器详情</h3>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="serverStatsLoading"
+          @click="reloadServerStats"
+        >
+          <span
+            class="inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-gray-300 border-t-blue-600"
+            :class="{ 'animate-spin': serverStatsLoading }"
+            role="status"
+            aria-hidden="true"
+          ></span>
+          {{ serverStatsLoading ? '刷新中…' : '刷新统计' }}
+        </button>
       </div>
-      <div v-if="loading" class="p-5">
+      <div v-if="serverStatsLoading" class="p-5">
         <div class="flex items-center justify-center gap-2 py-4 text-center text-sm text-gray-600">
           <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
           <span>加载中...</span>
@@ -247,8 +261,8 @@ const authStore = useAuthStore()
 const serversStore = useServersStore()
 const { refreshEvent } = useRefresh()
 
-const loading = ref(false)
-const serverStatsMap = ref({}) // 存储每个服务器的统计数据
+/** 仅「服务器详情」表格：与首屏汇总统计分离加载 */
+const serverStatsLoading = ref(false)
 
 // 汇总统计 - 直接从后端返回
 const totalStats = computed(() => {
@@ -284,36 +298,57 @@ const getServerOnlineRate = (serverId) => {
   return Math.round((stats.online / stats.total) * 100)
 }
 
-// 加载统计数据 - 单次 API 请求
-const loadDashboardStats = async () => {
-  loading.value = true
-  try {
-    const response = await proxyApi.getDashboardStats()
-    statsData.value = response
-    serverStatsMap.value = response.server_stats || {}
-  } catch (error) {
-    console.error('加载统计数据失败:', error)
-  } finally {
-    loading.value = false
+const mergeServerStats = (server_stats) => {
+  statsData.value = {
+    ...statsData.value,
+    server_stats: server_stats || {}
   }
 }
+
+/** 首屏：仅汇总数字（快速） */
+const loadDashboardSummary = async () => {
+  try {
+    const response = await proxyApi.getDashboardSummary()
+    statsData.value = {
+      ...statsData.value,
+      total: response.total || statsData.value.total
+    }
+  } catch (error) {
+    console.error('加载汇总统计失败:', error)
+  }
+}
+
+/** 表格：各服务器统计（可与汇总并行或稍后） */
+const loadDashboardServerStats = async () => {
+  serverStatsLoading.value = true
+  try {
+    const response = await proxyApi.getDashboardServerStats()
+    mergeServerStats(response.server_stats)
+  } catch (error) {
+    console.error('加载各服务器统计失败:', error)
+  } finally {
+    serverStatsLoading.value = false
+  }
+}
+
+const reloadServerStats = () => loadDashboardServerStats()
 
 // 监听刷新事件，当同步操作完成后自动刷新统计数据
 watch(refreshEvent, () => {
   if (refreshEvent.value > 0) {
-    loadDashboardStats()
+    loadDashboardSummary()
+    loadDashboardServerStats()
   }
 })
 
 onMounted(async () => {
   try {
-    // 并行加载服务器列表和统计数据
-    const promises = []
     if (serversStore.servers.length === 0) {
-      promises.push(serversStore.loadServers())
+      await serversStore.loadServers()
     }
-    promises.push(loadDashboardStats())
-    await Promise.all(promises)
+    // 先拉汇总（首屏数字），再拉各服务器统计（表格）
+    await loadDashboardSummary()
+    loadDashboardServerStats()
   } catch (error) {
     console.error('初始化失败:', error)
   }

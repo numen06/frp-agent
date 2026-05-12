@@ -18,18 +18,9 @@ from app.frps_client import FrpsClient
 router = APIRouter(prefix="/api/proxies", tags=["代理管理"])
 
 
-@router.get("/dashboard-stats")
-def get_dashboard_stats(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """获取 Dashboard 统计数据（单次请求返回所有服务器的汇总统计）
-
-    将统计计算下推到数据库，避免前端拉取大量代理数据。
-    """
-    from sqlalchemy import case
-
-    # 按 (frps_server_id, name) 去重：优先保留 local_port > 0（信息完整）的记录，同条件下取 id 最大
-    keep_ids_subq = (
+def _proxy_dashboard_keep_ids_subquery(db: Session):
+    """按 (frps_server_id, name) 去重：优先保留 local_port > 0 的记录，同条件下取 id 最大。"""
+    return (
         db.query(
             func.coalesce(
                 func.max(case((Proxy.local_port > 0, Proxy.id))),
@@ -39,9 +30,15 @@ def get_dashboard_stats(
         .group_by(Proxy.frps_server_id, Proxy.name)
         .subquery()
     )
-    keep_id_col = keep_ids_subq.c.keep_id
 
-    # 总汇总（去重后）
+
+@router.get("/dashboard-stats/summary")
+def get_dashboard_stats_summary(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Dashboard 全局汇总（首屏快速展示）。"""
+    keep_ids_subq = _proxy_dashboard_keep_ids_subquery(db)
+    keep_id_col = keep_ids_subq.c.keep_id
     total_row = (
         db.query(
             func.count(Proxy.id).label("total"),
@@ -52,8 +49,32 @@ def get_dashboard_stats(
         .filter(Proxy.id.in_(db.query(keep_id_col)))
         .first()
     )
+    if not total_row:
+        return {
+            "total": {
+                "total": 0,
+                "online": 0,
+                "offline": 0,
+                "portCount": 0,
+            }
+        }
+    return {
+        "total": {
+            "total": total_row.total or 0,
+            "online": int(total_row.online or 0),
+            "offline": int(total_row.offline or 0),
+            "portCount": total_row.port_count or 0,
+        }
+    }
 
-    # 按服务器分组统计（去重后）
+
+@router.get("/dashboard-stats/server-stats")
+def get_dashboard_stats_server_stats(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Dashboard 各服务器统计（可与 summary 分开发起，减轻首屏等待）。"""
+    keep_ids_subq = _proxy_dashboard_keep_ids_subquery(db)
+    keep_id_col = keep_ids_subq.c.keep_id
     server_stats = (
         db.query(
             Proxy.frps_server_id,
@@ -66,8 +87,6 @@ def get_dashboard_stats(
         .group_by(Proxy.frps_server_id)
         .all()
     )
-
-    # 构建每个服务器的统计 map
     server_stats_map = {}
     for row in server_stats:
         server_stats_map[row.frps_server_id] = {
@@ -76,16 +95,17 @@ def get_dashboard_stats(
             "offline": int(row.offline or 0),
             "portCount": row.port_count,
         }
+    return {"server_stats": server_stats_map}
 
-    return {
-        "total": {
-            "total": total_row.total,
-            "online": int(total_row.online or 0),
-            "offline": int(total_row.offline or 0),
-            "portCount": total_row.port_count,
-        },
-        "server_stats": server_stats_map,
-    }
+
+@router.get("/dashboard-stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """获取 Dashboard 统计数据（兼容：单次请求返回汇总 + 各服务器统计）。"""
+    summary = get_dashboard_stats_summary(db=db, current_user=current_user)
+    servers = get_dashboard_stats_server_stats(db=db, current_user=current_user)
+    return {**summary, **servers}
 
 
 @router.get("")

@@ -108,8 +108,9 @@
           <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
           <span class="ml-2 align-middle text-sm text-gray-500">加载中...</span>
         </div>
-        <div v-else class="overflow-x-auto">
-          <table class="w-full border-collapse text-left text-sm text-gray-700">
+        <div v-else>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">ID</th>
@@ -180,6 +181,16 @@
               </tr>
             </tbody>
           </table>
+          </div>
+          <div class="mt-4 border-t border-gray-100 pt-4">
+            <TablePagination
+              :total="pagination.total"
+              :page="pagination.page"
+              :page-size="pagination.page_size"
+              @page-change="onPackagePageChange"
+              @page-size-change="onPackagePageSizeChange"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -188,7 +199,7 @@
     <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
     <PackageInstallDialog
       v-model="showInstallDialog"
-      :packages="packages"
+      :packages="installPickerPackages"
       :latest-version="versionsMeta.latest_version"
       :loading="scriptLoading"
       :script="installScript"
@@ -216,6 +227,7 @@ import PackageSyncDialog from '@/components/PackageSyncDialog.vue'
 import PackageUploadDialog from '@/components/PackageUploadDialog.vue'
 import PackageInstallDialog from '@/components/PackageInstallDialog.vue'
 import ScriptTemplateDialog from '@/components/ScriptTemplateDialog.vue'
+import TablePagination from '@/components/TablePagination.vue'
 
 const loading = ref(false)
 const syncLoading = ref(false)
@@ -234,6 +246,7 @@ const moreActionsDropdown = useDropdown()
 const filterSyncing = ref(false)
 
 const packages = ref([])
+const installPickerPackages = ref([])
 const releases = ref([])
 const installScript = ref('')
 const upgradeScript = ref('')
@@ -241,6 +254,18 @@ const scriptTemplates = ref({})
 const apiKeysStore = useApiKeysStore()
 
 const PKG_FILTER_KEY = 'fm_package_list_filters_v1'
+const PKG_PAGE_SIZE_KEY = 'fm_package_list_page_size_v1'
+
+function readSavedPageSize() {
+  try {
+    const raw = localStorage.getItem(PKG_PAGE_SIZE_KEY)
+    const n = raw ? parseInt(raw, 10) : 10
+    if ([10, 20, 50, 100].includes(n)) return n
+  } catch {
+    /* ignore */
+  }
+  return 10
+}
 
 function readSavedFilters() {
   try {
@@ -263,6 +288,11 @@ function readSavedFilters() {
 
 const platforms = ref([])
 const filters = reactive(readSavedFilters())
+const pagination = reactive({
+  page: 1,
+  page_size: readSavedPageSize(),
+  total: 0
+})
 const versionsMeta = ref({
   versions: [],
   latest_version: '',
@@ -327,6 +357,7 @@ const loadVersionsMeta = async () => {
       filters.version = ''
       filterSyncing.value = false
       persistFilters()
+      pagination.page = 1
       await loadPackages()
       ranLoadPackages = true
     } else if (sel && sel !== '__latest__' && merged.length && !merged.includes(sel)) {
@@ -334,6 +365,7 @@ const loadVersionsMeta = async () => {
       filters.version = ''
       filterSyncing.value = false
       persistFilters()
+      pagination.page = 1
       await loadPackages()
       ranLoadPackages = true
     }
@@ -349,22 +381,86 @@ const loadVersionsMeta = async () => {
   return ranLoadPackages
 }
 
+const persistPageSize = () => {
+  try {
+    localStorage.setItem(PKG_PAGE_SIZE_KEY, String(pagination.page_size))
+  } catch {
+    /* ignore */
+  }
+}
+
+const buildListParams = (page, pageSize) => {
+  const params = {
+    version: resolveVersionForApi(),
+    platform: filters.platform || undefined,
+    source: filters.source || undefined,
+    page,
+    page_size: pageSize
+  }
+  return Object.fromEntries(Object.entries(params).filter(([, val]) => val !== undefined && val !== ''))
+}
+
 const loadPackages = async () => {
   loading.value = true
   try {
-    const params = {
-      version: resolveVersionForApi(),
-      platform: filters.platform || undefined,
-      source: filters.source || undefined
+    const clean = buildListParams(pagination.page, pagination.page_size)
+    const res = await packagesApi.list(clean)
+    const items = res.items || []
+    const total = res.total ?? 0
+    pagination.total = total
+    if (items.length === 0 && total > 0 && pagination.page > 1) {
+      pagination.page = Math.max(1, Math.ceil(total / pagination.page_size) || 1)
+      const clean2 = buildListParams(pagination.page, pagination.page_size)
+      const res2 = await packagesApi.list(clean2)
+      packages.value = res2.items || []
+      pagination.total = res2.total ?? total
+      return
     }
-    const clean = Object.fromEntries(
-      Object.entries(params).filter(([, val]) => val !== undefined && val !== '')
-    )
-    packages.value = await packagesApi.list(clean)
+    packages.value = items
   } catch (e) {
     alert(`加载失败: ${e.message}`)
   } finally {
     loading.value = false
+  }
+}
+
+const onPackagePageChange = (p) => {
+  pagination.page = p
+  loadPackages()
+}
+
+const onPackagePageSizeChange = (ps) => {
+  pagination.page_size = ps
+  pagination.page = 1
+  persistPageSize()
+  loadPackages()
+}
+
+/** 弹窗打开时加载完整候选列表（多页合并） */
+const loadInstallDialogPackages = async () => {
+  try {
+    const base = {
+      version: resolveVersionForApi(),
+      platform: filters.platform || undefined,
+      source: filters.source || undefined
+    }
+    const cleanBase = Object.fromEntries(Object.entries(base).filter(([, val]) => val !== undefined && val !== ''))
+    const merged = []
+    let page = 1
+    const page_size = 200
+    let total = 0
+    for (let guard = 0; guard < 50; guard += 1) {
+      const res = await packagesApi.list({ ...cleanBase, page, page_size })
+      total = res.total ?? 0
+      const chunk = res.items || []
+      merged.push(...chunk)
+      if (merged.length >= total || chunk.length === 0) break
+      page += 1
+    }
+    installPickerPackages.value = merged
+  } catch (e) {
+    console.warn('加载安装包候选列表失败', e)
+    installPickerPackages.value = []
   }
 }
 
@@ -636,10 +732,17 @@ watch(
   () => {
     if (filterSyncing.value) return
     persistFilters()
+    pagination.page = 1
     loadPackages()
   },
   { deep: true }
 )
+
+watch(showInstallDialog, (open) => {
+  if (open) {
+    loadInstallDialogPackages()
+  }
+})
 
 onMounted(async () => {
   apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()

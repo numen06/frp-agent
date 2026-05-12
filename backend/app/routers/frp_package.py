@@ -14,7 +14,11 @@ from app.auth import get_current_user, verify_api_key
 from app.database import get_db
 from app.models.user import User
 from app.models.frp_package import FrpPackage
-from app.schemas.frp_package import FrpPackageResponse, FrpPackageSyncRequest
+from app.schemas.frp_package import (
+    FrpPackageResponse,
+    FrpPackagePaginatedResponse,
+    FrpPackageSyncRequest,
+)
 from app.config import get_settings
 from app.services.github_service import GithubService
 from app.script_templates import load_shell_template
@@ -220,13 +224,13 @@ def _save_script_templates(data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-@router.get("", response_model=List[FrpPackageResponse])
+@router.get("", response_model=FrpPackagePaginatedResponse)
 def list_packages(
     version: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(10, ge=1, le=500, description="每页条数（列表页建议≤100；脚本弹窗可选更大 batch）"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -237,7 +241,20 @@ def list_packages(
         query = query.filter(FrpPackage.platform == platform)
     if source:
         query = query.filter(FrpPackage.source == source)
-    return query.order_by(FrpPackage.downloaded_at.desc()).offset(skip).limit(limit).all()
+    total = query.count()
+    offset = (page - 1) * page_size
+    items = (
+        query.order_by(FrpPackage.downloaded_at.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+    return FrpPackagePaginatedResponse(
+        items=[FrpPackageResponse.model_validate(p) for p in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 def _parse_filename_info(filename: str) -> Optional[dict]:

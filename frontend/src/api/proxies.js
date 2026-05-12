@@ -6,9 +6,19 @@ export const proxyApi = {
     return api.get('/proxies', { params })
   },
 
-  // 获取 Dashboard 统计数据
+  // 获取 Dashboard 统计数据（兼容：单次返回汇总 + 各服务器）
   getDashboardStats() {
     return api.get('/proxies/dashboard-stats')
+  },
+
+  /** Dashboard 全局汇总（首屏优先） */
+  getDashboardSummary() {
+    return api.get('/proxies/dashboard-stats/summary')
+  },
+
+  /** Dashboard 各服务器统计（可与 summary 分开发起） */
+  getDashboardServerStats() {
+    return api.get('/proxies/dashboard-stats/server-stats')
   },
   
   // 获取代理详情
