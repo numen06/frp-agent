@@ -35,6 +35,37 @@ class FrpPackageSyncRequest(BaseModel):
     download_source: Literal["origin", "accelerated"] = "origin"
 
 
+class PackageSyncJobResultItem(BaseModel):
+    platform: str
+    filename: str
+    status: str
+    message: Optional[str] = None
+    package_id: Optional[int] = None
+
+
+class PackageSyncJobResponse(BaseModel):
+    job_id: str
+    status: str
+    version: str
+    platforms: List[str] = []
+    download_source: str
+    total: int
+    completed: int
+    results: List[PackageSyncJobResultItem] = []
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+class PackageSyncJobCreatedResponse(BaseModel):
+    job_id: str
+    status: str
+    total: int
+    message: str = "同步任务已创建，正在后台下载"
+
+
 class FrpPackageInstallScriptRequest(BaseModel):
     package_id: int
     install_path: str = "/usr/local/bin"

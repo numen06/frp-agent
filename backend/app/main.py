@@ -61,6 +61,11 @@ async def lifespan(app: FastAPI):
         ssh_tables_upgrade()
     except Exception as e:
         logger.warning("SSH 升级表迁移跳过或失败: %s", e)
+    try:
+        from app.migrations.add_package_sync_job_table import upgrade as package_sync_job_upgrade
+        package_sync_job_upgrade()
+    except Exception as e:
+        logger.warning("安装包同步任务表迁移跳过或失败: %s", e)
     
     # 创建默认用户和 API Key（如果不存在）
     logger.info("检查并创建默认用户和 API Key...")

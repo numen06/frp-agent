@@ -10,6 +10,7 @@ from app.models.frp_package import FrpPackage
 from app.models.ssh_credential import SshCredential
 from app.models.proxy_ssh_state import ProxySshState
 from app.models.client_upgrade_job import ClientUpgradeJob
+from app.models.package_sync_job import PackageSyncJob
 
 __all__ = [
     "User",
@@ -23,5 +24,6 @@ __all__ = [
     "SshCredential",
     "ProxySshState",
     "ClientUpgradeJob",
+    "PackageSyncJob",
 ]
 

@@ -94,6 +94,13 @@
             </div>
           </div>
         </div>
+        <div
+          v-if="loading && progress.total > 0"
+          class="shrink-0 border-t border-gray-100 bg-blue-50 px-5 py-2.5 text-xs text-blue-800"
+        >
+          后台下载中… {{ progress.completed }} / {{ progress.total }}
+          <span v-if="progress.status === 'running'" class="ml-1">（可关闭此窗口，任务仍在继续）</span>
+        </div>
         <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
           <button
             type="button"
@@ -108,7 +115,7 @@
             :disabled="loading"
             @click="submit"
           >
-            {{ loading ? '同步中...' : '开始同步' }}
+            {{ syncButtonLabel }}
           </button>
         </div>
       </div>
@@ -123,7 +130,11 @@ import { useModal } from '@/composables/useModal'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   releases: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  progress: {
+    type: Object,
+    default: () => ({ completed: 0, total: 0, status: '' })
+  }
 })
 
 const emit = defineEmits(['update:modelValue', 'submit'])
@@ -137,6 +148,14 @@ const form = reactive({
 const platformsForVersion = computed(() => {
   const rel = props.releases.find((r) => r.version === form.version)
   return rel?.platforms?.length ? rel.platforms : []
+})
+
+const syncButtonLabel = computed(() => {
+  if (!props.loading) return '开始同步'
+  if (props.progress.total > 0) {
+    return `下载中 (${props.progress.completed}/${props.progress.total})`
+  }
+  return '提交中...'
 })
 
 watch(() => props.modelValue, (val) => {

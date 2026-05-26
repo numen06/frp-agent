@@ -18,9 +18,17 @@ from app.schemas.frp_package import (
     FrpPackageResponse,
     FrpPackagePaginatedResponse,
     FrpPackageSyncRequest,
+    PackageSyncJobResponse,
+    PackageSyncJobCreatedResponse,
 )
 from app.config import get_settings
 from app.services.github_service import GithubService
+from app.services.package_sync_service import (
+    create_sync_job,
+    schedule_sync_job,
+    job_to_dict,
+)
+from app.models.package_sync_job import PackageSyncJob
 from app.script_templates import load_shell_template
 
 router = APIRouter(prefix="/api/packages", tags=["安装包管理"])
@@ -594,7 +602,7 @@ def update_script_template(
     return {"platform": platform, "saved": True}
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=PackageSyncJobCreatedResponse)
 async def sync_from_github(
     payload: FrpPackageSyncRequest,
     db: Session = Depends(get_db),
@@ -618,8 +626,7 @@ async def sync_from_github(
         raise HTTPException(status_code=400, detail="未选择有效平台（请从该版本 Release 提供的平台中选择）")
 
     assets = release.get("assets", [])
-    packages_dir = _ensure_packages_dir()
-    results = []
+    pending_assets = []
     for asset in assets:
         name = asset.get("name", "")
         platform = service.parse_platform_from_filename(name)
@@ -628,55 +635,42 @@ async def sync_from_github(
         source_url = asset.get("browser_download_url")
         if not source_url:
             continue
-        download_url = (
-            service.build_accelerated_download_url(source_url)
-            if payload.download_source == "accelerated"
-            else source_url
+        pending_assets.append(
+            {
+                "name": name,
+                "platform": platform,
+                "source_url": source_url,
+            }
         )
 
-        save_path = os.path.join(packages_dir, name)
-        size = await service.download_asset(download_url, save_path)
-        checksum = service.calculate_sha256(save_path)
+    if not pending_assets:
+        raise HTTPException(status_code=400, detail="未找到可下载的安装包资源")
 
-        existed = db.query(FrpPackage).filter(
-            FrpPackage.version == payload.version,
-            FrpPackage.platform == platform
-        ).first()
+    job = create_sync_job(
+        db,
+        payload.version,
+        selected_platforms,
+        payload.download_source,
+        pending_assets,
+    )
+    schedule_sync_job(job.job_id, pending_assets, sorted(discovered))
+    return PackageSyncJobCreatedResponse(
+        job_id=job.job_id,
+        status=job.status,
+        total=job.total,
+    )
 
-        if existed:
-            if os.path.exists(existed.file_path) and existed.file_path != save_path:
-                os.remove(existed.file_path)
-            existed.filename = name
-            existed.file_path = save_path
-            existed.file_size = size
-            existed.source = "github"
-            existed.download_url = source_url
-            existed.sha256_checksum = checksum
-            existed.downloaded_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existed)
-            results.append(existed)
-        else:
-            item = FrpPackage(
-                version=payload.version,
-                platform=platform,
-                filename=name,
-                file_path=save_path,
-                file_size=size,
-                source="github",
-                download_url=source_url,
-                is_active=True,
-                sha256_checksum=checksum,
-                downloaded_at=datetime.utcnow(),
-            )
-            db.add(item)
-            db.commit()
-            db.refresh(item)
-            results.append(item)
 
-    _save_platforms_cache(sorted(discovered), payload.version)
-    _refresh_versions_cache_from_releases(releases)
-    return {"version": payload.version, "count": len(results), "items": results}
+@router.get("/jobs/{job_id}", response_model=PackageSyncJobResponse)
+def get_sync_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    job = db.query(PackageSyncJob).filter(PackageSyncJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="同步任务不存在")
+    return PackageSyncJobResponse.model_validate(job_to_dict(job))
 
 
 @router.post("/sync/check")

@@ -187,12 +187,17 @@
                   <div class="inline-flex items-center gap-2">
                     <button
                       v-if="isSshCandidateProxy(proxy)"
-                      class="inline-flex h-8 items-center justify-center rounded-lg bg-violet-50 px-2 text-violet-700 transition-colors hover:bg-violet-100"
-                      title="客户端升级"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                      title="客户端升级（SSH）"
                       aria-label="客户端升级"
                       @click="openClientUpgrade(proxy)"
                     >
-                      <span class="text-xs font-medium">升级</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M12 3l0 18" />
+                        <path d="M8 7l4 -4l4 4" />
+                        <path d="M8 17l4 4l4 -4" />
+                      </svg>
                     </button>
                     <button
                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
@@ -311,12 +316,17 @@
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     v-if="isSshCandidateProxy(proxy)"
-                    class="inline-flex min-h-10 items-center justify-center rounded-lg bg-violet-50 px-3 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100"
-                    title="客户端升级"
+                    class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                    title="客户端升级（SSH）"
                     aria-label="客户端升级"
                     @click="openClientUpgrade(proxy)"
                   >
-                    升级
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                      <path d="M12 3l0 18" />
+                      <path d="M8 7l4 -4l4 4" />
+                      <path d="M8 17l4 4l4 -4" />
+                    </svg>
                   </button>
                   <button
                     class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"

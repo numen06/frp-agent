@@ -301,7 +301,13 @@
       </div>
     </Teleport>
 
-    <PackageSyncDialog v-model="showSyncDialog" :releases="releases" :loading="syncLoading" @submit="handleSync" />
+    <PackageSyncDialog
+      v-model="showSyncDialog"
+      :releases="releases"
+      :loading="syncLoading"
+      :progress="syncProgress"
+      @submit="handleSync"
+    />
     <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
     <PackageInstallDialog
       v-model="showInstallDialog"
@@ -337,6 +343,8 @@ import TablePagination from '@/components/TablePagination.vue'
 
 const loading = ref(false)
 const syncLoading = ref(false)
+const syncProgress = ref({ completed: 0, total: 0, status: '' })
+let syncPollTimer = null
 const uploadLoading = ref(false)
 const scriptLoading = ref(false)
 const showSyncDialog = ref(false)
@@ -727,12 +735,74 @@ const handleSaveTemplate = async ({ platform, content }) => {
   }
 }
 
+const stopSyncPoll = () => {
+  if (syncPollTimer) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+const pollSyncJob = (jobId) => {
+  stopSyncPoll()
+  return new Promise((resolve, reject) => {
+    const tick = async () => {
+      try {
+        const job = await packagesApi.getSyncJob(jobId)
+        syncProgress.value = {
+          completed: job.completed ?? 0,
+          total: job.total ?? 0,
+          status: job.status || ''
+        }
+        if (job.status !== 'running' && job.status !== 'queued') {
+          stopSyncPoll()
+          resolve(job)
+        }
+      } catch (e) {
+        stopSyncPoll()
+        reject(e)
+      }
+    }
+    tick()
+    syncPollTimer = setInterval(tick, 1500)
+  })
+}
+
+const formatSyncResultMessage = (job) => {
+  const results = job.results || []
+  const successCount = results.filter((r) => r.status === 'success').length
+  const failCount = results.filter((r) => r.status === 'failed').length
+  if (job.status === 'failed' && successCount === 0) {
+    const detail = results.find((r) => r.status === 'failed')?.message
+    return job.error || detail || '同步失败'
+  }
+  if (failCount > 0) {
+    const failedNames = results
+      .filter((r) => r.status === 'failed')
+      .map((r) => r.platform || r.filename)
+      .join('、')
+    return `同步完成：成功 ${successCount} 个，失败 ${failCount} 个${failedNames ? `\n失败平台：${failedNames}` : ''}`
+  }
+  return `同步成功，共 ${successCount} 个安装包`
+}
+
 const handleSync = async (payload) => {
   syncLoading.value = true
+  syncProgress.value = { completed: 0, total: 0, status: 'queued' }
   try {
-    await packagesApi.sync(payload)
-    alert('同步成功')
-    showSyncDialog.value = false
+    const created = await packagesApi.sync(payload)
+    syncProgress.value = {
+      completed: 0,
+      total: created.total ?? 0,
+      status: created.status || 'queued'
+    }
+    const job = await pollSyncJob(created.job_id)
+    const message = formatSyncResultMessage(job)
+    if (job.status === 'failed' && !(job.results || []).some((r) => r.status === 'success')) {
+      alert(`同步失败: ${message}`)
+    } else {
+      alert(message)
+      showSyncDialog.value = false
+    }
     const ran = await loadVersionsMeta()
     if (!ran) {
       await loadPackages()
@@ -741,7 +811,9 @@ const handleSync = async (payload) => {
   } catch (e) {
     alert(`同步失败: ${e.message}`)
   } finally {
+    stopSyncPoll()
     syncLoading.value = false
+    syncProgress.value = { completed: 0, total: 0, status: '' }
   }
 }
 
@@ -975,5 +1047,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closePackageMoreOnOutsideClick)
+  stopSyncPoll()
 })
 </script>
