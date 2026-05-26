@@ -87,20 +87,61 @@
                   <span class="inline-flex rounded-md bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{{ group.offline_count }}</span>
                 </td>
                 <td class="border-b border-gray-100 px-4 py-3 align-middle">
-                  <div class="inline-flex items-center gap-2">
+                  <div class="inline-flex items-center gap-1.5">
                     <button
                       type="button"
-                      class="inline-flex min-h-8 items-center justify-center rounded-lg bg-gray-100 px-3 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-200"
-                      @click="openManageDialog(group)"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
+                      title="查看代理"
+                      aria-label="查看代理"
+                      @click="viewGroupProxies(group.group_name)"
                     >
-                      管理
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                        <path d="M21 21l-6 -6" />
+                      </svg>
                     </button>
                     <button
                       type="button"
-                      class="inline-flex min-h-8 items-center justify-center rounded-lg bg-emerald-50 px-3 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                      title="一键部署"
+                      aria-label="一键部署"
                       @click="openDeployDialog(group)"
                     >
-                      部署
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M12 3l0 18" />
+                        <path d="M8 7l4 -4l4 4" />
+                        <path d="M8 17l4 4l4 -4" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                      title="客户端升级"
+                      aria-label="客户端升级"
+                      @click="openClientUpgradeDialog(group)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M12 3l0 18" />
+                        <path d="M8 7l4 -4l4 4" />
+                        <path d="M8 17l4 4l4 -4" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      title="更多"
+                      aria-label="更多操作"
+                      @click.stop="toggleGroupMore(group.group_name, $event)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <circle cx="5" cy="12" r="1" fill="currentColor" />
+                        <circle cx="12" cy="12" r="1" fill="currentColor" />
+                        <circle cx="19" cy="12" r="1" fill="currentColor" />
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -133,20 +174,50 @@
                 <span class="inline-flex rounded-md bg-green-100 px-2 py-0.5 font-medium text-green-800">在线 {{ group.online_count }}</span>
                 <span class="inline-flex rounded-md bg-red-100 px-2 py-0.5 font-medium text-red-800">离线 {{ group.offline_count }}</span>
               </div>
-              <div class="mt-3 grid grid-cols-2 gap-2">
+              <div class="mt-3 grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200"
-                  @click="openManageDialog(group)"
+                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-2 text-blue-700 transition-colors hover:bg-blue-100"
+                  title="查看代理"
+                  aria-label="查看代理"
+                  @click="viewGroupProxies(group.group_name)"
                 >
-                  管理
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                    <path d="M21 21l-6 -6" />
+                  </svg>
+                  <span class="text-xs font-medium">代理</span>
                 </button>
                 <button
                   type="button"
-                  class="inline-flex min-h-10 items-center justify-center rounded-lg bg-emerald-50 px-3 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-2 text-emerald-700 transition-colors hover:bg-emerald-100"
+                  title="一键部署"
+                  aria-label="一键部署"
                   @click="openDeployDialog(group)"
                 >
-                  部署
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M12 3l0 18" />
+                    <path d="M8 7l4 -4l4 4" />
+                    <path d="M8 17l4 4l4 -4" />
+                  </svg>
+                  <span class="text-xs font-medium">部署</span>
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-2 text-gray-700 transition-colors hover:bg-gray-200"
+                  title="更多"
+                  aria-label="更多操作"
+                  @click.stop="toggleGroupMore(group.group_name, $event)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <circle cx="5" cy="12" r="1" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1" fill="currentColor" />
+                    <circle cx="19" cy="12" r="1" fill="currentColor" />
+                  </svg>
+                  <span class="text-xs font-medium">更多</span>
                 </button>
               </div>
             </li>
@@ -641,92 +712,85 @@
         </div>
       </div>
     </Teleport>
-    <!-- 分组管理面板 -->
+    <!-- 行级更多菜单 -->
     <Teleport to="body">
       <div
-        v-if="showManageDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
-        role="dialog"
-        aria-modal="true"
+        v-if="openMoreGroupName"
+        class="group-more-menu fixed z-50 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="{
+          top: `${moreMenuPosition.top}px`,
+          right: `${moreMenuPosition.right}px`,
+          transform: moreMenuPosition.transform
+        }"
+        @click.stop
       >
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeManageDialog" />
-        <div
-          class="relative z-10 flex w-full max-w-sm flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:rounded-xl"
-          @click.stop
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          @click="runMoreAction('config')"
         >
-          <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900">管理分组</h2>
-              <p v-if="manageGroup" class="mt-0.5 text-sm text-blue-600">{{ manageGroup.group_name }}</p>
-            </div>
-            <button
-              type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
-              aria-label="关闭"
-              @click="closeManageDialog"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                <path d="M18 6l-12 12" />
-                <path d="M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <nav class="flex flex-col py-1">
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
-              @click="runManageAction('proxies')"
-            >
-              查看代理
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
-              @click="runManageAction('upgrade')"
-            >
-              客户端升级
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
-              @click="runManageAction('config')"
-            >
-              生成配置
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
-              @click="runManageAction('import')"
-            >
-              导入配置
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
-              @click="runManageAction('rename')"
-            >
-              重命名
-            </button>
-            <div class="my-1 border-t border-gray-100" />
-            <button
-              type="button"
-              class="flex w-full items-center px-6 py-3 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
-              @click="runManageAction('delete')"
-            >
-              删除
-            </button>
-          </nav>
-          <div class="flex shrink-0 items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3.5">
-            <button
-              type="button"
-              class="inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
-              @click="closeManageDialog"
-            >
-              关闭
-            </button>
-          </div>
-        </div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+          </svg>
+          生成配置
+        </button>
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          @click="runMoreAction('import')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 13h5l2-3h2l2 3h5" />
+            <path d="M4 17h5l2-3h2l2 3h5" />
+            <path d="M4 9l16 0" />
+          </svg>
+          导入配置
+        </button>
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 md:hidden"
+          @click="runMoreAction('upgrade')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M12 3l0 18" />
+            <path d="M8 7l4 -4l4 4" />
+            <path d="M8 17l4 4l4 -4" />
+          </svg>
+          客户端升级
+        </button>
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          @click="runMoreAction('rename')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+            <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+            <path d="M16 5l3 3" />
+          </svg>
+          重命名
+        </button>
+        <div class="my-1 border-t border-gray-100" />
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
+          @click="runMoreAction('delete')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 7l16 0" />
+            <path d="M10 11l0 6" />
+            <path d="M14 11l0 6" />
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+          </svg>
+          删除
+        </button>
       </div>
     </Teleport>
 
@@ -747,7 +811,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
@@ -775,8 +839,13 @@ const groupsStore = useGroupsStore()
 const serversStore = useServersStore()
 const apiKeysStore = useApiKeysStore()
 
-const showManageDialog = ref(false)
-const manageGroup = ref(null)
+const openMoreGroupName = ref('')
+const moreMenuPosition = ref({ top: 0, right: 0, transform: 'translateY(-100%)' })
+
+const currentMoreGroup = computed(() => {
+  if (!openMoreGroupName.value) return null
+  return groupsStore.groups.find(g => g.group_name === openMoreGroupName.value) || null
+})
 
 const groupsMounted = ref(false)
 
@@ -819,6 +888,7 @@ const loadGroupsForCurrentState = async ({ resetPage = false } = {}) => {
 }
 
 onMounted(async () => {
+  document.addEventListener('click', closeMoreOnOutsideClick)
   if (serversStore.servers.length === 0) {
     try {
       await serversStore.loadServers()
@@ -829,6 +899,10 @@ onMounted(async () => {
   await loadApiKeys()
   await loadGroupsForCurrentState({ resetPage: true })
   groupsMounted.value = true
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeMoreOnOutsideClick)
 })
 
 watch(() => props.serverId, async (newId, oldId) => {
@@ -1146,32 +1220,42 @@ const openImportOrganizeDialog = async () => {
   showImportDialog.value = true
 }
 
-const openManageDialog = (group) => {
-  manageGroup.value = group
-  showManageDialog.value = true
+const closeMoreMenu = () => {
+  openMoreGroupName.value = ''
 }
 
-const closeManageDialog = () => {
-  showManageDialog.value = false
-  manageGroup.value = null
+const toggleGroupMore = (groupName, event) => {
+  if (openMoreGroupName.value === groupName) {
+    closeMoreMenu()
+    return
+  }
+  openMoreGroupName.value = groupName
+  nextTick(() => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    const menuHeight = 220
+    const openAbove = rect.top - 8 >= menuHeight
+    moreMenuPosition.value = {
+      top: openAbove ? rect.top - 8 : rect.bottom + 8,
+      right: Math.max(8, window.innerWidth - rect.right),
+      transform: openAbove ? 'translateY(-100%)' : 'none'
+    }
+  })
 }
 
-const runManageAction = (action) => {
-  const group = manageGroup.value
+const runMoreAction = (action) => {
+  const group = currentMoreGroup.value
   if (!group) return
-  closeManageDialog()
+  closeMoreMenu()
   switch (action) {
-    case 'proxies':
-      viewGroupProxies(group.group_name)
-      break
-    case 'upgrade':
-      openClientUpgradeDialog(group)
-      break
     case 'config':
       generateGroupConfig(group.group_name)
       break
     case 'import':
       handleGroupImportConfig(group.group_name)
+      break
+    case 'upgrade':
+      openClientUpgradeDialog(group)
       break
     case 'rename':
       editGroup(group)
@@ -1181,6 +1265,16 @@ const runManageAction = (action) => {
       break
     default:
       break
+  }
+}
+
+const closeMoreOnOutsideClick = (e) => {
+  if (
+    openMoreGroupName.value
+    && !e.target.closest('[aria-label="更多操作"]')
+    && !e.target.closest('.group-more-menu')
+  ) {
+    closeMoreMenu()
   }
 }
 
@@ -1319,7 +1413,6 @@ useModal(showCreateDialog, closeCreateDialog)
 useModal(showRenameDialog, closeRenameDialog)
 useModal(showImportDialog, closeImportDialog)
 useModal(showDeployDialog, closeDeployDialog)
-useModal(showManageDialog, closeManageDialog)
 
 // 分页处理
 const handlePageChange = (newPage) => {
