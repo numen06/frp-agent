@@ -950,12 +950,23 @@ const handleCreateGroup = async () => {
     return
   }
 
+  const groupName = createForm.group_name.trim()
+
   try {
     await groupsStore.createGroup({
-      group_name: createForm.group_name,
+      group_name: groupName,
       frps_server_id: props.serverId
     })
-    alert('创建分组成功')
+
+    let defaultsMessage = ''
+    try {
+      const defaultsResult = await groupApi.generateDefaults(groupName, props.serverId)
+      defaultsMessage = `\n\n已生成标准代理：新建 ${defaultsResult.created ?? 0} 个，跳过 ${defaultsResult.skipped ?? 0} 个`
+    } catch (defaultsError) {
+      defaultsMessage = `\n\n标准代理生成失败: ${defaultsError.response?.data?.detail || defaultsError.message}`
+    }
+
+    alert(`创建分组成功${defaultsMessage}`)
     showCreateDialog.value = false
     createForm.group_name = ''
     // 刷新分组列表，重置到第一页

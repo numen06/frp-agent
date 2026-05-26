@@ -65,6 +65,37 @@
               </button>
               <button
                 type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="loading || generatingDefaults"
+                @click="generateStandardProxies"
+              >
+                <span
+                  v-if="generatingDefaults"
+                  class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                  role="status"
+                  aria-label="加载中"
+                />
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M12 3l0 18" />
+                  <path d="M7 12l5 5l5 -5" />
+                </svg>
+                生成标准代理
+              </button>
+              <button
+                type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="loading"
                 @click="syncFromFrps"
@@ -237,6 +268,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { proxyApi } from '@/api/proxies'
+import { groupApi } from '@/api/groups'
 import { useModal } from '@/composables/useModal'
 import TableSearch from '@/components/TableSearch.vue'
 import TablePagination from '@/components/TablePagination.vue'
@@ -262,6 +294,7 @@ const emit = defineEmits(['update:modelValue', 'success'])
 
 const dialogVisible = ref(false)
 const loading = ref(false)
+const generatingDefaults = ref(false)
 const proxies = ref([])
 const showEditProxyDialog = ref(false)
 const showAddProxyDialog = ref(false)
@@ -384,6 +417,30 @@ const deleteProxy = async (proxy) => {
   }
 }
 
+const generateStandardProxies = async () => {
+  if (!props.serverId || !props.groupName) {
+    return
+  }
+
+  generatingDefaults.value = true
+  try {
+    const result = await groupApi.generateDefaults(props.groupName, props.serverId)
+    const msg = [
+      result.message || '生成完成',
+      '',
+      `新建：${result.created ?? 0} 个`,
+      `跳过（已存在）：${result.skipped ?? 0} 个`
+    ].join('\n')
+    alert(msg)
+    await loadData(pagination.page)
+    emit('success')
+  } catch (error) {
+    alert('生成标准代理失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    generatingDefaults.value = false
+  }
+}
+
 const syncFromFrps = async () => {
   loading.value = true
   try {
@@ -441,6 +498,7 @@ const resetState = () => {
   showEditProxyDialog.value = false
   showAddProxyDialog.value = false
   editingProxy.value = null
+  generatingDefaults.value = false
 }
 
 const handleBackdropClick = () => {

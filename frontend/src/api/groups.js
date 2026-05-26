@@ -56,6 +56,15 @@ export const groupApi = {
     })
   },
 
+  // 为分组生成标准代理（http:80, docker:9000, ssh:22）
+  generateDefaults(groupName, frpsServerId) {
+    return api.post(`/groups/${encodeURIComponent(groupName)}/generate-defaults`, null, {
+      params: {
+        frps_server_id: frpsServerId
+      }
+    })
+  },
+
   // 一键安装脚本 URL
   getQuickInstallUrl(params) {
     const query = new URLSearchParams()
