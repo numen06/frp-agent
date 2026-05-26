@@ -5,15 +5,12 @@
 python -m app.migrations.add_frp_version_fields
 """
 
-from sqlalchemy import create_engine, text
-from app.config import get_settings
+from sqlalchemy import text
+from app.database import engine
 
 
-def migrate():
-    """执行迁移"""
-    settings = get_settings()
-    engine = create_engine(settings.database_url)
-
+def upgrade():
+    """添加 frps_servers / proxies 版本相关列（幂等）"""
     with engine.connect() as conn:
         result = conn.execute(text("PRAGMA table_info(frps_servers)"))
         server_columns = [row[1] for row in result.fetchall()]
@@ -64,5 +61,10 @@ def migrate():
     print("\n✅ 数据库迁移完成！")
 
 
+def migrate():
+    """兼容旧调用名"""
+    upgrade()
+
+
 if __name__ == "__main__":
-    migrate()
+    upgrade()

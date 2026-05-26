@@ -52,6 +52,11 @@ async def lifespan(app: FastAPI):
     logger.info("初始化数据库...")
     init_db()
     try:
+        from app.migrations.add_frp_version_fields import upgrade as frp_version_upgrade
+        frp_version_upgrade()
+    except Exception as e:
+        logger.warning("FRP 版本字段迁移跳过或失败: %s", e)
+    try:
         from app.migrations.add_ssh_upgrade_tables import upgrade as ssh_tables_upgrade
         ssh_tables_upgrade()
     except Exception as e:
