@@ -22,7 +22,7 @@
         </div>
         <button
           type="button"
-          class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
+          class="btn btn-sm btn-outline min-h-10 w-full sm:min-h-8 sm:w-auto"
           @click="handleTestServer"
           :disabled="!selectedServerId || serversStore.loading"
         >

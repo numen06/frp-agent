@@ -133,7 +133,7 @@
           <li v-for="item in navItems" :key="item.path" class="shrink-0 md:shrink">
             <router-link
               :to="item.path"
-              class="btn btn-ghost min-h-10 w-full justify-start gap-2 px-3 py-2.5 md:min-h-0 md:w-auto md:justify-center md:py-2"
+              class="btn btn-sm btn-ghost min-h-10 w-full justify-start gap-2 px-3 py-2.5 text-sm md:min-h-8 md:w-auto md:justify-center md:py-1.5 md:text-xs"
               :class="$route.path === item.path ? 'bg-blue-50 text-blue-600 hover:bg-blue-50 hover:text-blue-600' : 'text-gray-600'"
               @click="navCollapse.close()"
             >
