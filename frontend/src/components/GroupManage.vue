@@ -332,11 +332,21 @@
               </p>
               <button
                 type="button"
-                class="mt-3 inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                :disabled="analyzeLoading"
+                class="mt-3 inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
                 @click="handleAutoAnalyze"
               >
+                <span v-if="analyzeLoading" class="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 开始自动分析
               </button>
+              <div v-if="analyzeSummary" class="mt-3 rounded-lg border border-green-300 bg-white p-3 text-xs text-green-900">
+                <p v-if="analyzeSummary.error" class="font-medium text-red-700">{{ analyzeSummary.error }}</p>
+                <template v-else>
+                  <p class="font-medium">分析摘要</p>
+                  <p class="mt-1">总代理数 {{ analyzeSummary.total }}，更新 {{ analyzeSummary.updated }}，跳过 {{ analyzeSummary.skipped }}，未变化 {{ analyzeSummary.unchanged }}</p>
+                  <p v-if="analyzeSummary.new_groups?.length" class="mt-1">新识别分组：{{ analyzeSummary.new_groups.join('、') }}</p>
+                </template>
+              </div>
             </div>
 
             <div class="border-t border-gray-100 pt-1">
@@ -412,7 +422,23 @@
               </div>
 
               <!-- 自动生成命令展示 -->
-              <div v-if="importCurlCommand" class="space-y-2">
+              <div v-if="importPreview.loading" class="flex items-center gap-2 text-sm text-gray-500">
+                <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+                正在生成导入命令预览…
+              </div>
+              <div v-else-if="importPreview.missing_requirements.length" class="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p
+                  v-for="item in importPreview.missing_requirements"
+                  :key="item.code"
+                  class="text-sm text-amber-800"
+                >
+                  {{ item.message }}
+                </p>
+              </div>
+              <div v-else-if="importDisplayCommand" class="space-y-2">
+                <div v-if="importPreview.warnings.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <p v-for="(warning, idx) in importPreview.warnings" :key="idx">{{ warning }}</p>
+                </div>
                 <div class="rounded-lg bg-gray-900 p-3">
                   <div class="mb-2 flex items-center justify-between">
                     <span class="text-xs font-medium text-gray-400">复制到目标服务器执行（一条命令即可）：</span>
@@ -424,16 +450,13 @@
                       {{ importCopied ? '已复制' : '复制' }}
                     </button>
                   </div>
-                  <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ importCurlCommand }}</pre>
+                  <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ importDisplayCommand }}</pre>
                 </div>
                 <details v-if="importCommandDetail" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
                   <summary class="cursor-pointer font-medium text-gray-700 hover:text-gray-900">详情说明</summary>
                   <p class="mt-2 whitespace-pre-wrap border-t border-gray-200 pt-2 text-gray-500">{{ importCommandDetail }}</p>
                 </details>
               </div>
-              <p v-else-if="importForm.group_name.trim() && !selectedApiKeyFullKey" class="text-sm text-amber-700">
-                请先在密钥管理中创建并选择默认 API Key，以便生成带鉴权的一键命令。
-              </p>
               <p v-else-if="!importForm.group_name.trim()" class="text-sm text-gray-500">
                 填写分组名称后将自动生成导入命令。
               </p>
@@ -617,22 +640,37 @@
                 </div>
               </div>
             </details>
-            <div v-if="deployCurlCommand" class="rounded-lg bg-gray-900 p-3">
-              <div class="mb-2 flex items-center justify-between">
-                <span class="text-xs font-medium text-gray-400">复制到目标机执行：</span>
-                <button
-                  type="button"
-                  class="text-xs text-emerald-400 transition-colors hover:text-emerald-300"
-                  @click="copyDeployCommand"
-                >
-                  {{ deployCopied ? '已复制' : '复制' }}
-                </button>
-              </div>
-              <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ deployCurlCommand }}</pre>
+            <div v-if="deployPreview.loading" class="flex items-center gap-2 text-sm text-gray-500">
+              <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-emerald-500" />
+              正在生成部署命令预览…
             </div>
-            <p v-else class="text-sm text-amber-700">
-              请先在密钥管理中创建并选择默认 API Key，以便生成带鉴权的一键命令。
-            </p>
+            <div v-else-if="deployPreview.missing_requirements.length" class="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p
+                v-for="item in deployPreview.missing_requirements"
+                :key="item.code"
+                class="text-sm text-amber-800"
+              >
+                {{ item.message }}
+              </p>
+            </div>
+            <div v-else-if="deployDisplayCommand" class="space-y-2">
+              <div v-if="deployPreview.warnings.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p v-for="(warning, idx) in deployPreview.warnings" :key="idx">{{ warning }}</p>
+              </div>
+              <div class="rounded-lg bg-gray-900 p-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-xs font-medium text-gray-400">复制到目标机执行：</span>
+                  <button
+                    type="button"
+                    class="text-xs text-emerald-400 transition-colors hover:text-emerald-300"
+                    @click="copyDeployCommand"
+                  >
+                    {{ deployCopied ? '已复制' : '复制' }}
+                  </button>
+                </div>
+                <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs text-green-400">{{ deployDisplayCommand }}</pre>
+              </div>
+            </div>
             <p class="text-xs text-gray-500">
               兼容：仍可使用
               <code class="rounded bg-gray-100 px-1">/quick-install</code>
@@ -726,6 +764,19 @@
       >
         <button
           type="button"
+          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 md:hidden"
+          @click="runMoreAction('upgrade')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M12 3l0 18" />
+            <path d="M8 7l4 -4l4 4" />
+            <path d="M8 17l4 4l4 -4" />
+          </svg>
+          客户端升级
+        </button>
+        <button
+          type="button"
           class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
           @click="runMoreAction('config')"
         >
@@ -748,19 +799,6 @@
             <path d="M4 9l16 0" />
           </svg>
           导入配置
-        </button>
-        <button
-          type="button"
-          class="flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 md:hidden"
-          @click="runMoreAction('upgrade')"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M12 3l0 18" />
-            <path d="M8 7l4 -4l4 4" />
-            <path d="M8 17l4 4l4 -4" />
-          </svg>
-          客户端升级
         </button>
         <button
           type="button"
@@ -936,6 +974,24 @@ const showGroupProxiesDialog = ref(false)
 const importLoading = ref(false)
 const importResult = ref(null)
 const importCopied = ref(false)
+const analyzeLoading = ref(false)
+const analyzeSummary = ref(null)
+const deployPreview = reactive({
+  loading: false,
+  command: '',
+  script_url: '',
+  warnings: [],
+  missing_requirements: [],
+  effective_options: null
+})
+const importPreview = reactive({
+  loading: false,
+  command: '',
+  script_url: '',
+  warnings: [],
+  missing_requirements: [],
+  effective_options: null
+})
 const currentGroup = ref(null)
 const selectedGroupForProxies = ref('')
 const selectedApiKeyId = computed({
@@ -1037,6 +1093,20 @@ const deployCurlCommand = computed(() => {
   return `curl -sL "${window.location.origin}${path}" | sudo bash`
 })
 
+const deployDisplayCommand = computed(() => {
+  if (deployPreview.loading) return ''
+  if (deployPreview.command) return deployPreview.command
+  if (showDeployDialog.value && deployPreview.missing_requirements.length) return ''
+  return deployCurlCommand.value
+})
+
+const importDisplayCommand = computed(() => {
+  if (importPreview.loading) return ''
+  if (importPreview.command) return importPreview.command
+  if (showImportDialog.value && importPreview.missing_requirements.length) return ''
+  return importCurlCommand.value
+})
+
 const importCurlCommand = computed(() => {
   if (importForm.mode !== 'command') return ''
   if (!importForm.group_name?.trim() || !selectedApiKeyFullKey.value) return ''
@@ -1050,6 +1120,118 @@ const importCurlCommand = computed(() => {
   })
   return `curl -sL "${window.location.origin}${path}" | bash`
 })
+
+const resetDeployPreview = () => {
+  deployPreview.loading = false
+  deployPreview.command = ''
+  deployPreview.script_url = ''
+  deployPreview.warnings = []
+  deployPreview.missing_requirements = []
+  deployPreview.effective_options = null
+}
+
+const resetImportPreview = () => {
+  importPreview.loading = false
+  importPreview.command = ''
+  importPreview.script_url = ''
+  importPreview.warnings = []
+  importPreview.missing_requirements = []
+  importPreview.effective_options = null
+}
+
+const getCurrentServerRawName = () => {
+  const server = serversStore.servers.find(s => s.id === props.serverId)
+  return server?.name || ''
+}
+
+const refreshDeployPreview = async () => {
+  if (!showDeployDialog.value || !deployForm.group_name?.trim()) {
+    resetDeployPreview()
+    return
+  }
+  deployPreview.loading = true
+  try {
+    const result = await groupApi.previewDeploy(deployForm.group_name.trim(), {
+      frps_server_id: props.serverId,
+      server_name: getCurrentServerRawName(),
+      install_path: deployForm.install_path?.trim() || '/opt/frp',
+      platform: deployForm.platform,
+      upgrade: deployForm.upgrade,
+      force_config: deployForm.force_config,
+      verify: deployForm.verify_after_deploy,
+      api_key: selectedApiKeyFullKey.value || undefined
+    })
+    deployPreview.command = result.command || ''
+    deployPreview.script_url = result.script_url || ''
+    deployPreview.warnings = result.warnings || []
+    deployPreview.missing_requirements = result.missing_requirements || []
+    deployPreview.effective_options = result.effective_options || null
+  } catch {
+    resetDeployPreview()
+  } finally {
+    deployPreview.loading = false
+  }
+}
+
+const refreshImportPreview = async () => {
+  if (!showImportDialog.value || importForm.mode !== 'command' || !importForm.group_name?.trim()) {
+    resetImportPreview()
+    return
+  }
+  importPreview.loading = true
+  try {
+    const result = await groupApi.previewImport({
+      frps_server_id: props.serverId,
+      group_name: importForm.group_name.trim(),
+      config_path: importForm.config_path.trim() || '/opt/frp',
+      config_format: importForm.config_format,
+      overwrite: importForm.overwrite,
+      api_key: selectedApiKeyFullKey.value || undefined
+    })
+    importPreview.command = result.command || ''
+    importPreview.script_url = result.script_url || ''
+    importPreview.warnings = result.warnings || []
+    importPreview.missing_requirements = result.missing_requirements || []
+    importPreview.effective_options = result.effective_options || null
+  } catch {
+    resetImportPreview()
+  } finally {
+    importPreview.loading = false
+  }
+}
+
+watch(
+  () => [
+    showDeployDialog.value,
+    deployForm.install_path,
+    deployForm.upgrade,
+    deployForm.force_config,
+    deployForm.verify_after_deploy,
+    selectedApiKeyFullKey.value
+  ],
+  () => {
+    if (showDeployDialog.value) {
+      refreshDeployPreview()
+    }
+  }
+)
+
+watch(
+  () => [
+    showImportDialog.value,
+    importForm.mode,
+    importForm.group_name,
+    importForm.config_path,
+    importForm.config_format,
+    importForm.overwrite,
+    selectedApiKeyFullKey.value
+  ],
+  () => {
+    if (showImportDialog.value && importForm.mode === 'command') {
+      refreshImportPreview()
+    }
+  }
+)
 
 const importCommandDetail = computed(() => {
   if (importForm.mode !== 'command' || !importForm.group_name?.trim()) return ''
@@ -1153,37 +1335,25 @@ const handleAutoAnalyze = async () => {
     return
   }
 
+  analyzeLoading.value = true
+  analyzeSummary.value = null
   try {
     const result = await groupsStore.autoAnalyzeGroups(props.serverId)
-    // 显示详细结果
-    if (result && result.analysis) {
-      const analysis = result.analysis
-      let message = `✓ 分析完成！\n\n`
-      message += `总代理数: ${analysis.total}\n`
-      message += `更新数量: ${analysis.updated}\n`
-      message += `跳过数量: ${analysis.skipped} (已有分组)\n`
-      message += `未变化: ${analysis.unchanged}\n\n`
-
-      if (Object.keys(analysis.groups_found).length > 0) {
-        message += `发现的分组:\n`
-        Object.entries(analysis.groups_found).sort().forEach(([group, count]) => {
-          message += `  • ${group}: ${count} 个代理\n`
-        })
-      }
-
-      if (analysis.new_groups && analysis.new_groups.length > 0) {
-        message += `\n新识别的分组: ${analysis.new_groups.join(', ')}`
-      }
-
-      alert(message)
-    } else {
-      alert('自动分析分组成功')
+    if (result?.analysis) {
+      analyzeSummary.value = result.analysis
     }
-    // 刷新分组列表，重置到第一页
     groupsStore.setPagination({ page: 1 })
     await loadGroups(1)
   } catch (error) {
-    alert('自动分析失败: ' + error.message)
+    analyzeSummary.value = {
+      total: 0,
+      updated: 0,
+      skipped: 0,
+      unchanged: 0,
+      error: error.message || '自动分析失败'
+    }
+  } finally {
+    analyzeLoading.value = false
   }
 }
 
@@ -1203,6 +1373,8 @@ const handleGroupImportConfig = async (groupName) => {
   importForm.overwrite = true
   importResult.value = null
   importCopied.value = false
+  analyzeSummary.value = null
+  resetImportPreview()
   await updateFullKey()
   showImportDialog.value = true
 }
@@ -1216,6 +1388,8 @@ const openImportOrganizeDialog = async () => {
   importForm.overwrite = true
   importResult.value = null
   importCopied.value = false
+  analyzeSummary.value = null
+  resetImportPreview()
   await updateFullKey()
   showImportDialog.value = true
 }
@@ -1303,6 +1477,8 @@ const closeImportDialog = () => {
   importForm.overwrite = true
   importResult.value = null
   importCopied.value = false
+  analyzeSummary.value = null
+  resetImportPreview()
 }
 
 const closeDeployDialog = () => {
@@ -1314,6 +1490,7 @@ const closeDeployDialog = () => {
   deployForm.force_config = false
   deployForm.verify_after_deploy = true
   deployCopied.value = false
+  resetDeployPreview()
 }
 
 const openClientUpgradeDialog = (group) => {
@@ -1329,12 +1506,13 @@ const openDeployDialog = async (group) => {
   deployForm.force_config = false
   deployForm.verify_after_deploy = true
   deployCopied.value = false
+  resetDeployPreview()
   await updateFullKey()
   showDeployDialog.value = true
 }
 
 const copyDeployCommand = async () => {
-  const cmd = deployCurlCommand.value
+  const cmd = deployDisplayCommand.value
   if (!cmd) return
   try {
     await navigator.clipboard.writeText(cmd)
@@ -1390,21 +1568,21 @@ const handleImport = async () => {
 }
 
 const copyImportCommand = async () => {
-  if (importCurlCommand.value) {
-    try {
-      await navigator.clipboard.writeText(importCurlCommand.value)
-      importCopied.value = true
-      setTimeout(() => { importCopied.value = false }, 2000)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = importCurlCommand.value
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      importCopied.value = true
-      setTimeout(() => { importCopied.value = false }, 2000)
-    }
+  const cmd = importDisplayCommand.value
+  if (!cmd) return
+  try {
+    await navigator.clipboard.writeText(cmd)
+    importCopied.value = true
+    setTimeout(() => { importCopied.value = false }, 2000)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = cmd
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    importCopied.value = true
+    setTimeout(() => { importCopied.value = false }, 2000)
   }
 }
 
