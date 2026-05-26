@@ -1,31 +1,33 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen overflow-x-hidden bg-gray-50">
     <header class="border-b border-gray-200 bg-white">
-      <div class="max-w-7xl mx-auto px-4">
-        <div class="h-16 flex items-center justify-between">
-          <div class="flex items-center gap-2">
+      <div class="max-w-7xl mx-auto px-3 sm:px-4">
+        <div class="flex h-14 min-h-14 items-center justify-between gap-2 sm:h-16 sm:gap-3">
+          <div class="flex min-w-0 shrink items-center gap-1 sm:gap-2">
             <button
-              class="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              class="touch-target md:hidden rounded-lg text-gray-500 hover:bg-gray-100"
               type="button"
               @click="navCollapse.toggle()"
               :aria-expanded="navCollapse.isOpen.value"
-              aria-label="Toggle navigation"
+              aria-label="打开导航菜单"
             >
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <router-link to="/dashboard" class="flex items-center gap-2 text-blue-600">
-              <FrpLogo :size="40" color="currentColor" />
-              <span class="font-extrabold text-blue-600">FRP</span>
-              <span class="font-semibold text-gray-500">-AGENT</span>
+            <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2">
+              <span class="shrink-0 sm:hidden"><FrpLogo :size="32" color="currentColor" /></span>
+              <span class="hidden shrink-0 sm:inline"><FrpLogo :size="40" color="currentColor" /></span>
+              <span class="truncate font-extrabold text-blue-600 max-[360px]:hidden min-[361px]:inline sm:inline">FRP</span>
+              <span class="hidden font-semibold text-gray-500 sm:inline">-AGENT</span>
             </router-link>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               type="button"
-              class="relative inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              class="touch-target relative inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 sm:px-2.5 sm:py-1.5 sm:text-sm"
               title="版本与更新"
+              aria-label="版本与更新"
               @click="openVersionModal"
             >
               <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -54,10 +56,10 @@
                 </option>
               </select>
             </div>
-            <div class="relative hidden md:block">
+            <div class="relative">
               <button
                 ref="notifyDropdown.triggerRef"
-                class="inline-flex rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+                class="touch-target rounded-lg text-gray-500 hover:bg-gray-100"
                 type="button"
                 :aria-expanded="notifyDropdown.isOpen.value"
                 aria-label="消息通知"
@@ -77,7 +79,7 @@
               </button>
               <div
                 ref="notifyDropdown.dropdownRef"
-                class="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                class="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs rounded-lg border border-gray-200 bg-white py-1 shadow-lg sm:w-72 sm:max-w-none"
                 :class="notifyDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
@@ -88,7 +90,7 @@
                     v-for="item in notifications"
                     :key="item.id"
                     href="#"
-                    class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    class="flex min-h-10 cursor-pointer items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 sm:min-h-0 sm:py-2"
                     @click.prevent="handleNotificationClick(item); notifyDropdown.close()"
                   >
                     <span class="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500"></span>
@@ -101,7 +103,10 @@
             <div class="relative">
               <button
                 ref="userDropdown.triggerRef"
-                class="inline-flex items-center gap-2 rounded-lg p-1.5 hover:bg-gray-100"
+                class="touch-target inline-flex items-center gap-2 rounded-lg hover:bg-gray-100 sm:p-1.5"
+                type="button"
+                :aria-expanded="userDropdown.isOpen.value"
+                aria-label="用户菜单"
                 @click.prevent="userDropdown.toggle()"
               >
                 <img
@@ -116,13 +121,13 @@
               </button>
               <div
                 ref="userDropdown.dropdownRef"
-                class="absolute right-0 z-50 mt-2 min-w-[10rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                class="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs rounded-lg border border-gray-200 bg-white py-1 shadow-lg sm:min-w-40 sm:max-w-none"
                 :class="userDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
-                <a href="#" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
+                <a href="#" class="block min-h-10 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 sm:min-h-0 sm:py-2" @click.prevent="handleUserManage(); userDropdown.close()">用户管理</a>
                 <div class="my-1 border-t border-gray-200"></div>
-                <a href="#" class="block px-3 py-2 text-sm text-red-600 hover:bg-red-50" @click.prevent="handleLogout(); userDropdown.close()">退出登录</a>
+                <a href="#" class="block min-h-10 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 sm:min-h-0 sm:py-2" @click.prevent="handleLogout(); userDropdown.close()">退出登录</a>
               </div>
             </div>
           </div>
@@ -130,14 +135,19 @@
       </div>
     </header>
 
-    <nav class="border-b border-gray-200 bg-white md:block" :class="{ hidden: !navCollapse.isOpen.value }">
-      <div class="max-w-7xl mx-auto px-4">
-        <ul class="flex flex-wrap gap-1 py-2">
-          <li v-for="item in navItems" :key="item.path">
+    <nav
+      class="border-b border-gray-200 bg-white md:block"
+      :class="{ hidden: !navCollapse.isOpen.value }"
+      aria-label="主导航"
+    >
+      <div class="max-w-7xl mx-auto px-3 sm:px-4">
+        <ul class="flex flex-col gap-0.5 py-2 md:flex-row md:flex-wrap md:gap-1">
+          <li v-for="item in navItems" :key="item.path" class="shrink-0 md:shrink">
             <router-link
               :to="item.path"
-              class="inline-flex rounded-lg px-3 py-2 text-sm font-medium"
+              class="flex min-h-10 w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium md:inline-flex md:min-h-0 md:w-auto md:py-2"
               :class="$route.path === item.path ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'"
+              @click="navCollapse.close()"
             >
               {{ item.label }}
             </router-link>
@@ -146,21 +156,21 @@
       </div>
     </nav>
 
-    <div class="py-6">
-      <div class="max-w-7xl mx-auto px-4">
+    <div class="py-4 sm:py-6">
+      <div class="max-w-7xl mx-auto px-3 sm:px-4">
         <router-view />
       </div>
     </div>
 
     <footer class="border-t border-gray-200 bg-white py-4">
-      <div class="max-w-7xl mx-auto px-4 text-sm text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div class="max-w-7xl mx-auto flex flex-col gap-2 px-3 text-sm text-gray-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-1 sm:px-4">
         <span>FRP-AGENT v{{ appVersion || '…' }}</span>
-        <span class="text-gray-300">|</span>
+        <span class="hidden text-gray-300 sm:inline">|</span>
         <span>Copyright &copy; 2025</span>
-        <span class="text-gray-300">|</span>
+        <span class="hidden text-gray-300 sm:inline">|</span>
         <button
           type="button"
-          class="text-blue-600 hover:underline p-0 border-0 bg-transparent cursor-pointer text-sm"
+          class="min-h-10 cursor-pointer border-0 bg-transparent p-0 text-left text-sm text-blue-600 hover:underline sm:min-h-0"
           @click="openVersionModal"
         >
           检查更新与发行说明
@@ -198,7 +208,7 @@
     <Teleport to="body">
       <div
         v-if="showVersionModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="version-modal-title"
@@ -207,7 +217,7 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionModal"></div>
         <div
-          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex max-h-[min(90dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl rounded-b-none border border-gray-200 bg-white shadow-xl will-change-transform sm:max-h-[min(90vh,640px)] sm:rounded-b-xl"
           @click.stop
         >
           <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
@@ -521,6 +531,10 @@ const checkPasswordRequirement = async () => {
     console.warn('检查密码要求失败:', error)
   }
 }
+
+watch(() => route.path, () => {
+  navCollapse.close()
+})
 
 // 监听路由查询参数
 watch(() => route.query, (newQuery) => {

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="dialogVisible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
     >
@@ -12,11 +12,11 @@
         @click="handleBackdropClick"
       />
       <div
-        class="group-proxies-dialog relative z-10 flex max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+        class="group-proxies-dialog relative z-10 flex h-[calc(100dvh-0.5rem)] max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(82vh,700px)] sm:rounded-xl"
         role="document"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
           <h2 class="text-lg font-semibold text-gray-900">
             查看代理 - {{ props.groupName || '-' }}
           </h2>
@@ -34,26 +34,26 @@
           </button>
         </div>
 
-        <div class="group-proxies-body min-h-0 flex-1 px-6 py-4">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="w-[250px] min-w-[200px]">
+        <div class="group-proxies-body min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-4">
+          <div class="mb-3 flex flex-col gap-3">
+            <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div class="w-full min-w-0 sm:max-w-[250px]">
                 <TableSearch
                   v-model="filters.search"
                   placeholder="搜索代理名称..."
                   @search="handleSearch"
                 />
               </div>
-              <AppSelect class="w-auto" size="sm" v-model="filters.status" @change="handleFilterChange">
+              <AppSelect class="w-full sm:w-auto" size="sm" v-model="filters.status" @change="handleFilterChange">
                 <option value="">全部状态</option>
                 <option value="online">在线</option>
                 <option value="offline">离线</option>
               </AppSelect>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex w-full flex-wrap gap-2">
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
                 @click="showAddProxyDialog = true"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -65,7 +65,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
                 :disabled="loading || generatingDefaults"
                 @click="generateStandardProxies"
               >
@@ -96,7 +96,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
                 :disabled="loading"
                 @click="syncFromFrps"
               >
@@ -127,7 +127,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
                 :disabled="loading"
                 @click="loadData(pagination.page)"
               >
@@ -159,7 +159,7 @@
             </div>
           </div>
 
-          <div class="group-proxies-table-wrap overflow-x-auto">
+          <div class="group-proxies-table-wrap hidden overflow-x-auto md:block">
             <table class="w-full border-collapse text-left text-sm text-gray-700">
               <thead>
                 <tr>
@@ -239,7 +239,68 @@
             </table>
           </div>
 
-          <div v-if="pagination.total > 0" class="mt-3">
+          <div class="min-h-0 flex-1 overflow-y-auto md:hidden">
+            <div v-if="loading" class="py-4 text-center text-sm text-gray-600">
+              <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中" />
+              <span class="ml-2 align-middle">加载中...</span>
+            </div>
+            <p v-else-if="proxies.length === 0" class="py-8 text-center text-sm text-gray-500">当前分组暂无代理</p>
+            <ul v-else class="divide-y divide-gray-100">
+              <li v-for="proxy in proxies" :key="proxy.id" class="p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium text-gray-900" :title="proxy.name">{{ proxy.name }}</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                      <span class="inline-flex rounded-md bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">{{ proxy.proxy_type.toUpperCase() }}</span>
+                      <span
+                        class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
+                        :class="proxy.status === 'online' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                      >
+                        {{ proxy.status === 'online' ? '在线' : '离线' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <dl class="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-500">
+                  <div><dt class="inline">本地 </dt><dd class="inline break-all text-gray-700">{{ proxy.local_ip }}:{{ proxy.local_port || '-' }}</dd></div>
+                  <div><dt class="inline">远程 </dt><dd class="inline text-gray-700">{{ proxy.remote_port || '-' }}</dd></div>
+                  <div class="col-span-2"><dt class="inline">frpc </dt><dd class="inline text-gray-600">{{ proxy.client_version || '未知' }}</dd></div>
+                </dl>
+                <div class="mt-3 flex gap-2">
+                  <button
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                    title="编辑"
+                    aria-label="编辑"
+                    @click="editProxy(proxy)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                      <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                      <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                      <path d="M16 5l3 3" />
+                    </svg>
+                  </button>
+                  <button
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                    title="删除"
+                    aria-label="删除"
+                    @click="deleteProxy(proxy)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                      <path d="M4 7l16 0" />
+                      <path d="M10 11l0 6" />
+                      <path d="M14 11l0 6" />
+                      <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                      <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="pagination.total > 0" class="mt-3 shrink-0">
             <TablePagination
               :total="pagination.total"
               :page="pagination.page"
@@ -510,8 +571,14 @@ const handleBackdropClick = () => {
 
 <style scoped>
 .group-proxies-dialog {
-  max-width: min(1200px, 88vw);
+  max-width: min(1200px, 100vw);
   min-height: min(700px, 82vh);
+}
+
+@media (min-width: 640px) {
+  .group-proxies-dialog {
+    max-width: min(1200px, 88vw);
+  }
 }
 
 .group-proxies-body {

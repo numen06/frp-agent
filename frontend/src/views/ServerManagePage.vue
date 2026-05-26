@@ -1,12 +1,12 @@
 <template>
   <div>
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+      <div class="flex flex-col gap-3 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-2">
         <h3 class="text-base font-semibold text-gray-900">服务器管理</h3>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+            class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5"
             @click="showAddDialog = true"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -24,7 +24,8 @@
           <span>加载中...</span>
         </div>
       </div>
-      <div v-else class="overflow-x-auto">
+      <template v-else>
+      <div class="hidden overflow-x-auto md:block">
         <table class="w-full border-collapse text-left text-sm text-gray-700">
           <thead>
             <tr>
@@ -102,12 +103,79 @@
           </tbody>
         </table>
       </div>
+      <div class="md:hidden">
+        <p v-if="serversStore.servers.length === 0" class="px-4 py-8 text-center text-sm text-gray-500">暂无服务器</p>
+        <ul v-else class="divide-y divide-gray-100">
+          <li
+            v-for="server in serversStore.servers"
+            :key="server.id"
+            class="p-4"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-gray-900">{{ server.name }}</span>
+                  <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" :class="getServerStatusBadgeClass(server)">
+                    {{ getServerStatusText(server) }}
+                  </span>
+                </div>
+                <p class="mt-1 break-all text-sm text-gray-600">{{ server.server_addr }}:{{ server.server_port }}</p>
+                <p class="mt-0.5 break-all text-xs text-gray-500">{{ server.api_base_url }}</p>
+              </div>
+              <button
+                type="button"
+                class="shrink-0 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                :title="server.last_version_check_message || ''"
+                @click="showVersionDetail(server)"
+              >
+                {{ server.server_version || '未知' }}
+              </button>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
+                <span v-if="versionRefreshingId === server.id" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" role="status" aria-label="刷新中"></span>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                  <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                </svg>
+              </button>
+              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                  <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                  <path d="M16 5l3 3" />
+                </svg>
+              </button>
+              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" @click="testServer(server)" title="测试连接" aria-label="测试连接">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M5 12l5 -5l10 10l-5 5z" />
+                  <path d="M12 5l7 7" />
+                </svg>
+              </button>
+              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M4 7l16 0" />
+                  <path d="M10 11l0 6" />
+                  <path d="M14 11l0 6" />
+                  <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                  <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                </svg>
+              </button>
+            </div>
+          </li>
+        </ul>
+      </div>
+      </template>
     </div>
 
     <Teleport to="body">
       <div
         v-if="showAddDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -115,10 +183,10 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeAddDialog"></div>
         <div
-          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
             <h2 class="text-lg font-semibold text-gray-900">{{ editingServer ? '编辑服务器' : '添加服务器' }}</h2>
             <button
               type="button"
@@ -162,10 +230,10 @@
               <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.auth_token" placeholder="可选，留空表示使用用户名密码认证" />
             </div>
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
-            <button type="button" class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="closeAddDialog">取消</button>
-            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="testConnection">测试连接</button>
-            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="handleSubmit">保存</button>
+          <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
+            <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:mr-auto sm:w-auto sm:py-2" @click="closeAddDialog">取消</button>
+            <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto sm:py-2" @click="testConnection">测试连接</button>
+            <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-2" @click="handleSubmit">保存</button>
           </div>
         </div>
       </div>
@@ -174,13 +242,14 @@
     <Teleport to="body">
       <div
         v-if="versionDetailServer"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         @click.self="closeVersionDetail"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionDetail"></div>
-        <div class="relative z-10 w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl" @click.stop>
+        <div class="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:max-h-[min(90vh,640px)] sm:rounded-xl" @click.stop>
+          <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <div class="mb-4 flex items-center justify-between">
             <h2 class="text-lg font-semibold text-gray-900">FRP 版本 - {{ versionDetailServer.name }}</h2>
             <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100" aria-label="关闭" @click="closeVersionDetail">
@@ -214,9 +283,10 @@
               </ul>
             </div>
           </div>
-          <div class="mt-4 flex justify-end gap-2">
-            <button type="button" class="rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300" @click="closeVersionDetail">关闭</button>
-            <button type="button" class="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50" :disabled="versionRefreshingId === versionDetailServer?.id" @click="refreshFrpVersion(versionDetailServer)">
+          </div>
+          <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 sm:flex-row sm:justify-end sm:p-5">
+            <button type="button" class="w-full rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-300 sm:w-auto sm:py-2" @click="closeVersionDetail">关闭</button>
+            <button type="button" class="w-full rounded-lg bg-violet-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 sm:w-auto sm:py-2" :disabled="versionRefreshingId === versionDetailServer?.id" @click="refreshFrpVersion(versionDetailServer)">
               刷新版本
             </button>
           </div>

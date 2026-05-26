@@ -4,10 +4,10 @@
       将旧版 FRP 的 INI 格式配置文件转换为新版的 TOML 格式
     </p>
 
-    <div class="flex border-b border-gray-200">
+    <div class="-mx-1 flex overflow-x-auto border-b border-gray-200">
       <button
         type="button"
-        class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+        class="inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
         :class="
           activeTab === 'web'
             ? 'border-blue-600 text-blue-600'
@@ -24,7 +24,7 @@
       </button>
       <button
         type="button"
-        class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+        class="inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
         :class="
           activeTab === 'command'
             ? 'border-blue-600 text-blue-600'
@@ -46,16 +46,17 @@
       <div v-show="activeTab === 'web'">
         <div class="mb-4">
           <label class="mb-1 block text-sm font-medium text-gray-700">上传 INI 文件</label>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
             <fwb-file-input
               v-model="uploadedIniFile"
               accept=".ini,.txt,.conf"
               size="md"
-              class="flex-1"
+              class="min-w-0 flex-1"
             />
             <button
               type="button"
-              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              class="inline-flex min-h-11 w-full shrink-0 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto"
+              aria-label="清空输入"
               @click="clearInput"
             >
               清空
@@ -71,14 +72,16 @@
           <CodeEditor
             v-model="iniContent"
             language="javascript"
-            :height="'280px'"
+            :height="editorHeight"
+            :line-wrapping="true"
             placeholder="粘贴您的 frpc.ini 配置内容..."
           />
         </div>
 
         <button
           type="button"
-          class="mb-3 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          class="mb-3 inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          aria-label="将 INI 转换为 TOML"
           @click="convertIniToToml"
           :disabled="converting"
         >
@@ -110,28 +113,45 @@
           <strong>错误：</strong>{{ errorMessage }}
         </div>
 
-        <div v-if="tomlContent" class="mt-4">
-          <div class="mb-2 flex items-center justify-between gap-2">
+        <div v-if="tomlContent" class="mt-4 flex flex-col gap-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span class="text-sm font-medium text-gray-700">转换结果（TOML 格式）</span>
-            <button
-              type="button"
-              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              @click="downloadToml"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-                <path d="M12 11v6" />
-                <path d="M9 14l3 -3l3 3" />
-              </svg>
-              下载 TOML
-            </button>
+            <div class="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+              <button
+                type="button"
+                class="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                aria-label="复制 TOML 结果"
+                @click="copyTomlResult($event)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" />
+                  <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" />
+                </svg>
+                复制
+              </button>
+              <button
+                type="button"
+                class="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                aria-label="下载 TOML 文件"
+                @click="downloadToml"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                  <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+                  <path d="M12 11v6" />
+                  <path d="M9 14l3 -3l3 3" />
+                </svg>
+                下载
+              </button>
+            </div>
           </div>
           <CodeEditor
             v-model="tomlContent"
             language="yaml"
-            :height="'280px'"
+            :height="editorHeight"
+            :line-wrapping="true"
             :readonly="true"
           />
         </div>
@@ -164,11 +184,12 @@
         </div>
 
         <div class="mb-3">
-          <div class="mb-2 flex items-center justify-between gap-2">
+          <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span class="text-sm font-medium text-gray-700">使用示例（可直接复制执行）</span>
             <button
               type="button"
-              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+              class="inline-flex min-h-11 w-full shrink-0 touch-manipulation items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+              aria-label="复制 curl 命令"
               @click="copyExampleCommand($event)"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -203,6 +224,9 @@ import { useApiKeysStore } from '@/stores/apiKeys'
 import { copyWithTooltip } from '@/composables/useCopyTooltip'
 import AppSelect from '@/components/AppSelect.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+
+/** 手机端用 dvh 限制高度，桌面端保持 280px */
+const editorHeight = 'clamp(200px, 38dvh, 280px)'
 
 const activeTab = ref('web') // 当前激活的 tab: 'web' 或 'command'
 const iniContent = ref('')
@@ -337,6 +361,11 @@ const convertIniToToml = async () => {
   } finally {
     converting.value = false
   }
+}
+
+const copyTomlResult = async (event) => {
+  if (!tomlContent.value) return
+  await copyWithTooltip(tomlContent.value, event)
 }
 
 const downloadToml = () => {

@@ -1,11 +1,11 @@
 <template>
   <div>
-    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
       <p class="mb-0 text-sm text-gray-500">管理所有代理分组，支持重命名和快速生成配置</p>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+          class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5"
           @click="showCreateDialog = true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -17,7 +17,7 @@
         </button>
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
+          class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-orange-600 sm:flex-none sm:px-2.5 sm:py-1.5"
           @click="showImportDialog = true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -30,7 +30,7 @@
         </button>
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
+          class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 sm:flex-none sm:px-2.5 sm:py-1.5"
           @click="handleAutoAnalyze"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -44,10 +44,10 @@
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="p-6">
+      <div class="p-3 sm:p-6">
         <div class="mb-3">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="w-full max-w-[250px] min-w-[200px]">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="w-full min-w-0 sm:max-w-[250px]">
               <TableSearch
                 v-model="groupsStore.filters.search"
                 placeholder="搜索分组名称..."
@@ -57,7 +57,7 @@
             </div>
           </div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="hidden overflow-x-auto md:block">
           <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
@@ -158,6 +158,88 @@
             </tbody>
           </table>
         </div>
+        <div class="md:hidden">
+          <div v-if="groupsStore.loading" class="py-4 text-center text-sm text-gray-600">
+            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中" />
+            <span class="ml-2 align-middle">加载中...</span>
+          </div>
+          <p v-else-if="groupsStore.groups.length === 0" class="py-8 text-center text-sm text-gray-500">暂无分组，请先创建分组或导入配置</p>
+          <ul v-else class="divide-y divide-gray-100">
+            <li
+              v-for="group in groupsStore.groups"
+              :key="group.group_name"
+              :data-group-name="group.group_name"
+              class="p-4"
+              :class="{ 'bg-amber-50': props.highlightGroup === group.group_name }"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <strong
+                  class="text-base font-semibold"
+                  :class="props.highlightGroup === group.group_name ? 'text-amber-600' : 'text-blue-600'"
+                >{{ group.group_name }}</strong>
+                <span class="text-xs text-gray-500">共 {{ group.total_count }} 个</span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                <span class="inline-flex rounded-md bg-green-100 px-2 py-0.5 font-medium text-green-800">在线 {{ group.online_count }}</span>
+                <span class="inline-flex rounded-md bg-red-100 px-2 py-0.5 font-medium text-red-800">离线 {{ group.offline_count }}</span>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
+                  title="查看代理"
+                  aria-label="查看代理"
+                  @click="viewGroupProxies(group.group_name)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                    <path d="M21 21l-6 -6" />
+                  </svg>
+                </button>
+                <button
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                  title="客户端升级（SSH）"
+                  aria-label="客户端升级"
+                  @click="openClientUpgradeDialog(group)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M12 3l0 18" />
+                    <path d="M8 7l4 -4l4 4" />
+                    <path d="M8 17l4 4l4 -4" />
+                  </svg>
+                </button>
+                <button
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                  title="一键部署（安装/升级/覆盖配置）"
+                  aria-label="一键部署"
+                  @click="openDeployDialog(group)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M12 3l0 18" />
+                    <path d="M8 7l4 -4l4 4" />
+                    <path d="M8 17l4 4l4 -4" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                  title="更多"
+                  aria-label="更多操作"
+                  @click.stop="toggleGroupMore(group.group_name, $event)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <circle cx="5" cy="12" r="1" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1" fill="currentColor" />
+                    <circle cx="19" cy="12" r="1" fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+            </li>
+          </ul>
+        </div>
         <div v-if="groupsStore.pagination.total > 0" class="mt-3">
           <TablePagination
             :total="groupsStore.pagination.total"
@@ -174,13 +256,13 @@
     <Teleport to="body">
       <div
         v-if="showCreateDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeCreateDialog" />
         <div
-          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
           @click.stop
         >
           <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -234,13 +316,13 @@
     <Teleport to="body">
       <div
         v-if="showImportDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeImportDialog" />
         <div
-          class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
           @click.stop
         >
           <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -452,13 +534,13 @@
     <Teleport to="body">
       <div
         v-if="showDeployDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeDeployDialog" />
         <div
-          class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
           @click.stop
         >
           <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -574,13 +656,13 @@
     <Teleport to="body">
       <div
         v-if="showRenameDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeRenameDialog" />
         <div
-          class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
           @click.stop
         >
           <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -631,12 +713,8 @@
     <Teleport to="body">
       <div
         v-if="openMoreGroupName"
-        class="fixed z-50 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="{
-          top: `${moreMenuPosition.top}px`,
-          right: `${moreMenuPosition.right}px`,
-          transform: 'translateY(-100%)'
-        }"
+        class="fixed z-50 min-w-[140px] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="moreMenuStyle"
         @click.stop
       >
         <a
@@ -743,7 +821,16 @@ const apiKeysStore = useApiKeysStore()
 
 // 更多下拉菜单状态
 const openMoreGroupName = ref('')
-const moreMenuPosition = ref({ top: 0, right: 0 })
+const moreMenuPosition = ref({ top: 0, left: 0, right: 0 })
+const GROUP_MENU_WIDTH = 160
+
+const moreMenuStyle = computed(() => {
+  const { top, left, right } = moreMenuPosition.value
+  if (left > 0) {
+    return { top: `${top}px`, left: `${left}px`, transform: 'translateY(-100%)' }
+  }
+  return { top: `${top}px`, right: `${right}px`, transform: 'translateY(-100%)' }
+})
 const moreMenuButtonRef = ref(null)
 
 // 当前更多菜单对应的分组对象
@@ -1295,13 +1382,27 @@ const toggleGroupMore = (groupName, event) => {
     return
   }
   openMoreGroupName.value = groupName
-  // 计算按钮的位置
   nextTick(() => {
     const button = event.currentTarget
     const rect = button.getBoundingClientRect()
-    moreMenuPosition.value = {
-      top: rect.top,
-      right: window.innerWidth - rect.right
+    const margin = 8
+    const menuWidth = GROUP_MENU_WIDTH
+    if (window.innerWidth < 768) {
+      let left = rect.left
+      if (left + menuWidth > window.innerWidth - margin) {
+        left = Math.max(margin, window.innerWidth - menuWidth - margin)
+      }
+      moreMenuPosition.value = {
+        top: Math.max(margin, rect.top),
+        left: Math.max(margin, left),
+        right: 0
+      }
+    } else {
+      moreMenuPosition.value = {
+        top: rect.top,
+        left: 0,
+        right: window.innerWidth - rect.right
+      }
     }
   })
 }

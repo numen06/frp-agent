@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+  <div class="flex min-h-screen items-center justify-center bg-gray-50 px-3 py-8 sm:px-4 sm:py-10">
     <div class="w-full max-w-md">
       <div class="mb-6 text-center">
         <a href="/" class="inline-flex flex-col items-center no-underline">
@@ -14,8 +14,8 @@
         </a>
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
-        <h2 class="mb-5 text-center text-2xl font-semibold text-gray-900">登录到账户</h2>
+      <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+        <h2 class="mb-5 text-center text-xl font-semibold text-gray-900 sm:text-2xl">登录到账户</h2>
         <div v-if="errorMessage" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
           {{ errorMessage }}
         </div>
@@ -24,7 +24,7 @@
             <label class="mb-1 block text-sm font-medium text-gray-700">用户名</label>
             <input
               type="text"
-              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               v-model="loginForm.username"
               placeholder="请输入用户名"
               autocomplete="off"
@@ -36,7 +36,7 @@
             <label class="mb-1 block text-sm font-medium text-gray-700">密码</label>
             <input
               type="password"
-              class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               v-model="loginForm.password"
               placeholder="请输入密码"
               autocomplete="off"
@@ -46,7 +46,7 @@
           </div>
           <button
             type="submit"
-            class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="loading"
           >
             <span

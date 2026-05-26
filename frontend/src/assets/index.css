@@ -37,4 +37,22 @@
   .overflow-y-auto::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.3);
   }
+
+  /* 移动端最小触控区域：常规 40px，主操作 44px */
+  .touch-target {
+    @apply inline-flex min-h-10 min-w-10 items-center justify-center;
+  }
+  .touch-target-primary {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center;
+  }
+
+  /* 下拉菜单：手机端约束在视口内 */
+  .dropdown-menu-constrained {
+    @apply w-[calc(100vw-2rem)] max-w-xs sm:w-auto sm:min-w-[11rem] sm:max-w-none;
+  }
+
+  /* 移动端 sticky 批量操作条 */
+  .mobile-batch-bar {
+    @apply fixed inset-x-0 bottom-0 z-40 border-t border-blue-200 bg-blue-50/95 px-3 py-3 shadow-lg backdrop-blur-sm md:relative md:inset-auto md:z-auto md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none;
+  }
 }

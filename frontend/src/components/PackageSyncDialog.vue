@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,7 +10,7 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
       <div
-        class="relative z-10 flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
         @click.stop
       >
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
@@ -94,17 +94,17 @@
             </div>
           </div>
         </div>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+        <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
           <button
             type="button"
-            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:mr-auto sm:w-auto sm:py-2"
             @click="closeDialog"
           >
             取消
           </button>
           <button
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2"
             :disabled="loading"
             @click="submit"
           >

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="dialogVisible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="config-gen-title"
@@ -13,10 +13,10 @@
         @click="closeDialog"
       />
       <div
-        class="relative z-10 flex w-full max-w-3xl max-h-[min(90vh,900px)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,900px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+        <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3.5 sm:px-6 sm:py-4">
           <h2 id="config-gen-title" class="text-lg font-semibold text-gray-900">
             {{ title }}
           </h2>
@@ -34,7 +34,7 @@
           </button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           <div v-if="showClientName" class="mb-4">
             <label class="mb-1 block text-sm font-medium text-gray-700">配置名称</label>
             <input
@@ -47,7 +47,7 @@
 
           <div class="mb-4">
             <span class="mb-2 block text-sm font-medium text-gray-700">配置格式</span>
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label
                 class="flex cursor-pointer rounded-xl border-2 p-4 transition-colors"
                 :class="form.format === 'ini' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
@@ -90,11 +90,12 @@
           <div v-if="configContent" class="border-t border-gray-200 pt-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span class="text-sm font-medium text-gray-700">配置内容</span>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
                 <button
                   v-if="props.groupName"
                   type="button"
-                  class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  aria-label="重新生成远端端口"
                   :disabled="regeneratingPorts"
                   @click="handleRegeneratePorts"
                 >
@@ -123,7 +124,7 @@
                 </button>
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300"
+                  class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto"
                   @click="downloadConfig"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -137,26 +138,28 @@
                 </button>
               </div>
             </div>
-            <CodeEditor
-              v-model="configContent"
-              language="yaml"
-              :height="'420px'"
-              :readonly="true"
-            />
+            <div class="min-h-[200px] overflow-x-auto">
+              <CodeEditor
+                v-model="configContent"
+                language="yaml"
+                :height="editorHeight"
+                :readonly="true"
+              />
+            </div>
           </div>
         </div>
 
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
+        <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-6 sm:py-4">
           <button
             type="button"
-            class="mr-auto inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            class="inline-flex min-h-10 w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 sm:mr-auto sm:w-auto"
             @click="closeDialog"
           >
             关闭
           </button>
           <button
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             :disabled="generating"
             @click="handleGenerate"
           >
@@ -190,7 +193,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { frpcConfigApi } from '@/api/frpcConfig'
 import { groupApi } from '@/api/groups'
 import { useModal } from '@/composables/useModal'
@@ -221,6 +224,20 @@ const dialogVisible = ref(false)
 const generating = ref(false)
 const regeneratingPorts = ref(false)
 const configContent = ref('')
+const editorHeight = ref('420px')
+
+const updateEditorHeight = () => {
+  editorHeight.value = window.matchMedia('(max-width: 639px)').matches ? '240px' : '420px'
+}
+
+onMounted(() => {
+  updateEditorHeight()
+  window.addEventListener('resize', updateEditorHeight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateEditorHeight)
+})
 
 const form = reactive({
   client_name: '',

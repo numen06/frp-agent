@@ -1585,12 +1585,15 @@ def ssh_upgrade_group(
     group_name: str,
     body: GroupSshUpgradeRequest,
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    verify_url_base = f"{request.url.scheme}://{request.url.netloc}" if request else None
 
     job = upgrade_group(
         db,
@@ -1599,5 +1602,9 @@ def ssh_upgrade_group(
         cred,
         body.install_path,
         body.proxy_ids,
+        verify_mode=body.verify_mode,
+        verify_attempts=body.verify_attempts,
+        verify_interval=body.verify_interval,
+        verify_url_base=verify_url_base if not body.skip_remote_verify else None,
     )
     return ClientUpgradeJobResponse.model_validate(job)

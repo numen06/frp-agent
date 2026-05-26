@@ -68,10 +68,12 @@ const handleChange = (event) => {
   display: inline-flex;
   align-items: center;
   min-width: 0;
+  max-width: 100%;
 }
 
 .app-select-native {
   width: 100%;
+  min-width: 0;
   appearance: none;
   border: 1px solid rgb(209 213 219);
   border-radius: 0.5rem;

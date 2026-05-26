@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,7 +10,7 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
       <div
-        class="relative z-10 flex max-h-[min(92vh,800px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
         @click.stop
       >
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">

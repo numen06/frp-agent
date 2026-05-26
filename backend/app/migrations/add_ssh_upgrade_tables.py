@@ -23,14 +23,21 @@ def upgrade():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 proxy_id INTEGER NOT NULL UNIQUE,
                 credential_id INTEGER,
-                install_path VARCHAR(500),
                 is_ssh_candidate BOOLEAN NOT NULL DEFAULT 0,
                 reachable BOOLEAN,
                 platform VARCHAR(50),
+                install_path VARCHAR(500),
+                frpc_bin_path VARCHAR(500),
+                config_path VARCHAR(500),
+                config_format VARCHAR(20),
+                has_ini BOOLEAN NOT NULL DEFAULT 0,
+                has_toml BOOLEAN NOT NULL DEFAULT 0,
+                service_name VARCHAR(100) NOT NULL DEFAULT 'frpc',
                 current_version VARCHAR(100),
                 target_version VARCHAR(50),
                 target_package_id INTEGER,
                 upgradeable BOOLEAN NOT NULL DEFAULT 0,
+                rollback_capable BOOLEAN NOT NULL DEFAULT 0,
                 status VARCHAR(50) NOT NULL DEFAULT 'unknown',
                 message TEXT,
                 last_scanned_at TIMESTAMP,
@@ -46,6 +53,26 @@ def upgrade():
             CREATE INDEX IF NOT EXISTS ix_proxy_ssh_states_proxy_id
             ON proxy_ssh_states(proxy_id)
         """))
+
+        # Add new columns to existing proxy_ssh_states table
+        result = conn.execute(text("PRAGMA table_info(proxy_ssh_states)"))
+        existing_cols = {row[1] for row in result.fetchall()}
+
+        new_cols = {
+            "frpc_bin_path": "VARCHAR(500)",
+            "config_path": "VARCHAR(500)",
+            "config_format": "VARCHAR(20)",
+            "has_ini": "BOOLEAN NOT NULL DEFAULT 0",
+            "has_toml": "BOOLEAN NOT NULL DEFAULT 0",
+            "service_name": "VARCHAR(100) NOT NULL DEFAULT 'frpc'",
+            "rollback_capable": "BOOLEAN NOT NULL DEFAULT 0",
+        }
+        for col_name, col_type in new_cols.items():
+            if col_name not in existing_cols:
+                conn.execute(text(
+                    f"ALTER TABLE proxy_ssh_states ADD COLUMN {col_name} {col_type}"
+                ))
+
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS client_upgrade_jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +99,7 @@ def upgrade():
             )
         """))
         conn.commit()
-        print("✓ SSH 升级相关表创建成功")
+        print("✓ SSH 升级相关表创建/迁移成功")
 
 
 def downgrade():

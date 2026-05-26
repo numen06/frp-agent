@@ -1,10 +1,10 @@
 <template>
   <div class="space-y-5">
     <!-- 欢迎区域 -->
-    <div class="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900 shadow-sm">
+    <div class="rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-sm sm:p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 class="text-2xl font-bold">欢迎回来，{{ authStore.username || '管理员' }}</h2>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-xl font-bold sm:text-2xl">欢迎回来，{{ authStore.username || '管理员' }}</h2>
           <p class="mt-1 text-sm text-gray-600">FRP 节点运行概览与代理状态实时看板</p>
         </div>
         <div class="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
@@ -12,35 +12,35 @@
           在线监控中
         </div>
       </div>
-      <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div class="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 md:grid-cols-4">
+        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
           <div class="text-xs text-gray-500">服务器数</div>
-          <div class="mt-1 text-xl font-semibold">{{ serversStore.servers.length }}</div>
+          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ serversStore.servers.length }}</div>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
           <div class="text-xs text-gray-500">代理总数</div>
-          <div class="mt-1 text-xl font-semibold">{{ totalStats.total }}</div>
+          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.total }}</div>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
           <div class="text-xs text-gray-500">在线代理</div>
-          <div class="mt-1 text-xl font-semibold">{{ totalStats.online }}</div>
+          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.online }}</div>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
           <div class="text-xs text-gray-500">唯一端口</div>
-          <div class="mt-1 text-xl font-semibold">{{ totalStats.portCount }}</div>
+          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.portCount }}</div>
         </div>
       </div>
     </div>
 
     <!-- 汇总统计卡片 -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+      <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
         <h3 class="text-base font-semibold text-gray-900">汇总统计</h3>
       </div>
-      <div class="p-5">
-        <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="p-3 sm:p-5">
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+          <div class="min-w-0">
+            <div class="h-full min-h-[120px] rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:min-h-[148px] sm:p-5">
               <div class="mb-3 flex items-center justify-between">
                 <div class="mb-0 text-xs font-semibold uppercase tracking-wide text-gray-500">代理总数</div>
                 <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -55,12 +55,12 @@
                   </svg>
                 </div>
               </div>
-              <div class="mb-0 text-3xl font-bold leading-none text-gray-900">{{ totalStats.total }}</div>
-              <div class="mt-3 text-xs text-gray-500">全局代理实例数量</div>
+              <div class="mb-0 text-2xl font-bold leading-none text-gray-900 tabular-nums sm:text-3xl">{{ totalStats.total }}</div>
+              <div class="mt-2 text-xs text-gray-500 sm:mt-3">全局代理实例数量</div>
             </div>
           </div>
-          <div>
-            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm">
+          <div class="min-w-0">
+            <div class="h-full min-h-[120px] rounded-xl border border-gray-200 bg-gray-50 p-3 shadow-sm sm:min-h-[148px] sm:p-5">
               <div class="mb-3 flex items-center justify-between">
                 <div class="mb-0 text-xs font-semibold uppercase tracking-wide text-gray-500">在线代理</div>
                 <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -72,15 +72,15 @@
                   </svg>
                 </div>
               </div>
-              <div class="mb-0 text-3xl font-bold leading-none text-gray-900">{{ totalStats.online }}</div>
-              <div class="mt-3 text-xs text-gray-600">在线率: {{ totalOnlineRate }}%</div>
-              <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div class="mb-0 text-2xl font-bold leading-none text-gray-900 tabular-nums sm:text-3xl">{{ totalStats.online }}</div>
+              <div class="mt-2 text-xs text-gray-600 sm:mt-3">在线率: {{ totalOnlineRate }}%</div>
+              <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 sm:mt-3">
                 <div class="h-full rounded-full bg-blue-600" :style="`width: ${totalOnlineRate}%`"></div>
               </div>
             </div>
           </div>
-          <div>
-            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm">
+          <div class="min-w-0">
+            <div class="h-full min-h-[120px] rounded-xl border border-gray-200 bg-gray-50 p-3 shadow-sm sm:min-h-[148px] sm:p-5">
               <div class="mb-3 flex items-center justify-between">
                 <div class="mb-0 text-xs font-semibold uppercase tracking-wide text-gray-500">离线代理</div>
                 <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -92,15 +92,15 @@
                   </svg>
                 </div>
               </div>
-              <div class="mb-0 text-3xl font-bold leading-none text-gray-900">{{ totalStats.offline }}</div>
-              <div class="mt-3 text-xs text-gray-600">离线率: {{ totalOfflineRate }}%</div>
-              <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div class="mb-0 text-2xl font-bold leading-none text-gray-900 tabular-nums sm:text-3xl">{{ totalStats.offline }}</div>
+              <div class="mt-2 text-xs text-gray-600 sm:mt-3">离线率: {{ totalOfflineRate }}%</div>
+              <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 sm:mt-3">
                 <div class="h-full rounded-full bg-gray-500" :style="`width: ${totalOfflineRate}%`"></div>
               </div>
             </div>
           </div>
-          <div>
-            <div class="h-full min-h-[148px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div class="min-w-0">
+            <div class="h-full min-h-[120px] rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:min-h-[148px] sm:p-5">
               <div class="mb-3 flex items-center justify-between">
                 <div class="mb-0 text-xs font-semibold uppercase tracking-wide text-gray-500">端口分配</div>
                 <div class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -111,8 +111,8 @@
                   </svg>
                 </div>
               </div>
-              <div class="mb-0 text-3xl font-bold leading-none text-gray-900">{{ totalStats.portCount }}</div>
-              <div class="mt-3 text-xs text-gray-600">去重后远端端口数量</div>
+              <div class="mb-0 text-2xl font-bold leading-none text-gray-900 tabular-nums sm:text-3xl">{{ totalStats.portCount }}</div>
+              <div class="mt-2 text-xs text-gray-600 sm:mt-3">去重后远端端口数量</div>
             </div>
           </div>
         </div>
@@ -121,12 +121,13 @@
 
     <!-- 各服务器统计 -->
     <div v-if="serversStore.servers.length > 0" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
         <h3 class="text-base font-semibold text-gray-900">服务器详情</h3>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          class="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
           :disabled="serverStatsLoading"
+          aria-label="刷新服务器统计"
           @click="reloadServerStats"
         >
           <span
@@ -138,13 +139,77 @@
           {{ serverStatsLoading ? '刷新中…' : '刷新统计' }}
         </button>
       </div>
-      <div v-if="serverStatsLoading" class="p-5">
+      <div v-if="serverStatsLoading" class="p-3 sm:p-5">
         <div class="flex items-center justify-center gap-2 py-4 text-center text-sm text-gray-600">
           <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
           <span>加载中...</span>
         </div>
       </div>
-      <div v-else class="overflow-x-auto">
+      <template v-else>
+        <!-- 手机端：卡片列表 -->
+        <div class="space-y-3 p-3 md:hidden sm:p-5">
+          <div
+            v-for="server in serversStore.servers"
+            :key="`card-${server.id}`"
+            class="rounded-xl border border-gray-200 bg-gray-50 p-4"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-gray-900">{{ server.name }}</div>
+                <div class="mt-0.5 break-all text-xs text-gray-500">{{ server.api_base_url }}</div>
+              </div>
+              <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium" :class="getServerStatusBadgeClass(server)">
+                {{ getServerStatusText(server) }}
+              </span>
+            </div>
+            <div class="mt-2 break-all text-sm text-gray-700">
+              {{ server.server_addr }}:{{ server.server_port }}
+            </div>
+            <div class="mt-0.5 text-xs text-gray-500">{{ server.auth_username }}</div>
+            <div class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <div>
+                <span class="text-gray-500">代理总数</span>
+                <div class="font-semibold text-gray-900">{{ getServerStats(server.id).total }}</div>
+              </div>
+              <div>
+                <span class="text-gray-500">端口数</span>
+                <div class="font-semibold text-gray-900">{{ getServerStats(server.id).portCount }}</div>
+              </div>
+              <div>
+                <span class="text-gray-500">在线</span>
+                <div>
+                  <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                    {{ getServerStats(server.id).online }}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span class="text-gray-500">离线</span>
+                <div>
+                  <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                    {{ getServerStats(server.id).offline }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center gap-2">
+              <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200">
+                <div
+                  class="h-full rounded-full"
+                  :class="getServerOnlineRate(server.id) > 0 ? 'bg-green-600' : 'bg-gray-400'"
+                  :style="`width: ${getServerOnlineRate(server.id)}%`"
+                  role="progressbar"
+                  :aria-valuenow="getServerOnlineRate(server.id)"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                ></div>
+              </div>
+              <span class="shrink-0 text-xs text-gray-600">在线率 {{ getServerOnlineRate(server.id) }}%</span>
+            </div>
+          </div>
+        </div>
+        <!-- 桌面端：表格 -->
+        <div class="hidden overflow-x-auto md:block">
         <table class="w-full border-collapse text-left text-sm text-gray-700">
           <thead>
             <tr>
@@ -206,17 +271,18 @@
             </tr>
           </tbody>
         </table>
-      </div>
+        </div>
+      </template>
     </div>
 
     <!-- 快速操作 -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+      <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
         <h3 class="text-base font-semibold text-gray-900">快速操作</h3>
       </div>
-      <div class="p-5">
-        <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <router-link to="/proxies" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
+      <div class="p-3 sm:p-5">
+        <div class="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+          <router-link to="/proxies" class="inline-flex min-h-11 w-full touch-manipulation flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-white px-2 py-3 text-center text-sm font-medium leading-snug text-gray-700 transition-colors hover:bg-gray-100 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M9 6l11 0" />
@@ -228,7 +294,7 @@
             </svg>
             代理列表
           </router-link>
-          <router-link to="/groups" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
+          <router-link to="/groups" class="inline-flex min-h-11 w-full touch-manipulation flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-white px-2 py-3 text-center text-sm font-medium leading-snug text-gray-700 transition-colors hover:bg-gray-100 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M9 4h3l2 2h5a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
@@ -236,7 +302,7 @@
             </svg>
             分组管理
           </router-link>
-          <router-link to="/converter" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
+          <router-link to="/converter" class="inline-flex min-h-11 w-full touch-manipulation flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-white px-2 py-3 text-center text-sm font-medium leading-snug text-gray-700 transition-colors hover:bg-gray-100 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />

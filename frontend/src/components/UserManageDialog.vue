@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,10 +10,10 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click.prevent.stop="close"></div>
       <div
-        class="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl will-change-transform"
+        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+        <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
           <h2 class="text-lg font-semibold text-gray-900">{{ forceMode ? '强制修改密码' : '用户管理' }}</h2>
           <button
             type="button"
@@ -26,7 +26,7 @@
             </svg>
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
           <div v-if="forceMode" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800" role="alert">
             <p class="mb-1 font-semibold">安全提示</p>
             <div class="text-sm">{{ forceReason || '检测到您使用的是默认密码，为了账户安全，请立即修改密码。修改完成后才能继续使用系统。' }}</div>
@@ -92,10 +92,10 @@
             </ul>
           </div>
         </div>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+        <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
-            class="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:mr-auto sm:w-auto"
             @click.prevent.stop="close"
           >
             取消
@@ -103,7 +103,7 @@
           <button
             type="submit"
             form="user-password-form"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
           >
             保存修改
           </button>

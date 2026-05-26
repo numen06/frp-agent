@@ -1,11 +1,11 @@
 <template>
   <div>
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3.5">
+      <div class="flex flex-col gap-3 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-2">
         <h3 class="text-base font-semibold text-gray-900">FRP 安装包管理</h3>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
             type="button"
             :disabled="refreshLoading"
             @click="handleRefresh"
@@ -15,30 +15,30 @@
             </svg>
             {{ refreshLoading ? '刷新中...' : '刷新' }}
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showSyncDialog = true">
+          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showSyncDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 14v4a1 1 0 0 0 1 1h4"/><path d="M17 3h4a1 1 0 0 1 1 1v4"/><path d="M16 8l-8 8"/>
             </svg>
             GitHub 同步
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showUploadDialog = true">
+          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showUploadDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/>
             </svg>
             手动上传
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showInstallDialog = true">
+          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showInstallDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/>
             </svg>
             脚本生成
           </button>
-          <div class="relative">
+          <div class="relative w-full sm:w-auto">
             <button
               ref="moreActionsDropdown.triggerRef"
               type="button"
-              class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              @click.prevent="moreActionsDropdown.toggle()"
+              class="inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto sm:px-2.5 sm:py-1.5"
+              @click.prevent="toggleMoreActionsMenu"
               :aria-expanded="moreActionsDropdown.isOpen.value"
             >
               更多
@@ -46,10 +46,12 @@
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6"/>
               </svg>
             </button>
+            <Teleport to="body">
             <div
+              v-if="moreActionsDropdown.isOpen.value"
               ref="moreActionsDropdown.dropdownRef"
-              class="absolute right-0 z-50 mt-2 min-w-[11rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-              :class="moreActionsDropdown.isOpen.value ? 'block' : 'hidden'"
+              class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+              :style="moreActionsMenuStyle"
               @click.stop
             >
               <a
@@ -77,12 +79,13 @@
                 脚本模板编辑
               </a>
             </div>
+            </Teleport>
           </div>
         </div>
       </div>
-      <div class="p-5">
-        <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select v-model="filters.version" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+      <div class="p-3 sm:p-5">
+        <div class="mb-4 flex flex-col gap-3 md:grid md:grid-cols-3">
+          <select v-model="filters.version" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部版本</option>
             <option v-if="versionsMeta.latest_version" value="__latest__">
               最新（{{ versionsMeta.latest_version }}）
@@ -94,11 +97,11 @@
               <option v-for="v in otherVersionsForUi" :key="'ov-' + v" :value="v">{{ v }}</option>
             </optgroup>
           </select>
-          <select v-model="filters.platform" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+          <select v-model="filters.platform" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部平台</option>
             <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
           </select>
-          <select v-model="filters.source" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+          <select v-model="filters.source" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部来源</option>
             <option value="github">github</option>
             <option value="upload">upload</option>
@@ -109,7 +112,7 @@
           <span class="ml-2 align-middle text-sm text-gray-500">加载中...</span>
         </div>
         <div v-else>
-          <div class="overflow-x-auto">
+          <div class="hidden overflow-x-auto md:block">
             <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
@@ -176,6 +179,51 @@
             </tbody>
           </table>
           </div>
+          <div class="md:hidden">
+            <p v-if="packages.length === 0" class="py-8 text-center text-gray-500">暂无安装包</p>
+            <ul v-else class="divide-y divide-gray-100">
+              <li v-for="item in packages" :key="item.id" class="p-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.version }}</span>
+                  <span class="text-sm font-medium text-gray-900">{{ item.platform }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-600'"
+                  >{{ item.source }}</span>
+                </div>
+                <p class="mt-1 break-all text-sm text-gray-700" :title="item.filename">{{ item.filename }}</p>
+                <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500">
+                  <div><dt class="inline">大小 </dt><dd class="inline text-gray-700">{{ formatSize(item.file_size) }}</dd></div>
+                  <div class="col-span-2"><dt class="inline">下载 </dt><dd class="inline text-gray-700">{{ formatDate(item.downloaded_at) }}</dd></div>
+                  <div class="col-span-2 break-all"><dt class="inline">SHA256 </dt><dd class="inline font-mono text-gray-600">{{ item.sha256_checksum?.slice(0, 16) }}…</dd></div>
+                </dl>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" title="下载安装包" aria-label="下载安装包" type="button" @click="downloadPackageFile(item)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
+                    </svg>
+                  </button>
+                  <button
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                    title="更多"
+                    aria-label="更多操作"
+                    type="button"
+                    @click.stop="togglePackageMore(item.id, $event)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <circle cx="5" cy="12" r="1" fill="currentColor"/>
+                      <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                      <circle cx="19" cy="12" r="1" fill="currentColor"/>
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
           <div class="mt-4 border-t border-gray-100 pt-4">
             <TablePagination
               :total="pagination.total"
@@ -192,12 +240,8 @@
     <Teleport to="body">
       <div
         v-if="openMorePackageId"
-        class="fixed z-50 min-w-[168px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="{
-          top: `${packageMoreMenuPosition.top}px`,
-          right: `${packageMoreMenuPosition.right}px`,
-          transform: 'translateY(-100%)'
-        }"
+        class="fixed z-50 min-w-[168px] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="packageMoreMenuStyle"
         @click.stop
       >
         <a
@@ -305,7 +349,43 @@ const savingTemplate = ref(false)
 const refreshLoading = ref(false)
 const moreActionsDropdown = useDropdown()
 const openMorePackageId = ref(null)
-const packageMoreMenuPosition = ref({ top: 0, right: 0 })
+const packageMoreMenuPosition = ref({ top: 0, left: 0, right: 0 })
+const moreActionsMenuPosition = ref({ top: 0, left: 0 })
+const MENU_WIDTH = 176
+
+const clampFloatingMenu = (rect, menuWidth = MENU_WIDTH) => {
+  const margin = 8
+  const vw = window.innerWidth
+  let left = rect.left
+  if (left + menuWidth > vw - margin) {
+    left = Math.max(margin, vw - menuWidth - margin)
+  }
+  left = Math.max(margin, left)
+  const top = Math.max(margin, rect.top)
+  return { top, left }
+}
+
+const packageMoreMenuStyle = computed(() => {
+  const { top, left, right } = packageMoreMenuPosition.value
+  if (left > 0) {
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      transform: 'translateY(-100%)'
+    }
+  }
+  return {
+    top: `${top}px`,
+    right: `${right}px`,
+    transform: 'translateY(-100%)'
+  }
+})
+
+const moreActionsMenuStyle = computed(() => ({
+  top: `${moreActionsMenuPosition.value.top}px`,
+  left: `${moreActionsMenuPosition.value.left}px`,
+  transform: 'translateY(-100%)'
+}))
 /** 从服务端恢复/修正筛选条件时避免 watch 重复请求 */
 const filterSyncing = ref(false)
 
@@ -558,6 +638,19 @@ const handleMoreSyncPlatforms = () => {
   handleSyncPlatforms()
 }
 
+const toggleMoreActionsMenu = () => {
+  const willOpen = !moreActionsDropdown.isOpen.value
+  moreActionsDropdown.toggle()
+  if (!willOpen) return
+  nextTick(() => {
+    const button = moreActionsDropdown.triggerRef.value
+    if (!button) return
+    const rect = button.getBoundingClientRect()
+    const pos = clampFloatingMenu(rect)
+    moreActionsMenuPosition.value = { top: pos.top, left: pos.left }
+  })
+}
+
 const togglePackageMore = (packageId, event) => {
   if (openMorePackageId.value === packageId) {
     openMorePackageId.value = null
@@ -567,9 +660,15 @@ const togglePackageMore = (packageId, event) => {
   nextTick(() => {
     const button = event.currentTarget
     const rect = button.getBoundingClientRect()
-    packageMoreMenuPosition.value = {
-      top: rect.top,
-      right: window.innerWidth - rect.right
+    if (window.innerWidth < 768) {
+      const pos = clampFloatingMenu(rect)
+      packageMoreMenuPosition.value = { top: pos.top, left: pos.left, right: 0 }
+    } else {
+      packageMoreMenuPosition.value = {
+        top: rect.top,
+        left: 0,
+        right: window.innerWidth - rect.right
+      }
     }
   })
 }

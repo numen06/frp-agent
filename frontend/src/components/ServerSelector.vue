@@ -1,13 +1,14 @@
 <template>
   <div class="mb-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-    <div class="border-b border-gray-200 px-5 py-3.5">
+    <div class="border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
       <h3 class="text-base font-semibold text-gray-900">服务器选择</h3>
     </div>
-    <div class="p-5">
-      <div class="flex flex-wrap items-center gap-3">
-        <label class="text-sm font-medium text-gray-700 whitespace-nowrap">当前服务器：</label>
-        <div class="min-w-[12rem] flex-1 sm:flex-initial">
+    <div class="p-3 sm:p-5">
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <label class="text-sm font-medium text-gray-700">当前服务器：</label>
+        <div class="min-w-0 w-full flex-1 sm:min-w-[12rem] sm:max-w-md">
           <AppSelect
+            class="block w-full"
             :number="true"
             v-model="selectedServerId"
             @change="handleServerChange"
@@ -21,7 +22,7 @@
         </div>
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50"
+          class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
           @click="handleTestServer"
           :disabled="!selectedServerId || serversStore.loading"
         >

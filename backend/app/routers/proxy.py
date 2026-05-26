@@ -1,7 +1,8 @@
 """代理管理路由"""
 
+import logging
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from datetime import datetime
@@ -12,13 +13,17 @@ from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.schemas.proxy import ProxyCreate, ProxyUpdate, ProxyResponse
-from app.schemas.ssh_upgrade import SshUpgradeRequest, ProxySshStateResponse
+from app.schemas.ssh_upgrade import SshUpgradeRequest, ProxySshStateResponse, VerifyResponse
 from app.models.ssh_credential import SshCredential
 from app.services.ssh_upgrade_service import scan_single_proxy, upgrade_single_proxy, state_to_dict
+from app.scheduler import sync_server
+from app.services.frp_version_util import normalize_version_display
 from sqlalchemy.orm import joinedload
 from app.services.port_service import PortService
 from app.frps_client import FrpsClient
 from app.services.frp_version_service import apply_proxy_version
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/proxies", tags=["代理管理"])
 
@@ -665,10 +670,63 @@ def ssh_upgrade_scan_proxy(
     return ProxySshStateResponse(**state_to_dict(state, proxy))
 
 
+@router.get("/{proxy_id}/ssh-upgrade/verify", response_model=VerifyResponse)
+async def ssh_upgrade_verify_proxy(
+    proxy_id: int,
+    expected_version: Optional[str] = Query(None, description="期望的版本号"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """验证代理是否在线并检查版本。供主机端升级脚本回调使用。"""
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+
+    server = proxy.frps_server
+    if not server:
+        raise HTTPException(status_code=400, detail="代理未关联 frps 服务器")
+
+    # 同步 frps 获取最新状态
+    try:
+        await sync_server(db, server)
+    except Exception as e:
+        logger.warning(f"同步 frps 失败: {e}")
+
+    # 刷新代理状态
+    db.refresh(proxy)
+
+    online = proxy.status == "online"
+    client_version = normalize_version_display(proxy.client_version)
+
+    ok = online
+    if expected_version and client_version:
+        ok = online and (client_version == expected_version or client_version == normalize_version_display(expected_version))
+
+    message = None
+    if not online:
+        message = f"代理离线，状态: {proxy.status}"
+    elif expected_version and client_version != normalize_version_display(expected_version):
+        message = f"版本不匹配，期望 {expected_version}，实际 {client_version}"
+
+    return VerifyResponse(
+        ok=ok,
+        online=online,
+        client_version=client_version,
+        expected_version=expected_version,
+        message=message,
+    )
+
+
 @router.post("/{proxy_id}/ssh-upgrade")
 def ssh_upgrade_proxy(
     proxy_id: int,
     body: SshUpgradeRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -684,4 +742,13 @@ def ssh_upgrade_proxy(
     if not cred:
         raise HTTPException(status_code=404, detail="SSH 凭据不存在")
 
-    return upgrade_single_proxy(db, proxy, cred, body.install_path)
+    # 构建验证 URL 基础路径
+    verify_url_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    return upgrade_single_proxy(
+        db, proxy, cred, body.install_path,
+        verify_mode=body.verify_mode,
+        verify_attempts=body.verify_attempts,
+        verify_interval=body.verify_interval,
+        verify_url_base=verify_url_base if not body.skip_remote_verify else None,
+    )
