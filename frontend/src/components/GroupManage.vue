@@ -51,6 +51,7 @@
               <TableSearch
                 v-model="groupsStore.filters.search"
                 placeholder="搜索分组名称..."
+                :debounce="300"
                 @search="handleSearch"
               />
             </div>
@@ -109,6 +110,19 @@
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                         <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
                         <path d="M21 21l-6 -6" />
+                      </svg>
+                    </button>
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                      title="客户端升级（SSH）"
+                      aria-label="客户端升级"
+                      @click="openClientUpgradeDialog(group)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M12 3l0 18" />
+                        <path d="M8 7l4 -4l4 4" />
+                        <path d="M8 17l4 4l4 -4" />
                       </svg>
                     </button>
                     <button
@@ -687,6 +701,13 @@
       :group-name="selectedGroupForProxies"
       @success="handleGroupProxiesChanged"
     />
+
+    <GroupClientUpgradeDialog
+      v-model="showClientUpgradeDialog"
+      :group-name="clientUpgradeGroupName"
+      :frps-server-id="props.serverId"
+      @upgraded="loadGroupsForCurrentState"
+    />
   </div>
 </template>
 
@@ -701,6 +722,7 @@ import { groupApi } from '@/api/groups'
 import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
 import GroupProxiesDialog from '@/components/GroupProxiesDialog.vue'
+import GroupClientUpgradeDialog from '@/components/GroupClientUpgradeDialog.vue'
 
 const emit = defineEmits(['generate-config'])
 
@@ -730,24 +752,47 @@ const currentMoreGroup = computed(() => {
   return groupsStore.groups.find(g => g.group_name === openMoreGroupName.value) || null
 })
 
+const groupsMounted = ref(false)
+
 // 加载分组数据
 const loadGroups = async (page = 1) => {
-  if (props.serverId) {
-    try {
-      await groupsStore.loadGroups(props.serverId, {
-        page,
-        page_size: groupsStore.pagination.page_size,
-        search: groupsStore.filters.search || undefined
-      })
-    } catch (error) {
-      console.error('加载分组数据失败:', error)
-    }
+  if (!props.serverId) return
+  try {
+    await groupsStore.loadGroups(props.serverId, {
+      page,
+      page_size: groupsStore.pagination.page_size,
+      search: groupsStore.filters.search || undefined
+    })
+  } catch (error) {
+    console.error('加载分组数据失败:', error)
   }
 }
 
-// 组件挂载时加载数据
+const scrollToHighlightedGroup = async () => {
+  if (!props.highlightGroup) return
+  await nextTick()
+  const row = document.querySelector(`tr[data-group-name="${props.highlightGroup}"]`)
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
+const loadGroupsForCurrentState = async ({ resetPage = false } = {}) => {
+  if (!props.serverId) return
+  if (props.highlightGroup) {
+    groupsStore.setFilters({ search: props.highlightGroup })
+    groupsStore.setPagination({ page: 1 })
+    await loadGroups(1)
+    await scrollToHighlightedGroup()
+    return
+  }
+  if (resetPage) {
+    groupsStore.setPagination({ page: 1 })
+  }
+  await loadGroups(groupsStore.pagination.page)
+}
+
 onMounted(async () => {
-  // 确保服务器列表已加载
   if (serversStore.servers.length === 0) {
     try {
       await serversStore.loadServers()
@@ -755,54 +800,37 @@ onMounted(async () => {
       console.error('加载服务器列表失败:', error)
     }
   }
-  loadGroups()
-  loadApiKeys()
+  await loadApiKeys()
+  await loadGroupsForCurrentState({ resetPage: true })
+  groupsMounted.value = true
 })
 
-// 监听 serverId 变化，重新加载数据
-watch(() => props.serverId, (newId) => {
-  if (newId) {
-    loadGroups()
+watch(() => props.serverId, async (newId, oldId) => {
+  if (!groupsMounted.value || !newId || newId === oldId) return
+  if (!props.highlightGroup) {
+    groupsStore.setFilters({ search: '' })
   }
+  await loadGroupsForCurrentState({ resetPage: true })
 })
 
-// 监听服务器列表变化，确保示例命令能正确获取服务器名称
-watch(() => serversStore.servers, () => {
-  // 当服务器列表更新时，computed 属性会自动重新计算
-}, { deep: true })
+watch(() => serversStore.servers, () => {}, { deep: true })
 
-// 监听高亮分组变化，自动设置搜索框并滚动到对应位置
-watch(() => props.highlightGroup, async (groupName) => {
-  if (groupName) {
-    // 自动设置搜索框的值，这样就能筛选到对应的分组
-    groupsStore.setFilters({ search: groupName })
-    groupsStore.setPagination({ page: 1 })
-    await loadGroups(1)
-
-    await nextTick()
-    // 查找对应的表格行并滚动到该位置
-    const row = document.querySelector(`tr[data-group-name="${groupName}"]`)
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
+watch(() => props.highlightGroup, async (groupName, oldGroup) => {
+  if (!groupsMounted.value) return
+  if (groupName === oldGroup) return
+  if (oldGroup === undefined && groupName) return
+  if (!groupName && oldGroup) {
+    groupsStore.setFilters({ search: '' })
   }
-}, { immediate: true })
-
-// 监听分组列表变化，如果有高亮分组则滚动到对应位置
-watch(() => groupsStore.groups, async () => {
-  if (props.highlightGroup && groupsStore.groups.length > 0) {
-    await nextTick()
-    const row = document.querySelector(`tr[data-group-name="${props.highlightGroup}"]`)
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }
+  await loadGroupsForCurrentState({ resetPage: true })
 })
 
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
 const showImportDialog = ref(false)
 const showDeployDialog = ref(false)
+const showClientUpgradeDialog = ref(false)
+const clientUpgradeGroupName = ref('')
 const deployCopied = ref(false)
 const showGroupProxiesDialog = ref(false)
 const importLoading = ref(false)
@@ -1120,6 +1148,11 @@ const closeDeployDialog = () => {
   deployForm.force_config = false
   deployForm.verify_after_deploy = true
   deployCopied.value = false
+}
+
+const openClientUpgradeDialog = (group) => {
+  clientUpgradeGroupName.value = group.group_name
+  showClientUpgradeDialog.value = true
 }
 
 const openDeployDialog = async (group) => {

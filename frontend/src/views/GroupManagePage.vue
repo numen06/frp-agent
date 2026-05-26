@@ -3,7 +3,6 @@
     <!-- 服务器选择 -->
     <ServerSelector 
       v-model="currentServerId" 
-      @change="handleServerChange"
       @test="handleTestServer"
     />
 
@@ -11,6 +10,7 @@
     <GroupManage
       v-if="currentServerId"
       :server-id="currentServerId"
+      :highlight-group="highlightGroup"
       @generate-config="handleGenerateGroupConfig"
     />
     <div v-else class="overflow-hidden rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500 shadow-sm">
@@ -28,33 +28,59 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useServersStore } from '@/stores/servers'
 import GroupManage from '@/components/GroupManage.vue'
 import ConfigGenerateDialog from '@/components/ConfigGenerateDialog.vue'
 import ServerSelector from '@/components/ServerSelector.vue'
 
+const route = useRoute()
 const serversStore = useServersStore()
 
 const currentServerId = ref(null)
 const showConfigDialog = ref(false)
 const configGroupName = ref('')
 
+const highlightGroup = computed(() => String(route.query.group || ''))
+
+function parseServerIdFromRoute() {
+  const raw = route.query.server_id
+  if (raw == null || raw === '') return null
+  const id = Number(raw)
+  return Number.isFinite(id) && id > 0 ? id : null
+}
+
+function resolveInitialServerId() {
+  const fromQuery = parseServerIdFromRoute()
+  if (fromQuery) return fromQuery
+  if (serversStore.currentServerId) return serversStore.currentServerId
+  if (serversStore.servers.length > 0) return serversStore.servers[0].id
+  return null
+}
+
 onMounted(async () => {
-  // ServerSelector 组件会自动加载服务器列表并设置默认值
-  // 这里只需要等待服务器列表加载完成
   try {
     if (serversStore.servers.length === 0) {
       await serversStore.loadServers()
+    }
+    const id = resolveInitialServerId()
+    if (id) {
+      currentServerId.value = id
+      serversStore.setCurrentServer(id)
     }
   } catch (error) {
     console.error('Load servers error:', error)
   }
 })
 
-const handleServerChange = () => {
-  // 服务器变化时，GroupManage 组件会自动重新加载
-}
+watch(() => route.query.server_id, () => {
+  const id = parseServerIdFromRoute()
+  if (id) {
+    currentServerId.value = id
+    serversStore.setCurrentServer(id)
+  }
+})
 
 const handleTestServer = async () => {
   alert('连接测试成功')
@@ -67,4 +93,3 @@ const handleGenerateGroupConfig = (groupName) => {
   showConfigDialog.value = true
 }
 </script>
-

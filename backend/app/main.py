@@ -12,7 +12,21 @@ import os
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
-from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key, frp_package
+from app.routers import (
+    frps_server,
+    proxy,
+    port,
+    config,
+    sync,
+    user_settings,
+    group,
+    frpc_config,
+    config_import,
+    api_key,
+    frp_package,
+    ssh_credential,
+    client_upgrade,
+)
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
@@ -37,6 +51,11 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     logger.info("初始化数据库...")
     init_db()
+    try:
+        from app.migrations.add_ssh_upgrade_tables import upgrade as ssh_tables_upgrade
+        ssh_tables_upgrade()
+    except Exception as e:
+        logger.warning("SSH 升级表迁移跳过或失败: %s", e)
     
     # 创建默认用户和 API Key（如果不存在）
     logger.info("检查并创建默认用户和 API Key...")
@@ -97,6 +116,8 @@ app.include_router(group.router)
 app.include_router(frpc_config.router)
 app.include_router(api_key.router)
 app.include_router(frp_package.router)
+app.include_router(ssh_credential.router)
+app.include_router(client_upgrade.router)
 
 
 @app.get("/api/public/version")

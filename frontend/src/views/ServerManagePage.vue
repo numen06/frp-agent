@@ -33,12 +33,13 @@
               <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">端口</th>
               <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">API 地址</th>
               <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">连接状态</th>
+              <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">frps 版本</th>
               <th class="w-[1%] whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="serversStore.servers.length === 0">
-              <td colspan="6" class="py-4 text-center text-sm text-gray-500">暂无服务器</td>
+              <td colspan="7" class="py-4 text-center text-sm text-gray-500">暂无服务器</td>
             </tr>
             <tr v-else v-for="server in serversStore.servers" :key="server.id">
               <td class="border-b border-gray-100 px-4 py-3 align-middle">{{ server.name }}</td>
@@ -51,7 +52,25 @@
                 </span>
               </td>
               <td class="border-b border-gray-100 px-4 py-3 align-middle">
+                <button
+                  type="button"
+                  class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  :title="server.last_version_check_message || ''"
+                  @click="showVersionDetail(server)"
+                >
+                  {{ server.server_version || '未知' }}
+                </button>
+              </td>
+              <td class="border-b border-gray-100 px-4 py-3 align-middle">
                 <div class="inline-flex items-center gap-2">
+                  <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
+                    <span v-if="versionRefreshingId === server.id" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" role="status" aria-label="刷新中"></span>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                      <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                    </svg>
+                  </button>
                   <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -151,6 +170,59 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="versionDetailServer"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeVersionDetail"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionDetail"></div>
+        <div class="relative z-10 w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl" @click.stop>
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">FRP 版本 - {{ versionDetailServer.name }}</h2>
+            <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100" aria-label="关闭" @click="closeVersionDetail">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div v-if="versionDetailLoading" class="py-6 text-center text-sm text-gray-500">加载中...</div>
+          <div v-else-if="versionDetail" class="space-y-4 text-sm">
+            <div>
+              <div class="font-medium text-gray-700">frps</div>
+              <div class="mt-1 text-gray-900">{{ versionDetail.server.server_version || '未知' }}</div>
+              <div v-if="versionDetail.server.last_version_check_time" class="mt-1 text-xs text-gray-500">
+                最近检查：{{ formatDateTime(versionDetail.server.last_version_check_time) }}
+              </div>
+              <div v-if="versionDetail.server.last_version_check_message" class="mt-0.5 text-xs text-gray-500">
+                {{ versionDetail.server.last_version_check_message }}
+              </div>
+            </div>
+            <div>
+              <div class="font-medium text-gray-700">frpc 分布</div>
+              <ul class="mt-2 space-y-1">
+                <li v-for="item in versionDetail.clients.versions" :key="item.client_version" class="flex justify-between text-gray-800">
+                  <span>{{ item.client_version }}</span>
+                  <span class="text-gray-500">{{ item.count }} 个代理</span>
+                </li>
+                <li v-if="versionDetail.clients.unknown_version_count > 0" class="flex justify-between text-gray-500">
+                  <span>未知</span>
+                  <span>{{ versionDetail.clients.unknown_version_count }} 个代理</span>
+                </li>
+                <li v-if="versionDetail.clients.total_proxies === 0" class="text-gray-500">暂无代理</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" class="rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300" @click="closeVersionDetail">关闭</button>
+            <button type="button" class="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50" :disabled="versionRefreshingId === versionDetailServer?.id" @click="refreshFrpVersion(versionDetailServer)">
+              刷新版本
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -158,10 +230,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'
+import { serverApi } from '@/api/servers'
 
 const serversStore = useServersStore()
 const showAddDialog = ref(false)
 const editingServer = ref(null)
+const versionRefreshingId = ref(null)
+const versionDetailServer = ref(null)
+const versionDetail = ref(null)
+const versionDetailLoading = ref(false)
 
 const serverForm = reactive({
   name: '',
@@ -285,6 +362,48 @@ const getServerStatusText = (server) => {
   if (!server.last_test_status || server.last_test_status === 'unknown') return '未测试'
   return server.last_test_status === 'online' ? '在线' : '离线'
 }
+
+const formatDateTime = (value) => {
+  if (!value) return ''
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString()
+}
+
+const showVersionDetail = async (server) => {
+  versionDetailServer.value = server
+  versionDetailLoading.value = true
+  versionDetail.value = null
+  try {
+    versionDetail.value = await serverApi.getFrpVersion(server.id)
+  } catch (error) {
+    alert('获取版本信息失败: ' + error.message)
+    versionDetailServer.value = null
+  } finally {
+    versionDetailLoading.value = false
+  }
+}
+
+const closeVersionDetail = () => {
+  versionDetailServer.value = null
+  versionDetail.value = null
+}
+
+const refreshFrpVersion = async (server) => {
+  versionRefreshingId.value = server.id
+  try {
+    const result = await serversStore.refreshFrpVersion(server.id, { refresh_proxies: true })
+    if (versionDetailServer.value?.id === server.id) {
+      versionDetail.value = result
+    }
+    alert('FRP 版本已刷新')
+  } catch (error) {
+    alert('刷新失败: ' + error.message)
+  } finally {
+    versionRefreshingId.value = null
+  }
+}
+
+useModal(versionDetailServer, closeVersionDetail)
 </script>
 
 

@@ -47,12 +47,13 @@
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">服务器地址</th>
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">端口</th>
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">API 地址</th>
+                  <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">frps 版本</th>
                   <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="serversStore.loading">
-                  <td colspan="5" class="py-4">
+                  <td colspan="6" class="py-4">
                     <div class="flex items-center justify-center gap-2 text-center text-sm text-gray-600">
                       <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
                       <span>加载中...</span>
@@ -60,13 +61,14 @@
                   </td>
                 </tr>
                 <tr v-else-if="serversStore.servers.length === 0">
-                  <td colspan="5" class="py-4 text-center text-sm text-gray-500">暂无服务器</td>
+                  <td colspan="6" class="py-4 text-center text-sm text-gray-500">暂无服务器</td>
                 </tr>
                 <tr v-else v-for="server in serversStore.servers" :key="server.id">
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.name }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.server_addr }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.server_port }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle"><span class="text-xs text-gray-600">{{ server.api_base_url }}</span></td>
+                  <td class="px-4 py-3 border-b border-gray-100 align-middle text-sm text-gray-700">{{ server.server_version || '未知' }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">
                     <div class="inline-flex items-center gap-2">
                       <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">

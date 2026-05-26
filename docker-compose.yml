@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
-  backend:
+  frp-agent:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: frp-agent-backend
+      dockerfile: Dockerfile
+    container_name: frp-agent
     restart: always
+    ports:
+      - "8000:8000"
     volumes:
       - ./data:/app/data
     environment:
@@ -14,22 +14,3 @@ services:
       - APP_PORT=8000
       - APP_DEBUG=false
       - SYNC_INTERVAL_SECONDS=30
-    networks:
-      - frp-agent-network
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: frp-agent-frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - frp-agent-network
-
-networks:
-  frp-agent-network:
-    driver: bridge

@@ -97,6 +97,16 @@ export const useServersStore = defineStore('servers', {
         console.error('更新服务器状态失败:', error)
       }
       return result
+    },
+
+    async refreshFrpVersion(id, params = { refresh_proxies: true }) {
+      const result = await serverApi.refreshFrpVersion(id, params)
+      const updatedServer = await serverApi.getServer(id)
+      const index = this.servers.findIndex(s => s.id === id)
+      if (index !== -1) {
+        this.servers[index] = updatedServer
+      }
+      return result
     }
   }
 })

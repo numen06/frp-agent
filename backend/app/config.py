@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # 安装包配置
     packages_dir: str = "data/packages"
     github_api_token: str = ""
+    github_download_accelerate_prefix: str = "https://gh.llkk.cc/"
+
+    # SSH 凭据加密密钥（生产环境务必配置）
+    ssh_credential_secret: str = ""
 
     class Config:
         env_file = ".env"

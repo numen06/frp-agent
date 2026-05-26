@@ -65,3 +65,4 @@ frpc_*.toml
 !examples/frpc_*.ini
 !examples/frpc_*.toml
 
+/.cursor/plans

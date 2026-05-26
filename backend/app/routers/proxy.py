@@ -12,8 +12,13 @@ from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.schemas.proxy import ProxyCreate, ProxyUpdate, ProxyResponse
+from app.schemas.ssh_upgrade import SshUpgradeRequest, ProxySshStateResponse
+from app.models.ssh_credential import SshCredential
+from app.services.ssh_upgrade_service import scan_single_proxy, upgrade_single_proxy, state_to_dict
+from sqlalchemy.orm import joinedload
 from app.services.port_service import PortService
 from app.frps_client import FrpsClient
+from app.services.frp_version_service import apply_proxy_version
 
 router = APIRouter(prefix="/api/proxies", tags=["代理管理"])
 
@@ -212,6 +217,12 @@ async def get_proxies(
                     "status_changed": [],  # 状态改变的
                 }
 
+                # 同步该服务器下所有在 frps 中出现的代理的 frpc 版本
+                for db_proxy in all_server_db_proxies:
+                    frps_proxy = frps_proxy_map.get(db_proxy.name)
+                    if frps_proxy:
+                        apply_proxy_version(db_proxy, frps_proxy)
+
                 # 更新本地代理状态（更新所有匹配的代理，不仅仅是当前页）
                 for db_proxy in all_matching_proxies:
                     frps_proxy = filtered_frps_proxy_map.get(db_proxy.name)
@@ -220,6 +231,9 @@ async def get_proxies(
                         # frps中存在，更新状态
                         old_status = db_proxy.status
                         new_status = frps_proxy["status"]
+
+                        if frps_proxy.get("remote_port") is not None:
+                            db_proxy.remote_port = frps_proxy["remote_port"]
 
                         if old_status != new_status:
                             db_proxy.status = new_status
@@ -270,6 +284,7 @@ async def get_proxies(
                             local_port=0,  # 需要后续识别
                             status=frps_proxy["status"],
                             group_name=parsed_group_name,
+                            client_version=frps_proxy.get("client_version"),
                         )
                         db.add(new_proxy)
 
@@ -625,3 +640,48 @@ def batch_detect_ports(
         "failed": failed_count,
         "results": results,
     }
+
+
+@router.post("/{proxy_id}/ssh-upgrade/scan")
+def ssh_upgrade_scan_proxy(
+    proxy_id: int,
+    body: SshUpgradeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    state = scan_single_proxy(db, proxy, cred, body.install_path)
+    return ProxySshStateResponse(**state_to_dict(state, proxy))
+
+
+@router.post("/{proxy_id}/ssh-upgrade")
+def ssh_upgrade_proxy(
+    proxy_id: int,
+    body: SshUpgradeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    return upgrade_single_proxy(db, proxy, cred, body.install_path)

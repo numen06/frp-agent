@@ -1,6 +1,6 @@
 """frps 服务器管理路由"""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -9,6 +9,11 @@ from app.models.user import User
 from app.models.frps_server import FrpsServer
 from app.schemas.frps_server import FrpsServerCreate, FrpsServerUpdate, FrpsServerResponse
 from app.scheduler import sync_server
+from app.frps_client import FrpsClient
+from app.services.frp_version_service import (
+    build_frp_version_response,
+    refresh_server_version,
+)
 
 router = APIRouter(prefix="/api/servers", tags=["frps服务器管理"])
 
@@ -121,7 +126,16 @@ async def test_server(
             server.last_test_time = datetime.utcnow()
             server.last_test_message = "连接成功"
             db.commit()
-            
+
+            frps_client = FrpsClient(server)
+            try:
+                version, version_msg = await refresh_server_version(db, server, frps_client)
+                if not version:
+                    server.last_test_message = f"连接成功（{version_msg}）"
+                    db.commit()
+            except Exception:
+                pass
+
             # 测试成功后自动同步代理列表到数据库
             try:
                 await sync_server(db, server)
@@ -174,4 +188,51 @@ async def test_server(
             "success": False,
             "message": f"连接失败: {str(e)}"
         }
+
+
+@router.get("/{server_id}/frp-version")
+def get_frp_version(
+    server_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """查询指定 frps 服务器及其客户端版本信息"""
+    server = db.query(FrpsServer).filter(FrpsServer.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="服务器不存在")
+    return build_frp_version_response(db, server)
+
+
+@router.post("/{server_id}/frp-version/refresh")
+async def refresh_frp_version(
+    server_id: int,
+    refresh_proxies: bool = Query(True, description="是否同步代理及 frpc 版本"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """主动刷新指定服务器的 frps/frpc 版本"""
+    server = db.query(FrpsServer).filter(FrpsServer.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="服务器不存在")
+
+    client = FrpsClient(server)
+    try:
+        await refresh_server_version(db, server, client)
+    except Exception as e:
+        server.last_version_check_message = f"版本刷新失败: {e}"
+        db.commit()
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    if refresh_proxies:
+        try:
+            await sync_server(db, server)
+        except Exception as e:
+            server.last_version_check_message = (
+                f"{server.last_version_check_message or ''}；代理同步失败: {e}"
+            )
+            db.commit()
+            raise HTTPException(status_code=502, detail=f"代理同步失败: {e}") from e
+
+    db.refresh(server)
+    return build_frp_version_response(db, server)
 

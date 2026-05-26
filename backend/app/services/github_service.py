@@ -74,6 +74,14 @@ class GithubService:
                             size += len(chunk)
                 return size
 
+    def build_accelerated_download_url(self, url: str) -> str:
+        prefix = (self.settings.github_download_accelerate_prefix or "").strip()
+        if not prefix:
+            return url
+        if "{url}" in prefix:
+            return prefix.replace("{url}", url)
+        return f"{prefix.rstrip('/')}/{url}"
+
     @staticmethod
     def calculate_sha256(file_path: str) -> str:
         sha256 = hashlib.sha256()

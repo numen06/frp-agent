@@ -12,8 +12,8 @@
       class="block w-full border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
       :placeholder="placeholder"
       :value="modelValue"
-      @input="$emit('update:modelValue', $event.target.value)"
-      @keyup.enter="$emit('search', modelValue)"
+      @input="onInput"
+      @keyup.enter="triggerSearch"
     />
     <button
       v-if="modelValue"
@@ -31,6 +31,8 @@
 </template>
 
 <script setup>
+import { onUnmounted } from 'vue'
+
 const props = defineProps({
   modelValue: {
     type: String,
@@ -39,14 +41,51 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: '搜索...'
+  },
+  debounce: {
+    type: Number,
+    default: 0
   }
 })
 
 const emit = defineEmits(['update:modelValue', 'search'])
 
+let debounceTimer = null
+
+const triggerSearch = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  emit('search', props.modelValue)
+}
+
+const onInput = (event) => {
+  const value = event.target.value
+  emit('update:modelValue', value)
+  if (props.debounce > 0) {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      emit('search', value)
+    }, props.debounce)
+  }
+}
+
 const clear = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
   emit('update:modelValue', '')
   emit('search', '')
 }
-</script>
 
+onUnmounted(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+})
+</script>

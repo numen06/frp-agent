@@ -625,12 +625,17 @@ async def sync_from_github(
         platform = service.parse_platform_from_filename(name)
         if not platform or platform not in selected_platforms:
             continue
-        url = asset.get("browser_download_url")
-        if not url:
+        source_url = asset.get("browser_download_url")
+        if not source_url:
             continue
+        download_url = (
+            service.build_accelerated_download_url(source_url)
+            if payload.download_source == "accelerated"
+            else source_url
+        )
 
         save_path = os.path.join(packages_dir, name)
-        size = await service.download_asset(url, save_path)
+        size = await service.download_asset(download_url, save_path)
         checksum = service.calculate_sha256(save_path)
 
         existed = db.query(FrpPackage).filter(
@@ -645,7 +650,7 @@ async def sync_from_github(
             existed.file_path = save_path
             existed.file_size = size
             existed.source = "github"
-            existed.download_url = url
+            existed.download_url = source_url
             existed.sha256_checksum = checksum
             existed.downloaded_at = datetime.utcnow()
             db.commit()
@@ -659,7 +664,7 @@ async def sync_from_github(
                 file_path=save_path,
                 file_size=size,
                 source="github",
-                download_url=url,
+                download_url=source_url,
                 is_active=True,
                 sha256_checksum=checksum,
                 downloaded_at=datetime.utcnow(),

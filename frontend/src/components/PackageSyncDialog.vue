@@ -39,6 +39,27 @@
               </option>
             </select>
           </div>
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">下载通道</label>
+            <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-gray-300 bg-white text-sm">
+              <button
+                type="button"
+                class="px-3 py-2 font-medium transition-colors"
+                :class="form.download_source === 'origin' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'"
+                @click="form.download_source = 'origin'"
+              >
+                源地址
+              </button>
+              <button
+                type="button"
+                class="border-l border-gray-300 px-3 py-2 font-medium transition-colors"
+                :class="form.download_source === 'accelerated' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'"
+                @click="form.download_source = 'accelerated'"
+              >
+                国内加速下载
+              </button>
+            </div>
+          </div>
           <div class="mb-0">
             <label class="mb-1 block text-sm font-medium text-gray-700">平台（可多选）</label>
             <div v-if="platformsForVersion.length" class="mb-2 flex flex-wrap items-center gap-2">
@@ -109,7 +130,8 @@ const emit = defineEmits(['update:modelValue', 'submit'])
 const visible = ref(false)
 const form = reactive({
   version: '',
-  platforms: []
+  platforms: [],
+  download_source: 'origin'
 })
 
 const platformsForVersion = computed(() => {
@@ -153,6 +175,6 @@ const submit = () => {
     alert('请选择版本')
     return
   }
-  emit('submit', { version: form.version, platforms: form.platforms })
+  emit('submit', { version: form.version, platforms: form.platforms, download_source: form.download_source })
 }
 </script>

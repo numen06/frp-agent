@@ -12,6 +12,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { javascript } from '@codemirror/lang-javascript'
+import { yaml } from '@codemirror/lang-yaml'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -126,7 +127,7 @@ function getLanguageExtension(lang) {
       return javascript()
     case 'yaml':
     case 'yml':
-      return []
+      return yaml()
     default:
       return []
   }

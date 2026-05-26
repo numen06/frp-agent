@@ -3,7 +3,6 @@
     <!-- 服务器选择 -->
     <ServerSelector 
       v-model="currentServerId" 
-      @change="handleServerChange"
       @test="handleTestServer"
     />
 
@@ -129,6 +128,7 @@
               <TableSearch
                 v-model="proxiesStore.filters.search"
                 placeholder="搜索代理名称或分组..."
+                :debounce="300"
                 @search="handleSearch"
               />
             </div>
@@ -178,19 +178,20 @@
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">本地IP</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">本地端口</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">远程端口</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">frpc 版本</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">状态</th>
                 <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="proxiesStore.loading">
-                <td colspan="9" class="py-4 text-center text-sm text-gray-600">
+                <td colspan="10" class="py-4 text-center text-sm text-gray-600">
                   <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
                   <span class="ml-2 align-middle">加载中...</span>
                 </td>
               </tr>
               <tr v-else-if="proxiesStore.proxies.length === 0">
-                <td colspan="9" class="py-4 text-center text-sm text-gray-500">
+                <td colspan="10" class="py-4 text-center text-sm text-gray-500">
                   暂无代理数据，请先添加代理或导入配置
                 </td>
               </tr>
@@ -222,6 +223,7 @@
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_ip }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_port || '-' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.remote_port || '-' }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle text-gray-600">{{ proxy.client_version || '未知' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <span
                     class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -232,6 +234,15 @@
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <div class="inline-flex items-center gap-2">
+                    <button
+                      v-if="isSshCandidateProxy(proxy)"
+                      class="inline-flex h-8 items-center justify-center rounded-lg bg-violet-50 px-2 text-violet-700 transition-colors hover:bg-violet-100"
+                      title="客户端升级"
+                      aria-label="客户端升级"
+                      @click="openClientUpgrade(proxy)"
+                    >
+                      <span class="text-xs font-medium">升级</span>
+                    </button>
                     <button
                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
                       @click="editProxy(proxy)"
@@ -308,6 +319,13 @@
       :group-name="configGroupName"
       :selected-proxies="selectedProxiesList"
     />
+
+    <ProxyClientUpgradeDialog
+      v-model="showClientUpgradeDialog"
+      :proxy="upgradeProxy"
+      :server="currentServer"
+      @upgraded="loadData"
+    />
   </div>
 </template>
 
@@ -327,6 +345,8 @@ import TablePagination from '@/components/TablePagination.vue'
 import TableSearch from '@/components/TableSearch.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import ServerSelector from '@/components/ServerSelector.vue'
+import ProxyClientUpgradeDialog from '@/components/ProxyClientUpgradeDialog.vue'
+import { isSshCandidateProxy } from '@/utils/sshCandidate'
 
 const route = useRoute()
 const router = useRouter()
@@ -347,6 +367,17 @@ const showConfigDialog = ref(false)
 const configGroupName = ref('')
 const bulkGroupName = ref('')
 const groupOptions = ref([])
+const showClientUpgradeDialog = ref(false)
+const upgradeProxy = ref(null)
+
+const currentServer = computed(() =>
+  serversStore.servers.find((s) => s.id === currentServerId.value) || null
+)
+
+const openClientUpgrade = (proxy) => {
+  upgradeProxy.value = proxy
+  showClientUpgradeDialog.value = true
+}
 
 // 加载分组列表
 const loadGroupOptions = async () => {
@@ -377,12 +408,17 @@ onMounted(async () => {
   }
 })
 
-watch(currentServerId, async (newId) => {
+watch(currentServerId, async (newId, oldId) => {
   if (newId) {
+    if (oldId !== undefined && newId !== oldId) {
+      proxiesStore.clearSelection()
+      proxiesStore.setPagination({ page: 1 })
+    }
     await loadGroupOptions()
     await loadData()
   } else {
     groupOptions.value = []
+    proxiesStore.clearSelection()
   }
 })
 
@@ -391,6 +427,7 @@ watch(() => route.query.group, (groupName) => {
   if (groupName) {
     proxiesStore.setFilters({ group: groupName })
     proxiesStore.setPagination({ page: 1 })
+    proxiesStore.clearSelection()
     if (currentServerId.value) {
       loadData(1)
     }
@@ -413,27 +450,25 @@ const loadData = async (page = 1) => {
   }
 }
 
-const handleServerChange = () => {
-  loadData()
-}
-
 const handleFilterChange = () => {
-  // 过滤器变化时，重置到第一页并重新加载
+  proxiesStore.clearSelection()
   proxiesStore.setPagination({ page: 1 })
   loadData(1)
 }
 
 const handleSearch = () => {
-  // 搜索时，重置到第一页并重新加载
+  proxiesStore.clearSelection()
   proxiesStore.setPagination({ page: 1 })
   loadData(1)
 }
 
 const handlePageChange = (newPage) => {
+  proxiesStore.clearSelection()
   loadData(newPage)
 }
 
 const handlePageSizeChange = (newPageSize) => {
+  proxiesStore.clearSelection()
   proxiesStore.setPagination({ page_size: newPageSize, page: 1 })
   loadData(1)
 }

@@ -1,6 +1,6 @@
 """FRP 安装包相关 schemas"""
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -32,6 +32,7 @@ class FrpPackagePaginatedResponse(BaseModel):
 class FrpPackageSyncRequest(BaseModel):
     version: str = Field(..., min_length=1, max_length=50)
     platforms: Optional[List[str]] = None
+    download_source: Literal["origin", "accelerated"] = "origin"
 
 
 class FrpPackageInstallScriptRequest(BaseModel):

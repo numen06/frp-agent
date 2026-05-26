@@ -22,6 +22,7 @@ class Proxy(Base):
     local_ip = Column(String(50), nullable=False, default="127.0.0.1")
     local_port = Column(Integer, nullable=False)
     client_name = Column(String(100), nullable=True)  # 客户端名称
+    client_version = Column(String(50), nullable=True)  # frpc 上报版本
     status = Column(String(20), default="offline")  # online, offline
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

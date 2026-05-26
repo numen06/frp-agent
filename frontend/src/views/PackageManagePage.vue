@@ -121,7 +121,7 @@
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">来源</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">下载时间</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">SHA256</th>
-                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:220px">操作</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:96px">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -151,29 +151,23 @@
                 <td class="px-4 py-3 border-b border-gray-100 align-middle"><code class="text-xs text-gray-500">{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200" title="复制下载命令" @click="copyDownloadCommand(item, $event)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4v5h.582m15.356 2a8.001 8.001 0 0 0 -15.356 -2m15.356 2a15 15 0 0 1 2 0m-17 0a15 15 0 0 1 2 0"/><path d="M4 13a8.001 8.001 0 0 0 4 0"/>
-                      </svg>
-                    </button>
                     <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" title="下载安装包" type="button" @click="downloadPackageFile(item)">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
                       </svg>
                     </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" title="复制安装命令" @click="copyInstallCommand(item, $event)">
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      title="更多"
+                      aria-label="更多操作"
+                      type="button"
+                      @click.stop="togglePackageMore(item.id, $event)"
+                    >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l0 18"/><path d="M8 7l4 -4l4 4"/><path d="M8 17l4 4l4 -4"/>
-                      </svg>
-                    </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100" title="复制升级命令" @click="copyUpgradeCommand(item, $event)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6l0 12"/><path d="M16 10l-4 -4l-4 4"/><path d="M16 14l-4 4l-4 -4"/>
-                      </svg>
-                    </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100" title="删除" @click="remove(item)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <circle cx="5" cy="12" r="1" fill="currentColor"/>
+                        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                        <circle cx="19" cy="12" r="1" fill="currentColor"/>
                       </svg>
                     </button>
                   </div>
@@ -194,6 +188,74 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="openMorePackageId"
+        class="fixed z-50 min-w-[168px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="{
+          top: `${packageMoreMenuPosition.top}px`,
+          right: `${packageMoreMenuPosition.right}px`,
+          transform: 'translateY(-100%)'
+        }"
+        @click.stop
+      >
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyDownload($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 4v5h.582m15.356 2a8.001 8.001 0 0 0 -15.356 -2m15.356 2a15 15 0 0 1 2 0m-17 0a15 15 0 0 1 2 0"/>
+            <path d="M4 13a8.001 8.001 0 0 0 4 0"/>
+          </svg>
+          复制下载命令
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyInstall($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3l0 18"/>
+            <path d="M8 7l4 -4l4 4"/>
+            <path d="M8 17l4 4l4 -4"/>
+          </svg>
+          复制安装命令
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyUpgrade($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 6l0 12"/>
+            <path d="M16 10l-4 -4l-4 4"/>
+            <path d="M16 14l-4 4l-4 -4"/>
+          </svg>
+          复制升级命令
+        </a>
+        <div class="my-1 border-t border-gray-100"></div>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+          href="#"
+          @click.prevent="handleMoreRemove"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 7l16 0"/>
+            <path d="M10 11l0 6"/>
+            <path d="M14 11l0 6"/>
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+          </svg>
+          删除
+        </a>
+      </div>
+    </Teleport>
 
     <PackageSyncDialog v-model="showSyncDialog" :releases="releases" :loading="syncLoading" @submit="handleSync" />
     <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
@@ -218,7 +280,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { packagesApi } from '@/api/packages'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { useDropdown } from '@/composables/useDropdown'
@@ -242,6 +304,8 @@ const syncPlatformsLoading = ref(false)
 const savingTemplate = ref(false)
 const refreshLoading = ref(false)
 const moreActionsDropdown = useDropdown()
+const openMorePackageId = ref(null)
+const packageMoreMenuPosition = ref({ top: 0, right: 0 })
 /** 从服务端恢复/修正筛选条件时避免 watch 重复请求 */
 const filterSyncing = ref(false)
 
@@ -311,6 +375,11 @@ const otherVersionsForUi = computed(() => {
   const recent = new Set(versionsMeta.value.recent_versions || [])
   const lv = versionsMeta.value.latest_version
   return merged.filter((v) => v && !recent.has(v) && v !== lv)
+})
+
+const currentMorePackage = computed(() => {
+  if (!openMorePackageId.value) return null
+  return packages.value.find((item) => item.id === openMorePackageId.value) || null
 })
 
 const formatDate = (v) => (v ? new Date(v).toLocaleString('zh-CN') : '')
@@ -489,6 +558,32 @@ const handleMoreSyncPlatforms = () => {
   handleSyncPlatforms()
 }
 
+const togglePackageMore = (packageId, event) => {
+  if (openMorePackageId.value === packageId) {
+    openMorePackageId.value = null
+    return
+  }
+  openMorePackageId.value = packageId
+  nextTick(() => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    packageMoreMenuPosition.value = {
+      top: rect.top,
+      right: window.innerWidth - rect.right
+    }
+  })
+}
+
+const closePackageMoreOnOutsideClick = (event) => {
+  if (
+    openMorePackageId.value &&
+    !event.target.closest('[aria-label="更多操作"]') &&
+    !event.target.closest('.fixed.z-50')
+  ) {
+    openMorePackageId.value = null
+  }
+}
+
 const loadReleases = async () => {
   try {
     releases.value = await packagesApi.getReleases()
@@ -610,6 +705,31 @@ const remove = async (item) => {
   } catch (e) {
     alert(`删除失败: ${e.message}`)
   }
+}
+
+const handleMoreCopyDownload = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyDownloadCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreCopyInstall = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyInstallCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreCopyUpgrade = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyUpgradeCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreRemove = async () => {
+  if (!currentMorePackage.value) return
+  const item = currentMorePackage.value
+  openMorePackageId.value = null
+  await remove(item)
 }
 
 const handleCheckUpdate = async () => {
@@ -745,11 +865,16 @@ watch(showInstallDialog, (open) => {
 })
 
 onMounted(async () => {
+  document.addEventListener('click', closePackageMoreOnOutsideClick)
   apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
   const ran = await loadVersionsMeta()
   if (!ran) {
     await loadPackages()
   }
   await Promise.all([loadReleases(), loadPlatforms(), loadScriptTemplates(), apiKeysStore.loadKeys()])
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closePackageMoreOnOutsideClick)
 })
 </script>

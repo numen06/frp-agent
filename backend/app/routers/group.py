@@ -22,6 +22,9 @@ from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
 from app.script_templates import load_shell_template
 from app.scheduler import sync_server
+from app.schemas.ssh_upgrade import GroupSshUpgradeRequest, ClientUpgradeJobResponse
+from app.models.ssh_credential import SshCredential
+from app.services.ssh_upgrade_service import scan_group, upgrade_group
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -1559,3 +1562,42 @@ def import_script(
         api_key=api_key,
     )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.post("/{group_name}/ssh-upgrade/scan")
+def ssh_upgrade_scan_group(
+    group_name: str,
+    body: GroupSshUpgradeRequest,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    job = scan_group(db, frps_server_id, group_name, cred, body.install_path)
+    return ClientUpgradeJobResponse.model_validate(job)
+
+
+@router.post("/{group_name}/ssh-upgrade")
+def ssh_upgrade_group(
+    group_name: str,
+    body: GroupSshUpgradeRequest,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    job = upgrade_group(
+        db,
+        frps_server_id,
+        group_name,
+        cred,
+        body.install_path,
+        body.proxy_ids,
+    )
+    return ClientUpgradeJobResponse.model_validate(job)

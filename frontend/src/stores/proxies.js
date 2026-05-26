@@ -22,7 +22,8 @@ export const useProxiesStore = defineStore('proxies', {
       online: 0,
       offline: 0,
       portCount: 0
-    }
+    },
+    _loadRequestId: 0
   }),
   
   getters: {
@@ -35,13 +36,14 @@ export const useProxiesStore = defineStore('proxies', {
   },
   
   actions: {
-    // 加载代理列表
+    // 加载代理列表（仅最后一次请求的结果会写入 state）
     async loadProxies(frpsServerId, params = {}) {
+      const requestId = ++this._loadRequestId
       this.loading = true
       try {
         const page = params.page || this.pagination.page
         const page_size = params.page_size || this.pagination.page_size
-        
+
         const response = await proxyApi.getProxies({
           frps_server_id: frpsServerId,
           sync_from_frps: params.syncFromFrps === true,
@@ -52,10 +54,13 @@ export const useProxiesStore = defineStore('proxies', {
           search: params.search || this.filters.search || undefined,
           ...params
         })
-        
+
+        if (requestId !== this._loadRequestId) {
+          return
+        }
+
         // 处理分页响应格式
         if (response.items !== undefined) {
-          // 新的分页格式，按 id 去重（防止后端返回重复）
           const items = response.items || []
           const seen = new Set()
           this.proxies = items.filter(p => {
@@ -69,7 +74,6 @@ export const useProxiesStore = defineStore('proxies', {
             total: response.total || 0
           }
         } else {
-          // 兼容旧格式（无分页），按 id 去重
           const items = response.proxies || []
           const seen = new Set()
           this.proxies = items.filter(p => {
@@ -83,17 +87,27 @@ export const useProxiesStore = defineStore('proxies', {
             total: this.proxies.length
           }
         }
-        
+
         this.allProxies = [...this.proxies]
-        
-        // 更新统计信息
         this.updateStats()
+        this.pruneSelection()
       } catch (error) {
-        console.error('加载代理列表失败:', error)
-        throw error
+        if (requestId === this._loadRequestId) {
+          console.error('加载代理列表失败:', error)
+          throw error
+        }
       } finally {
-        this.loading = false
+        if (requestId === this._loadRequestId) {
+          this.loading = false
+        }
       }
+    },
+
+    pruneSelection() {
+      const visibleIds = new Set(this.proxies.map(p => p.id))
+      this.selectedProxyIds = new Set(
+        Array.from(this.selectedProxyIds).filter(id => visibleIds.has(id))
+      )
     },
     
     // 设置分页
