@@ -17,7 +17,7 @@
           <h2 class="text-lg font-semibold text-gray-900">一键脚本生成</h2>
           <button
             type="button"
-            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            class="btn btn-icon btn-ghost shrink-0"
             aria-label="关闭"
             @click="closeDialog"
           >
@@ -75,8 +75,8 @@
               <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="activeTab === 'install' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border border-blue-600 text-blue-600 hover:bg-blue-50'"
+                  class="btn btn-md"
+                  :class="activeTab === 'install' ? 'btn-primary' : 'btn-outline-primary'"
                   :disabled="loading"
                   @click="activeTab = 'install'"
                 >
@@ -84,8 +84,8 @@
                 </button>
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="activeTab === 'upgrade' ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-green-600 text-green-700 hover:bg-green-50'"
+                  class="btn btn-md"
+                  :class="activeTab === 'upgrade' ? 'btn-success' : 'btn-outline-success'"
                   :disabled="loading"
                   @click="activeTab = 'upgrade'"
                 >
@@ -96,7 +96,7 @@
                 <button
                   v-if="activeTab === 'install'"
                   type="button"
-                  class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="btn btn-md btn-primary"
                   :disabled="loading"
                   @click="submit"
                 >
@@ -105,7 +105,7 @@
                 <button
                   v-else
                   type="button"
-                  class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="btn btn-md btn-success"
                   :disabled="loading"
                   @click="submitUpgrade"
                 >
@@ -117,7 +117,7 @@
                 <CodeEditor :model-value="script" language="shell" :height="'320px'" :readonly="true" />
                 <button
                   type="button"
-                  class="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="btn btn-sm btn-outline-primary mt-2"
                   :disabled="!packageId"
                   @click="handleCopyCommand($event)"
                 >
@@ -129,7 +129,7 @@
                 <CodeEditor :model-value="upgradeScript" language="shell" :height="'320px'" :readonly="true" />
                 <button
                   type="button"
-                  class="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-green-600 px-3 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="btn btn-sm btn-outline-success mt-2"
                   :disabled="!packageId"
                   @click="handleCopyUpgradeCommand($event)"
                 >

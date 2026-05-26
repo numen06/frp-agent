@@ -5,15 +5,13 @@
         <div class="flex h-14 min-h-14 items-center justify-between gap-2 sm:h-16 sm:gap-3">
           <div class="flex min-w-0 shrink items-center gap-1 sm:gap-2">
             <button
-              class="touch-target md:hidden rounded-lg text-gray-500 hover:bg-gray-100"
+              class="btn btn-icon btn-ghost md:hidden"
               type="button"
               @click="navCollapse.toggle()"
               :aria-expanded="navCollapse.isOpen.value"
               aria-label="打开导航菜单"
             >
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <AppIcon name="menu" class="h-5 w-5" />
             </button>
             <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2">
               <span class="shrink-0 sm:hidden"><FrpLogo :size="32" color="currentColor" /></span>
@@ -25,18 +23,12 @@
           <div class="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               type="button"
-              class="touch-target relative inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 sm:px-2.5 sm:py-1.5 sm:text-sm"
+              class="btn btn-sm btn-outline relative sm:gap-1.5"
               title="版本与更新"
               aria-label="版本与更新"
               @click="openVersionModal"
             >
-              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                />
-              </svg>
+              <AppIcon name="tag" class="h-4 w-4" />
               <span class="hidden sm:inline">v{{ appVersion || '…' }}</span>
               <span
                 v-if="updateStatus.hasUpdate"
@@ -59,19 +51,14 @@
             <div class="relative">
               <button
                 ref="notifyDropdown.triggerRef"
-                class="touch-target rounded-lg text-gray-500 hover:bg-gray-100"
+                class="btn btn-icon btn-ghost relative"
                 type="button"
                 :aria-expanded="notifyDropdown.isOpen.value"
                 aria-label="消息通知"
+                title="消息通知"
                 @click.prevent="notifyDropdown.toggle()"
               >
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M15 17h5l-1.405-4.215A2 2 0 0016.646 11H7.354a2 2 0 00-1.973 1.788L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  />
-                </svg>
+                <AppIcon name="bell" class="h-5 w-5" />
                 <span
                   v-if="unreadNotificationCount > 0"
                   class="absolute right-1 top-1 inline-flex h-2.5 w-2.5 rounded-full bg-red-500"
@@ -103,10 +90,11 @@
             <div class="relative">
               <button
                 ref="userDropdown.triggerRef"
-                class="touch-target inline-flex items-center gap-2 rounded-lg hover:bg-gray-100 sm:p-1.5"
+                class="btn btn-ghost gap-2 sm:px-2 sm:py-1.5"
                 type="button"
                 :aria-expanded="userDropdown.isOpen.value"
                 aria-label="用户菜单"
+                title="用户菜单"
                 @click.prevent="userDropdown.toggle()"
               >
                 <img
@@ -145,11 +133,12 @@
           <li v-for="item in navItems" :key="item.path" class="shrink-0 md:shrink">
             <router-link
               :to="item.path"
-              class="flex min-h-10 w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium md:inline-flex md:min-h-0 md:w-auto md:py-2"
-              :class="$route.path === item.path ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'"
+              class="btn btn-ghost min-h-10 w-full justify-start gap-2 px-3 py-2.5 md:min-h-0 md:w-auto md:justify-center md:py-2"
+              :class="$route.path === item.path ? 'bg-blue-50 text-blue-600 hover:bg-blue-50 hover:text-blue-600' : 'text-gray-600'"
               @click="navCollapse.close()"
             >
-              {{ item.label }}
+              <AppIcon :name="item.icon" class="h-4 w-4 shrink-0" />
+              <span class="truncate">{{ item.label }}</span>
             </router-link>
           </li>
         </ul>
@@ -229,13 +218,11 @@
             </h2>
             <button
               type="button"
-              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+              class="btn btn-icon btn-ghost shrink-0"
               aria-label="关闭"
               @click="closeVersionModal"
             >
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <AppIcon name="close" class="h-5 w-5" />
             </button>
           </div>
           <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
@@ -332,17 +319,15 @@
             </div>
           </div>
           <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
-            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" :disabled="checkLoading" @click="closeVersionModal">
+            <button type="button" class="btn btn-md btn-secondary" :disabled="checkLoading" @click="closeVersionModal">
               关闭
             </button>
-            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" :disabled="checkLoading" @click="refreshVersionCheck">
+            <button type="button" class="btn btn-md btn-primary" :disabled="checkLoading" @click="refreshVersionCheck">
               <svg v-if="checkLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <AppIcon v-else name="refresh" class="h-4 w-4" />
               刷新检查
             </button>
           </div>
@@ -366,6 +351,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import FrpLogo from '@/components/FrpLogo.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import UserManageDialog from '@/components/UserManageDialog.vue'
 import { settingsApi } from '@/api/settings'
 import { getSystemVersion, checkVersionUpdate } from '@/api/index'
@@ -388,13 +374,13 @@ const forcePasswordChange = ref(false)
 const forcePasswordChangeReason = ref('')
 const suppressForcePasswordPrompt = ref(false)
 const navItems = [
-  { path: '/dashboard', label: '仪表板' },
-  { path: '/proxies', label: '代理列表' },
-  { path: '/groups', label: '分组管理' },
-  { path: '/converter', label: 'INI 转换' },
-  { path: '/servers', label: '服务器管理' },
-  { path: '/api-keys', label: '密钥管理' },
-  { path: '/packages', label: '安装包管理' }
+  { path: '/dashboard', label: '仪表板', icon: 'dashboard' },
+  { path: '/proxies', label: '代理列表', icon: 'proxies' },
+  { path: '/groups', label: '分组管理', icon: 'groups' },
+  { path: '/converter', label: 'INI 转换', icon: 'converter' },
+  { path: '/servers', label: '服务器管理', icon: 'servers' },
+  { path: '/api-keys', label: '密钥管理', icon: 'apiKeys' },
+  { path: '/packages', label: '安装包管理', icon: 'packages' }
 ]
 
 // 下拉菜单和折叠功能

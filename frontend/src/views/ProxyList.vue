@@ -14,7 +14,7 @@
             <div class="relative" v-if="proxiesStore.selectedCount > 0">
               <button 
                 ref="batchActionsDropdown.triggerRef"
-                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-amber-600 md:min-h-0 md:px-2.5 md:py-1.5" 
+                class="btn btn-sm btn-warning md:min-h-8" 
                 @click.prevent="toggleBatchActionsDropdown()"
                 :aria-expanded="batchActionsDropdown.isOpen.value"
                 aria-label="批量操作菜单"
@@ -37,7 +37,7 @@
             <div class="relative">
               <button 
                 ref="addActionsDropdown.triggerRef"
-                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-2.5 md:py-1.5" 
+                class="btn btn-sm btn-success md:min-h-8" 
                 @click.prevent="toggleAddActionsDropdown()"
                 :aria-expanded="addActionsDropdown.isOpen.value"
                 aria-label="添加菜单"
@@ -51,7 +51,7 @@
                 添加
               </button>
             </div>
-            <button class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-2.5 md:py-1.5" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
+            <button class="btn btn-sm btn-success md:min-h-8" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
               <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -60,7 +60,7 @@
               </svg>
               同步
             </button>
-            <button class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-2.5 md:py-1.5" @click="refreshProxies" :disabled="proxiesStore.loading">
+            <button class="btn btn-sm btn-primary md:min-h-8" @click="refreshProxies" :disabled="proxiesStore.loading">
               <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -69,7 +69,7 @@
               </svg>
               刷新
             </button>
-            <button class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-500 px-3 py-2 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-2.5 md:py-1.5" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
+            <button class="btn btn-sm btn-outline-warning md:min-h-8" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
               清理重复
             </button>
           </div>
@@ -105,9 +105,9 @@
                 <option value="">选择目标分组...</option>
                 <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
               </AppSelect>
-              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="handleBulkAssignGroup">分配到分组</button>
-              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700" @click="handleGenerateConfigForSelected">生成配置</button>
-              <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="proxiesStore.clearSelection()">取消选择</button>
+              <button class="btn btn-sm btn-primary" @click="handleBulkAssignGroup">分配到分组</button>
+              <button class="btn btn-sm btn-success" @click="handleGenerateConfigForSelected">生成配置</button>
+              <button class="btn btn-sm btn-secondary" @click="proxiesStore.clearSelection()">取消选择</button>
             </div>
           </div>
         </div>
@@ -391,10 +391,10 @@
             <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
           </AppSelect>
           <div class="grid grid-cols-2 gap-2">
-            <button class="inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="handleBulkAssignGroup">分配到分组</button>
-            <button class="inline-flex min-h-10 items-center justify-center rounded-lg bg-green-600 px-3 text-xs font-medium text-white transition-colors hover:bg-green-700" @click="handleGenerateConfigForSelected">生成配置</button>
+            <button class="btn btn-sm btn-primary min-h-10 md:min-h-8" @click="handleBulkAssignGroup">分配到分组</button>
+            <button class="btn btn-sm btn-success min-h-10 md:min-h-8" @click="handleGenerateConfigForSelected">生成配置</button>
           </div>
-          <button class="inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-gray-200 px-3 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="proxiesStore.clearSelection()">取消选择</button>
+          <button class="btn btn-sm btn-secondary min-h-10 w-full md:min-h-8" @click="proxiesStore.clearSelection()">取消选择</button>
         </div>
       </div>
     </div>

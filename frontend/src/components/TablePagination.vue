@@ -18,7 +18,7 @@
       <div v-if="totalPages > 1" class="flex items-center justify-between gap-2">
         <button
           type="button"
-          class="touch-target inline-flex min-w-[4.5rem] items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50"
+          class="btn btn-sm btn-outline min-w-[4.5rem]"
           :disabled="page === 1"
           aria-label="上一页"
           @click="goToPage(page - 1)"
@@ -28,7 +28,7 @@
         <span class="text-sm font-medium text-gray-700">{{ page }} / {{ totalPages }}</span>
         <button
           type="button"
-          class="touch-target inline-flex min-w-[4.5rem] items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50"
+          class="btn btn-sm btn-outline min-w-[4.5rem]"
           :disabled="page === totalPages"
           aria-label="下一页"
           @click="goToPage(page + 1)"
@@ -60,7 +60,7 @@
         <ul class="inline-flex items-center gap-1">
           <li>
             <a
-              class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+              class="btn-page"
               :class="{ 'pointer-events-none opacity-50': page === 1 }"
               href="#"
               @click.prevent="goToPage(1)"
@@ -75,7 +75,7 @@
           </li>
           <li>
             <a
-              class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+              class="btn-page"
               :class="{ 'pointer-events-none opacity-50': page === 1 }"
               href="#"
               @click.prevent="goToPage(page - 1)"
@@ -90,8 +90,8 @@
           </li>
           <li v-for="pageNum in visiblePages" :key="pageNum">
             <a
-              class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-2 text-sm"
-              :class="pageNum === page ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'"
+              class="btn-page"
+              :class="pageNum === page ? 'btn-page-active' : ''"
               href="#"
               @click.prevent="goToPage(pageNum)"
             >
@@ -100,7 +100,7 @@
           </li>
           <li>
             <a
-              class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+              class="btn-page"
               :class="{ 'pointer-events-none opacity-50': page === totalPages }"
               href="#"
               @click.prevent="goToPage(page + 1)"
@@ -115,7 +115,7 @@
           </li>
           <li>
             <a
-              class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 hover:bg-gray-100"
+              class="btn-page"
               :class="{ 'pointer-events-none opacity-50': page === totalPages }"
               href="#"
               @click.prevent="goToPage(totalPages)"
