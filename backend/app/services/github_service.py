@@ -78,9 +78,31 @@ class GithubService:
         prefix = (self.settings.github_download_accelerate_prefix or "").strip()
         if not prefix:
             return url
+        return self.build_prefixed_download_url(prefix, url)
+
+    @staticmethod
+    def build_prefixed_download_url(prefix: str, url: str) -> str:
         if "{url}" in prefix:
             return prefix.replace("{url}", url)
         return f"{prefix.rstrip('/')}/{url}"
+
+    def build_accelerated_download_urls(self, url: str) -> List[str]:
+        urls: List[str] = []
+        prefixes = [
+            (self.settings.github_download_accelerate_prefix or "").strip(),
+            *[
+                x.strip()
+                for x in (self.settings.github_download_accelerate_fallback_prefixes or "").split(",")
+                if x.strip()
+            ],
+        ]
+        for prefix in prefixes:
+            candidate = self.build_prefixed_download_url(prefix, url) if prefix else url
+            if candidate not in urls:
+                urls.append(candidate)
+        if url not in urls:
+            urls.append(url)
+        return urls
 
     @staticmethod
     def calculate_sha256(file_path: str) -> str:

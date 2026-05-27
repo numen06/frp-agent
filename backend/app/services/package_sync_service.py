@@ -97,14 +97,31 @@ async def _download_one_asset(
     name = asset["name"]
     platform = asset["platform"]
     source_url = asset["source_url"]
-    download_url = (
-        service.build_accelerated_download_url(source_url)
+    download_urls = (
+        service.build_accelerated_download_urls(source_url)
         if download_source == "accelerated"
-        else source_url
+        else [source_url]
     )
     save_path = os.path.join(packages_dir, name)
     try:
-        size = await service.download_asset(download_url, save_path)
+        attempt_errors: List[str] = []
+        size = 0
+        for download_url in download_urls:
+            try:
+                if os.path.exists(save_path):
+                    os.remove(save_path)
+                size = await service.download_asset(download_url, save_path)
+                break
+            except Exception as e:
+                logger.warning("download failed for %s via %s: %s", name, download_url, e)
+                attempt_errors.append(f"{download_url}: {e}")
+                if os.path.exists(save_path):
+                    try:
+                        os.remove(save_path)
+                    except OSError:
+                        pass
+        else:
+            raise RuntimeError("; ".join(attempt_errors))
         checksum = service.calculate_sha256(save_path)
 
         existed = (
