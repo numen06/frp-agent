@@ -531,16 +531,46 @@ async def list_releases(
     current_user: User = Depends(get_current_user),
 ):
     service = GithubService()
-    releases = await service.fetch_releases()
+    try:
+        releases = await service.fetch_releases()
+        out = []
+        for x in releases:
+            platforms = service.discover_platforms_from_release(x)
+            out.append(
+                {
+                    "version": x.get("tag_name"),
+                    "name": x.get("name"),
+                    "published_at": x.get("published_at"),
+                    "platforms": platforms,
+                    "source": "github",
+                }
+            )
+        return out
+    except Exception as e:
+        logger.warning("获取 GitHub releases 失败，使用本地版本缓存兜底: %s", e)
+
+    versions = _merge_versions_local_and_cache(db, _load_versions_cache())
+    platform_cache = _load_platforms_cache()
+    cached_platforms = platform_cache.get("platforms") or []
+    cache_version = platform_cache.get("version")
+    local_rows = db.query(FrpPackage.version, FrpPackage.platform).distinct().all()
+    local_platforms = {}
+    for version, platform in local_rows:
+        if version and platform:
+            local_platforms.setdefault(version, set()).add(platform)
+
     out = []
-    for x in releases:
-        platforms = service.discover_platforms_from_release(x)
+    for version in versions:
+        platforms = sorted(local_platforms.get(version, set()))
+        if not platforms and version == cache_version:
+            platforms = cached_platforms
         out.append(
             {
-                "version": x.get("tag_name"),
-                "name": x.get("name"),
-                "published_at": x.get("published_at"),
+                "version": version,
+                "name": version,
+                "published_at": None,
                 "platforms": platforms,
+                "source": "backend-cache",
             }
         )
     return out

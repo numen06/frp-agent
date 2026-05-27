@@ -303,7 +303,7 @@
 
     <PackageSyncDialog
       v-model="showSyncDialog"
-      :releases="releases"
+      :releases="syncDialogReleases"
       :loading="syncLoading"
       :progress="syncProgress"
       @submit="handleSync"
@@ -463,6 +463,30 @@ const otherVersionsForUi = computed(() => {
   const recent = new Set(versionsMeta.value.recent_versions || [])
   const lv = versionsMeta.value.latest_version
   return merged.filter((v) => v && !recent.has(v) && v !== lv)
+})
+
+const syncDialogReleases = computed(() => {
+  const byVersion = new Map()
+  for (const item of releases.value || []) {
+    if (item?.version) {
+      byVersion.set(item.version, {
+        ...item,
+        platforms: item.platforms || []
+      })
+    }
+  }
+  const localVersions = versionsMeta.value.versions || []
+  const latest = versionsMeta.value.latest_version
+  for (const version of localVersions) {
+    if (!version || byVersion.has(version)) continue
+    byVersion.set(version, {
+      version,
+      name: version,
+      platforms: version === latest ? platforms.value : [],
+      source: 'local-cache'
+    })
+  }
+  return Array.from(byVersion.values())
 })
 
 const currentMorePackage = computed(() => {
@@ -696,6 +720,7 @@ const loadReleases = async () => {
     releases.value = await packagesApi.getReleases()
   } catch (e) {
     console.warn('获取 release 失败', e)
+    releases.value = []
   }
 }
 
