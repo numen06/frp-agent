@@ -137,11 +137,11 @@
               </div>
         </div>
         <div class="flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5 sm:py-3.5">
-              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:mr-auto sm:w-auto" @click="closeDialog">取消</button>
+              <button type="button" class="btn btn-md btn-outline w-full sm:mr-auto sm:w-auto" @click="closeDialog">取消</button>
               <button
                 v-if="fileList.length === 1"
                 type="button"
-                class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                class="btn btn-md btn-primary w-full sm:w-auto"
                 :disabled="loading || fileList.length === 0 || (!manualVersion && !manualPlatform)"
                 @click="submit"
               >
@@ -150,7 +150,7 @@
               <button
                 v-else
                 type="button"
-                class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                class="btn btn-md btn-primary w-full sm:w-auto"
                 :disabled="loading || fileList.length === 0 || parsedCount === 0"
                 @click="submit"
               >

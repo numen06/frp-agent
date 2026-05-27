@@ -55,7 +55,7 @@
             />
             <button
               type="button"
-              class="inline-flex min-h-11 w-full shrink-0 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto"
+              class="btn btn-md btn-outline min-h-11 w-full shrink-0 touch-manipulation sm:w-auto"
               aria-label="清空输入"
               @click="clearInput"
             >
@@ -80,7 +80,7 @@
 
         <button
           type="button"
-          class="mb-3 inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          class="btn btn-md btn-primary mb-3 min-h-11 w-full touch-manipulation sm:w-auto"
           aria-label="将 INI 转换为 TOML"
           @click="convertIniToToml"
           :disabled="converting"
@@ -119,7 +119,7 @@
             <div class="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
               <button
                 type="button"
-                class="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                class="btn btn-md btn-outline min-h-11 touch-manipulation"
                 aria-label="复制 TOML 结果"
                 @click="copyTomlResult($event)"
               >
@@ -132,7 +132,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                class="btn btn-md btn-outline min-h-11 touch-manipulation"
                 aria-label="下载 TOML 文件"
                 @click="downloadToml"
               >
@@ -188,7 +188,7 @@
             <span class="text-sm font-medium text-gray-700">使用示例（可直接复制执行）</span>
             <button
               type="button"
-              class="inline-flex min-h-11 w-full shrink-0 touch-manipulation items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+              class="btn btn-md btn-primary min-h-11 w-full shrink-0 touch-manipulation sm:w-auto"
               aria-label="复制 curl 命令"
               @click="copyExampleCommand($event)"
             >

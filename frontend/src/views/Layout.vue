@@ -90,7 +90,7 @@
             <div class="relative">
               <button
                 ref="userDropdown.triggerRef"
-                class="btn btn-ghost gap-2 sm:px-2 sm:py-1.5"
+                class="btn btn-avatar btn-ghost"
                 type="button"
                 :aria-expanded="userDropdown.isOpen.value"
                 aria-label="用户菜单"
@@ -102,7 +102,7 @@
                   :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(authStore.username || 'Admin')}&background=206bcb&color=fff`"
                   alt="avatar"
                 />
-                <div class="hidden xl:block text-left">
+                <div class="hidden min-w-0 text-left xl:block">
                   <div class="text-sm font-medium">{{ authStore.username || '管理员' }}</div>
                   <div class="text-xs text-gray-500">管理员</div>
                 </div>

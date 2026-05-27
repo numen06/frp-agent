@@ -46,7 +46,7 @@
           </div>
           <button
             type="submit"
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="btn btn-md btn-primary min-h-11 w-full"
             :disabled="loading"
           >
             <span

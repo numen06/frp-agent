@@ -5,7 +5,7 @@
       <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
         <button
           type="button"
-          class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5"
+          class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
           @click="showCreateDialog = true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -17,7 +17,7 @@
         </button>
         <button
           type="button"
-          class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-orange-600 sm:flex-none sm:px-2.5 sm:py-1.5"
+          class="btn btn-sm btn-warning min-h-10 flex-1 sm:min-h-8 sm:flex-none"
           @click="openImportOrganizeDialog"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -90,7 +90,7 @@
                   <div class="inline-flex items-center gap-1.5">
                     <button
                       type="button"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
+                      class="btn btn-icon-sm btn-icon-primary"
                       title="查看代理"
                       aria-label="查看代理"
                       @click="viewGroupProxies(group.group_name)"
@@ -103,7 +103,7 @@
                     </button>
                     <button
                       type="button"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                      class="btn btn-icon-sm btn-icon-success"
                       title="一键部署"
                       aria-label="一键部署"
                       @click="openDeployDialog(group)"
@@ -117,7 +117,7 @@
                     </button>
                     <button
                       type="button"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                      class="btn btn-icon-sm btn-icon-accent"
                       title="客户端升级"
                       aria-label="客户端升级"
                       @click="openClientUpgradeDialog(group)"
@@ -131,7 +131,7 @@
                     </button>
                     <button
                       type="button"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      class="btn btn-icon-sm btn-icon-muted"
                       title="更多"
                       aria-label="更多操作"
                       @click.stop="toggleGroupMore(group.group_name, $event)"
@@ -177,7 +177,7 @@
               <div class="mt-3 grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-2 text-blue-700 transition-colors hover:bg-blue-100"
+                  class="btn btn-sm btn-icon-primary min-h-10 gap-1.5 px-2"
                   title="查看代理"
                   aria-label="查看代理"
                   @click="viewGroupProxies(group.group_name)"
@@ -191,7 +191,7 @@
                 </button>
                 <button
                   type="button"
-                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-2 text-emerald-700 transition-colors hover:bg-emerald-100"
+                  class="btn btn-sm btn-icon-success min-h-10 gap-1.5 px-2"
                   title="一键部署"
                   aria-label="一键部署"
                   @click="openDeployDialog(group)"
@@ -206,7 +206,7 @@
                 </button>
                 <button
                   type="button"
-                  class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-2 text-gray-700 transition-colors hover:bg-gray-200"
+                  class="btn btn-sm btn-icon-muted min-h-10 gap-1.5 px-2"
                   title="更多"
                   aria-label="更多操作"
                   @click.stop="toggleGroupMore(group.group_name, $event)"

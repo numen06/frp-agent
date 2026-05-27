@@ -6,7 +6,7 @@
         <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
             type="button"
-            class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5"
+            class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
             @click.stop="openCreateDialog"
           >
             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -91,7 +91,7 @@
                     @click="setDefaultKey(key)"
                   >默认</button>
                   <button
-                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    class="btn btn-icon-sm btn-icon-muted disabled:opacity-40"
                     :disabled="key.is_expired"
                     title="编辑"
                     @click="editKey(key)"
@@ -101,7 +101,7 @@
                     </svg>
                   </button>
                   <button
-                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                    class="btn btn-icon-sm btn-icon-danger"
                     title="删除"
                     @click="deleteKey(key)"
                   >
@@ -139,7 +139,7 @@
             <div class="mt-2 flex min-w-0 items-start gap-1">
               <code class="min-w-0 flex-1 break-all text-xs text-gray-600">{{ key.key }}</code>
               <button
-                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                class="btn btn-icon-md btn-ghost text-gray-400 hover:text-gray-600"
                 title="复制完整密钥"
                 aria-label="复制完整密钥"
                 @click.stop="copyFullKey(key, $event)"
@@ -172,13 +172,13 @@
             </dl>
             <div class="mt-3 flex flex-wrap gap-2">
               <button
-                class="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+                class="btn btn-sm min-h-10 flex-1 disabled:opacity-40 sm:min-h-8 sm:flex-none"
                 :class="apiKeysStore.selectedKeyId === key.id ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'"
                 :disabled="!key.is_active || key.is_expired || apiKeysStore.selectedKeyId === key.id"
                 @click="setDefaultKey(key)"
               >设为默认</button>
               <button
-                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
+                class="btn btn-icon-md btn-icon-muted disabled:opacity-40"
                 :disabled="key.is_expired"
                 title="编辑"
                 aria-label="编辑"
@@ -189,7 +189,7 @@
                 </svg>
               </button>
               <button
-                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                class="btn btn-icon-md btn-icon-danger"
                 title="删除"
                 aria-label="删除"
                 @click="deleteKey(key)"
@@ -349,7 +349,7 @@
                   ref="keyInput"
                 />
                 <button
-                  class="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto sm:rounded-l-none sm:rounded-r-lg"
+                  class="btn btn-md btn-outline w-full shrink-0 sm:w-auto sm:rounded-l-none sm:rounded-r-lg"
                   type="button"
                   aria-label="复制 API Key"
                   @click.stop="copyCreatedKey($event)"
@@ -397,7 +397,7 @@
       <span class="flex-1 pt-0.5">{{ toastMessage }}</span>
       <button
         type="button"
-        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-current opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100"
+        class="btn btn-icon-sm shrink-0 text-current opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100"
         aria-label="关闭"
         @click="toastMessage = ''"
       >

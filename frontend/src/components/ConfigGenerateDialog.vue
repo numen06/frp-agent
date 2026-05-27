@@ -94,7 +94,7 @@
                 <button
                   v-if="props.groupName"
                   type="button"
-                  class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  class="btn btn-sm btn-warning min-h-10 w-full gap-1.5 sm:min-h-8 sm:w-auto"
                   aria-label="重新生成远端端口"
                   :disabled="regeneratingPorts"
                   @click="handleRegeneratePorts"
@@ -124,7 +124,7 @@
                 </button>
                 <button
                   type="button"
-                  class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto"
+                  class="btn btn-sm btn-secondary min-h-10 w-full gap-1.5 sm:min-h-8 sm:w-auto"
                   @click="downloadConfig"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -152,14 +152,14 @@
         <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-6 sm:py-4">
           <button
             type="button"
-            class="inline-flex min-h-10 w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 sm:mr-auto sm:w-auto"
+            class="btn btn-md btn-ghost w-full sm:mr-auto sm:w-auto"
             @click="closeDialog"
           >
             关闭
           </button>
           <button
             type="button"
-            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            class="btn btn-md btn-primary w-full sm:w-auto"
             :disabled="generating"
             @click="handleGenerate"
           >

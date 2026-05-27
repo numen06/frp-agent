@@ -6,7 +6,7 @@
         <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
             type="button"
-            class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5"
+            class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
             @click="showAddDialog = true"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -64,7 +64,7 @@
               </td>
               <td class="border-b border-gray-100 px-4 py-3 align-middle">
                 <div class="inline-flex items-center gap-2">
-                  <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
+                  <button class="btn btn-icon-sm btn-icon-accent" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
                     <span v-if="versionRefreshingId === server.id" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" role="status" aria-label="刷新中"></span>
                     <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -72,7 +72,7 @@
                       <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
                     </svg>
                   </button>
-                  <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+                  <button class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -80,14 +80,14 @@
                       <path d="M16 5l3 3" />
                     </svg>
                   </button>
-                  <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" @click="testServer(server)" title="测试连接" aria-label="测试连接">
+                  <button class="btn btn-icon-sm btn-icon-primary" @click="testServer(server)" title="测试连接" aria-label="测试连接">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M5 12l5 -5l10 10l-5 5z" />
                       <path d="M12 5l7 7" />
                     </svg>
                   </button>
-                  <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+                  <button class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M4 7l16 0" />
@@ -132,7 +132,7 @@
               </button>
             </div>
             <div class="mt-3 flex flex-wrap gap-2">
-              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
+              <button class="btn btn-icon-md btn-icon-accent" @click="refreshFrpVersion(server)" title="刷新 FRP 版本" aria-label="刷新 FRP 版本" :disabled="versionRefreshingId === server.id">
                 <span v-if="versionRefreshingId === server.id" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" role="status" aria-label="刷新中"></span>
                 <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -140,7 +140,7 @@
                   <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
                 </svg>
               </button>
-              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+              <button class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -148,14 +148,14 @@
                   <path d="M16 5l3 3" />
                 </svg>
               </button>
-              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" @click="testServer(server)" title="测试连接" aria-label="测试连接">
+              <button class="btn btn-icon-md btn-icon-primary" @click="testServer(server)" title="测试连接" aria-label="测试连接">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M5 12l5 -5l10 10l-5 5z" />
                   <path d="M12 5l7 7" />
                 </svg>
               </button>
-              <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+              <button class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M4 7l16 0" />

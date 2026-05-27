@@ -53,7 +53,7 @@
             <div class="flex w-full flex-wrap gap-2">
               <button
                 type="button"
-                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
+                class="btn btn-sm btn-success min-h-10 flex-1 sm:min-h-8 sm:flex-none"
                 @click="showAddProxyDialog = true"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -65,7 +65,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
+                class="btn btn-sm btn-warning min-h-10 flex-1 sm:min-h-8 sm:flex-none"
                 :disabled="loading || generatingDefaults"
                 @click="generateStandardProxies"
               >
@@ -96,7 +96,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
+                class="btn btn-sm btn-success min-h-10 flex-1 sm:min-h-8 sm:flex-none"
                 :disabled="loading"
                 @click="syncFromFrps"
               >
@@ -127,7 +127,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
+                class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
                 :disabled="loading"
                 @click="loadData(pagination.page)"
               >
@@ -205,7 +205,7 @@
                   <td class="border-b border-gray-100 px-4 py-3 align-middle">
                     <div class="inline-flex items-center gap-2">
                       <button
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                        class="btn btn-icon-sm btn-icon-muted"
                         title="编辑"
                         aria-label="编辑"
                         @click="editProxy(proxy)"
@@ -218,7 +218,7 @@
                         </svg>
                       </button>
                       <button
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                        class="btn btn-icon-sm btn-icon-danger"
                         title="删除"
                         aria-label="删除"
                         @click="deleteProxy(proxy)"
@@ -268,7 +268,7 @@
                 </dl>
                 <div class="mt-3 flex gap-2">
                   <button
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                    class="btn btn-icon-md btn-icon-muted"
                     title="编辑"
                     aria-label="编辑"
                     @click="editProxy(proxy)"
@@ -281,7 +281,7 @@
                     </svg>
                   </button>
                   <button
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                    class="btn btn-icon-md btn-icon-danger"
                     title="删除"
                     aria-label="删除"
                     @click="deleteProxy(proxy)"

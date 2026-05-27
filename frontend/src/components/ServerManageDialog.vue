@@ -29,7 +29,7 @@
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
           <div class="mb-3">
-            <button class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto" @click="showAddDialog = true">
+            <button class="btn btn-sm btn-primary min-h-10 w-full sm:min-h-8 sm:w-auto" @click="showAddDialog = true">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M12 5l0 14" />
@@ -71,7 +71,7 @@
                   <td class="px-4 py-3 border-b border-gray-100 align-middle text-sm text-gray-700">{{ server.server_version || '未知' }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">
                     <div class="inline-flex items-center gap-2">
-                      <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+                      <button class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -79,7 +79,7 @@
                           <path d="M16 5l3 3" />
                         </svg>
                       </button>
-                      <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+                      <button class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M4 7l16 0" />
@@ -108,7 +108,7 @@
                 <p class="mt-0.5 break-all text-xs text-gray-500">{{ server.api_base_url }}</p>
                 <p class="mt-1 text-xs text-gray-600">frps: {{ server.server_version || '未知' }}</p>
                 <div class="mt-3 flex gap-2">
-                  <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+                  <button class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -116,7 +116,7 @@
                       <path d="M16 5l3 3" />
                     </svg>
                   </button>
-                  <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+                  <button class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M4 7l16 0" />
@@ -195,9 +195,9 @@
           </div>
         </div>
         <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
-          <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:mr-auto sm:w-auto" @click="closeAddDialog">取消</button>
-          <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto" @click="testConnection">测试连接</button>
-          <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto" @click="handleSubmit">保存</button>
+          <button type="button" class="btn btn-md btn-secondary w-full sm:mr-auto sm:w-auto" @click="closeAddDialog">取消</button>
+          <button type="button" class="btn btn-md btn-secondary w-full sm:w-auto" @click="testConnection">测试连接</button>
+          <button type="button" class="btn btn-md btn-primary w-full sm:w-auto" @click="handleSubmit">保存</button>
         </div>
       </div>
     </div>

@@ -125,7 +125,7 @@
         <h3 class="text-base font-semibold text-gray-900">服务器详情</h3>
         <button
           type="button"
-          class="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
+          class="btn btn-sm btn-outline min-h-10 gap-1.5 touch-manipulation sm:min-h-8"
           :disabled="serverStatsLoading"
           aria-label="刷新服务器统计"
           @click="reloadServerStats"

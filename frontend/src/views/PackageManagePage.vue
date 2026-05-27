@@ -5,7 +5,7 @@
         <h3 class="text-base font-semibold text-gray-900">FRP 安装包管理</h3>
         <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
-            class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-2.5 sm:py-1.5"
+            class="btn btn-sm btn-secondary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
             type="button"
             :disabled="refreshLoading"
             @click="handleRefresh"
@@ -15,19 +15,19 @@
             </svg>
             {{ refreshLoading ? '刷新中...' : '刷新' }}
           </button>
-          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showSyncDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showSyncDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 14v4a1 1 0 0 0 1 1h4"/><path d="M17 3h4a1 1 0 0 1 1 1v4"/><path d="M16 8l-8 8"/>
             </svg>
             GitHub 同步
           </button>
-          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showUploadDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showUploadDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/>
             </svg>
             手动上传
           </button>
-          <button class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none sm:px-2.5 sm:py-1.5" type="button" @click="showInstallDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showInstallDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/>
             </svg>
@@ -37,7 +37,7 @@
             <button
               ref="moreActionsDropdown.triggerRef"
               type="button"
-              class="inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto sm:px-2.5 sm:py-1.5"
+              class="btn btn-sm btn-outline min-h-10 w-full gap-1 sm:min-h-8 sm:w-auto"
               @click.prevent="toggleMoreActionsMenu"
               :aria-expanded="moreActionsDropdown.isOpen.value"
             >
@@ -154,13 +154,13 @@
                 <td class="px-4 py-3 border-b border-gray-100 align-middle"><code class="text-xs text-gray-500">{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" title="下载安装包" type="button" @click="downloadPackageFile(item)">
+                    <button class="btn btn-icon-sm btn-icon-accent" title="下载安装包" type="button" @click="downloadPackageFile(item)">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      class="btn btn-icon-sm btn-icon-muted"
                       title="更多"
                       aria-label="更多操作"
                       type="button"
@@ -201,13 +201,13 @@
                   <div class="col-span-2 break-all"><dt class="inline">SHA256 </dt><dd class="inline font-mono text-gray-600">{{ item.sha256_checksum?.slice(0, 16) }}…</dd></div>
                 </dl>
                 <div class="mt-3 flex flex-wrap gap-2">
-                  <button class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" title="下载安装包" aria-label="下载安装包" type="button" @click="downloadPackageFile(item)">
+                  <button class="btn btn-icon-md btn-icon-accent" title="下载安装包" aria-label="下载安装包" type="button" @click="downloadPackageFile(item)">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
                     </svg>
                   </button>
                   <button
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                    class="btn btn-icon-md btn-icon-muted"
                     title="更多"
                     aria-label="更多操作"
                     type="button"

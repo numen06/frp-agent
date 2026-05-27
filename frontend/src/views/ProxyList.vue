@@ -14,7 +14,7 @@
             <div class="relative" v-if="proxiesStore.selectedCount > 0">
               <button 
                 ref="batchActionsDropdown.triggerRef"
-                class="btn btn-sm btn-warning md:min-h-8" 
+                class="btn btn-sm btn-warning min-h-10 md:min-h-8"
                 @click.prevent="toggleBatchActionsDropdown()"
                 :aria-expanded="batchActionsDropdown.isOpen.value"
                 aria-label="批量操作菜单"
@@ -37,7 +37,7 @@
             <div class="relative">
               <button 
                 ref="addActionsDropdown.triggerRef"
-                class="btn btn-sm btn-success md:min-h-8" 
+                class="btn btn-sm btn-success min-h-10 md:min-h-8"
                 @click.prevent="toggleAddActionsDropdown()"
                 :aria-expanded="addActionsDropdown.isOpen.value"
                 aria-label="添加菜单"
@@ -51,7 +51,7 @@
                 添加
               </button>
             </div>
-            <button class="btn btn-sm btn-success md:min-h-8" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
+            <button class="btn btn-sm btn-success min-h-10 md:min-h-8" @click="syncFromFrps" :disabled="proxiesStore.loading || !currentServerId">
               <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -60,7 +60,7 @@
               </svg>
               同步
             </button>
-            <button class="btn btn-sm btn-primary md:min-h-8" @click="refreshProxies" :disabled="proxiesStore.loading">
+            <button class="btn btn-sm btn-primary min-h-10 md:min-h-8" @click="refreshProxies" :disabled="proxiesStore.loading">
               <span v-if="proxiesStore.loading" class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" role="status" aria-label="加载中"></span>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -69,7 +69,7 @@
               </svg>
               刷新
             </button>
-            <button class="btn btn-sm btn-outline-warning md:min-h-8" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
+            <button class="btn btn-sm btn-outline-warning min-h-10 md:min-h-8" @click="handleCleanDuplicates" :disabled="proxiesStore.loading || !currentServerId" title="清理同一服务器下同名重复代理">
               清理重复
             </button>
           </div>
@@ -187,7 +187,7 @@
                   <div class="inline-flex items-center gap-2">
                     <button
                       v-if="isSshCandidateProxy(proxy)"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                      class="btn btn-icon-sm btn-icon-accent"
                       title="客户端升级（SSH）"
                       aria-label="客户端升级"
                       @click="openClientUpgrade(proxy)"
@@ -200,7 +200,7 @@
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                      class="btn btn-icon-sm btn-icon-muted"
                       @click="editProxy(proxy)"
                       title="编辑"
                       aria-label="编辑"
@@ -213,7 +213,7 @@
                       </svg>
                     </button>
                     <button
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                      class="btn btn-icon-sm btn-icon-danger"
                       @click="deleteProxy(proxy)"
                       title="删除"
                       aria-label="删除"
@@ -316,7 +316,7 @@
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     v-if="isSshCandidateProxy(proxy)"
-                    class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100"
+                    class="btn btn-icon-md btn-icon-accent"
                     title="客户端升级（SSH）"
                     aria-label="客户端升级"
                     @click="openClientUpgrade(proxy)"
@@ -329,7 +329,7 @@
                     </svg>
                   </button>
                   <button
-                    class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+                    class="btn btn-icon-md btn-icon-muted"
                     @click="editProxy(proxy)"
                     title="编辑"
                     aria-label="编辑"
@@ -342,7 +342,7 @@
                     </svg>
                   </button>
                   <button
-                    class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+                    class="btn btn-icon-md btn-icon-danger"
                     @click="deleteProxy(proxy)"
                     title="删除"
                     aria-label="删除"

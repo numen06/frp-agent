@@ -107,7 +107,7 @@
         <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
-            class="inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
+            class="btn btn-md btn-primary w-full disabled:opacity-50 sm:w-auto"
             :disabled="!credentialId || !frpsServerId || scanning"
             @click="runGroupScan"
           >
@@ -115,7 +115,7 @@
           </button>
           <button
             type="button"
-            class="inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:w-auto"
+            class="btn btn-md btn-success w-full disabled:opacity-50 sm:w-auto"
             aria-label="升级所选客户端"
             :disabled="!credentialId || !frpsServerId || selectedIds.length === 0 || upgrading"
             @click="runGroupUpgrade"

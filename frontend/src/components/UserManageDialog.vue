@@ -95,7 +95,7 @@
         <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
-            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:mr-auto sm:w-auto"
+            class="btn btn-md btn-outline w-full sm:mr-auto sm:w-auto"
             @click.prevent.stop="close"
           >
             取消
@@ -103,7 +103,7 @@
           <button
             type="submit"
             form="user-password-form"
-            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+            class="btn btn-md btn-primary w-full sm:w-auto"
           >
             保存修改
           </button>
