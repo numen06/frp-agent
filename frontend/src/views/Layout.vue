@@ -109,7 +109,7 @@
               </button>
               <div
                 ref="userDropdown.dropdownRef"
-                class="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs rounded-lg border border-gray-200 bg-white py-1 shadow-lg sm:min-w-40 sm:max-w-none"
+                class="absolute right-0 z-50 mt-2 w-40 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
                 :class="userDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
               >
