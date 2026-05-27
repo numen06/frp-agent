@@ -770,6 +770,7 @@ const pollSyncJob = (jobId) => {
 const formatSyncResultMessage = (job) => {
   const results = job.results || []
   const successCount = results.filter((r) => r.status === 'success').length
+  const skippedCount = results.filter((r) => r.status === 'skipped').length
   const failCount = results.filter((r) => r.status === 'failed').length
   if (job.status === 'failed' && successCount === 0) {
     const detail = results.find((r) => r.status === 'failed')?.message
@@ -782,6 +783,12 @@ const formatSyncResultMessage = (job) => {
       .join('、')
     return `同步完成：成功 ${successCount} 个，失败 ${failCount} 个${failedNames ? `\n失败平台：${failedNames}` : ''}`
   }
+  if (skippedCount > 0 && successCount === 0) {
+    return `安装包已存在，已跳过 ${skippedCount} 个平台`
+  }
+  if (skippedCount > 0) {
+    return `同步完成：成功 ${successCount} 个，跳过 ${skippedCount} 个`
+  }
   return `同步成功，共 ${successCount} 个安装包`
 }
 
@@ -791,7 +798,7 @@ const handleSync = async (payload) => {
   try {
     const created = await packagesApi.sync(payload)
     syncProgress.value = {
-      completed: 0,
+      completed: created.completed ?? 0,
       total: created.total ?? 0,
       status: created.status || 'queued'
     }

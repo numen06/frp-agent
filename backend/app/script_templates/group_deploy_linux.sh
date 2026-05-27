@@ -96,8 +96,8 @@ mkdir -p "$FRP_DIR"
 if [ -f "$INI_FILE" ]; then
     if [ ! -f "$CONFIG_FILE" ]; then
         backup_copy "$INI_FILE"
-        echo "迁移 INI -> TOML: $INI_FILE -> $CONFIG_FILE"
-        mv "$INI_FILE" "$CONFIG_FILE"
+        echo "检测到旧 INI 配置，已备份；将从平台拉取新的 frpc.toml，避免 INI 被 TOML 解析导致启动失败。"
+        mv "$INI_FILE" "${INI_FILE}.backup_$(date +%Y%m%d_%H%M%S)"
     else
         echo "检测到 frpc.ini 与 frpc.toml 并存，不合并内容；将 ini 备份移走（保留现有 toml）。"
         backup_copy "$INI_FILE"

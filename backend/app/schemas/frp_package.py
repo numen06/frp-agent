@@ -63,6 +63,7 @@ class PackageSyncJobCreatedResponse(BaseModel):
     job_id: str
     status: str
     total: int
+    completed: int = 0
     message: str = "同步任务已创建，正在后台下载"
 
 

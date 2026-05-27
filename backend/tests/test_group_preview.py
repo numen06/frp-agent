@@ -41,12 +41,16 @@ def _seed_server(db, name="srv1"):
     return server
 
 
-def _seed_package(db, platform="linux_amd64", version="0.61.1"):
+def _seed_package(db, tmp_path, platform="linux_amd64", version="0.61.1", file_exists=True):
+    package_path = tmp_path / f"frpc_{platform}.tar.gz"
+    if file_exists:
+        package_path.write_bytes(b"package")
     pkg = FrpPackage(
         filename="frpc_linux_amd64.tar.gz",
         platform=platform,
         version=version,
-        file_path="/tmp/frpc_linux_amd64.tar.gz",
+        file_path=str(package_path),
+        file_size=package_path.stat().st_size if file_exists else 0,
         is_active=True,
     )
     db.add(pkg)
@@ -54,9 +58,9 @@ def _seed_package(db, platform="linux_amd64", version="0.61.1"):
     return pkg
 
 
-def test_action_context_returns_summary(db):
+def test_action_context_returns_summary(db, tmp_path):
     server = _seed_server(db)
-    _seed_package(db)
+    _seed_package(db, tmp_path)
     db.add(
         Proxy(
             frps_server_id=server.id,
@@ -79,9 +83,9 @@ def test_action_context_returns_summary(db):
     assert ctx["defaults"]["install_path"] == "/opt/frp"
 
 
-def test_deploy_preview_missing_api_key(db):
+def test_deploy_preview_missing_api_key(db, tmp_path):
     server = _seed_server(db)
-    _seed_package(db)
+    _seed_package(db, tmp_path)
     body = DeployPreviewRequest(frps_server_id=server.id, server_name=server.name)
     result = _compose_deploy_preview(db, "demo", body, "http://localhost:8000")
 
@@ -90,9 +94,9 @@ def test_deploy_preview_missing_api_key(db):
     assert "api_key_missing" in codes
 
 
-def test_deploy_preview_builds_command(db):
+def test_deploy_preview_builds_command(db, tmp_path):
     server = _seed_server(db)
-    _seed_package(db)
+    _seed_package(db, tmp_path)
     body = DeployPreviewRequest(
         frps_server_id=server.id,
         server_name=server.name,
@@ -104,6 +108,21 @@ def test_deploy_preview_builds_command(db):
     assert "api_key=test-key" in result["command"]
     assert result["missing_requirements"] == []
     assert result["effective_options"]["install_path"] == "/opt/frp"
+
+
+def test_deploy_preview_ignores_unready_package(db, tmp_path):
+    server = _seed_server(db)
+    _seed_package(db, tmp_path, file_exists=False)
+    body = DeployPreviewRequest(
+        frps_server_id=server.id,
+        server_name=server.name,
+        api_key="test-key",
+    )
+    result = _compose_deploy_preview(db, "demo", body, "http://localhost:8000")
+
+    assert result["command"] == ""
+    assert result["package_available"] is False
+    assert any(m["code"] == "package_missing" for m in result["missing_requirements"])
 
 
 def test_import_preview_builds_command(db):

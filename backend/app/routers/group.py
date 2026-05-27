@@ -17,6 +17,7 @@ from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
 from app.models.frp_package import FrpPackage
+from app.models.package_sync_job import PackageSyncJob
 from app.models.port import PortAllocation
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
@@ -211,9 +212,14 @@ def _compose_deploy_preview(
     if platform and not platform.startswith("windows_"):
         pkg, _pkg_version = _get_latest_package_for_platform(db, platform)
         if not pkg:
+            syncing = _has_active_package_sync(db, platform)
             missing.append(_missing_requirement(
-                "package_missing",
-                f"未找到可用的 {platform} 安装包，请先同步或上传安装包",
+                "package_syncing" if syncing else "package_missing",
+                (
+                    f"{platform} 安装包正在同步中，请等待任务完成后再生成部署命令"
+                    if syncing
+                    else f"未找到可用的 {platform} 安装包，请先同步或上传安装包"
+                ),
             ))
 
     if not body.api_key:
@@ -236,7 +242,7 @@ def _compose_deploy_preview(
 
     script_url = ""
     command = ""
-    blocking_codes = {"server_not_found", "platform_unsupported", "package_missing", "api_key_missing"}
+    blocking_codes = {"server_not_found", "platform_unsupported", "package_missing", "package_syncing", "api_key_missing"}
     can_build = server and not any(m["code"] in blocking_codes for m in missing)
 
     if can_build:
@@ -342,10 +348,16 @@ def _compose_action_context(
     proxies, total, online, offline = _group_proxy_stats(db, group_name, frps_server_id)
     pkg, _ = _get_latest_package_for_platform(db, "linux_amd64")
     has_package = pkg is not None
+    package_syncing = _has_active_package_sync(db, "linux_amd64") if not has_package else False
     has_ssh_candidates = any(is_ssh_candidate(p) for p in proxies)
     has_ssh_credentials = db.query(SshCredential).count() > 0
 
-    deploy_reason = "" if has_package else "未找到 linux_amd64 安装包，请先同步或上传安装包"
+    if has_package:
+        deploy_reason = ""
+    elif package_syncing:
+        deploy_reason = "linux_amd64 安装包正在同步中，请等待任务完成后再部署"
+    else:
+        deploy_reason = "未找到 linux_amd64 安装包，请先同步或上传安装包"
     if has_ssh_credentials and (has_ssh_candidates or total > 0):
         ssh_reason = ""
         ssh_enabled = True
@@ -358,7 +370,7 @@ def _compose_action_context(
 
     missing: List[Dict[str, str]] = []
     if not has_package:
-        missing.append(_missing_requirement("package_missing", deploy_reason))
+        missing.append(_missing_requirement("package_syncing" if package_syncing else "package_missing", deploy_reason))
 
     return {
         "group_name": group_name,
@@ -1304,33 +1316,62 @@ def _default_install_template(platform: str) -> str:
     return load_shell_template("group_quick_install_linux.sh")
 
 
+def _package_file_ready(pkg: FrpPackage) -> bool:
+    if not pkg or not pkg.file_path:
+        return False
+    try:
+        return os.path.isfile(pkg.file_path) and os.path.getsize(pkg.file_path) > 0
+    except OSError:
+        return False
+
+
+def _first_ready_package(query):
+    for pkg in query.all():
+        if _package_file_ready(pkg):
+            return pkg
+    return None
+
+
+def _has_active_package_sync(db: Session, platform: str) -> bool:
+    jobs = (
+        db.query(PackageSyncJob)
+        .filter(PackageSyncJob.status.in_(["queued", "running"]))
+        .order_by(PackageSyncJob.created_at.desc())
+        .all()
+    )
+    for job in jobs:
+        try:
+            platforms = json.loads(job.platforms or "[]")
+        except json.JSONDecodeError:
+            platforms = []
+        if platform in platforms:
+            return True
+    return False
+
+
 def _get_latest_package_for_platform(db: Session, platform: str):
     """查找指定平台最新版本的激活安装包（优先 versions_cache 中的 latest_version）"""
     cache = _load_versions_cache()
     latest_version = cache.get("latest_version")
-    if not latest_version:
-        row = db.query(FrpPackage.version).filter(
-            FrpPackage.is_active == True,
-            FrpPackage.platform == platform
-        ).order_by(FrpPackage.id.desc()).first()
-        if not row:
-            return None, None
-        latest_version = row.version
-
-    pkg = db.query(FrpPackage).filter(
+    base_query = db.query(FrpPackage).filter(
         FrpPackage.is_active == True,
         FrpPackage.platform == platform,
-        FrpPackage.version == latest_version
-    ).first()
-    if not pkg:
-        pkg = db.query(FrpPackage).filter(
-            FrpPackage.is_active == True,
-            FrpPackage.platform == platform
-        ).order_by(FrpPackage.id.desc()).first()
+    )
+
+    if latest_version:
+        pkg = _first_ready_package(
+            base_query.filter(FrpPackage.version == latest_version)
+            .order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
+        )
         if pkg:
             return pkg, pkg.version
-        return None, None
-    return pkg, latest_version
+
+    pkg = _first_ready_package(
+        base_query.order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
+    )
+    if pkg:
+        return pkg, pkg.version
+    return None, None
 
 
 def _get_latest_linux_amd64_package(db: Session):
@@ -1599,9 +1640,14 @@ def group_deploy(
 
     pkg, _version = _get_latest_package_for_platform(db, platform)
     if not pkg:
+        syncing = _has_active_package_sync(db, platform)
         raise HTTPException(
             status_code=404,
-            detail=f"未找到可用的 {platform} 安装包，请先同步或上传安装包",
+            detail=(
+                f"{platform} 安装包正在同步中，请等待任务完成后再部署"
+                if syncing
+                else f"未找到可用的 {platform} 安装包，请先同步或上传安装包"
+            ),
         )
 
     script = _build_deploy_script(

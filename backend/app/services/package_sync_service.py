@@ -58,6 +58,35 @@ def create_sync_job(
     return job
 
 
+def create_finished_sync_job(
+    db: Session,
+    version: str,
+    platforms: List[str],
+    download_source: str,
+    results: List[Dict[str, Any]],
+    error: Optional[str] = None,
+) -> PackageSyncJob:
+    now = datetime.utcnow()
+    job = PackageSyncJob(
+        job_id=str(uuid.uuid4()),
+        status="completed" if not error else "failed",
+        version=version,
+        platforms=json.dumps(platforms, ensure_ascii=False),
+        download_source=download_source,
+        total=len(results),
+        completed=len(results),
+        results=json.dumps(results, ensure_ascii=False),
+        error=error,
+        started_at=now,
+        finished_at=now,
+        updated_at=now,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
 def _update_job_progress(
     db: Session,
     job: PackageSyncJob,
