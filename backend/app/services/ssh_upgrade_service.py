@@ -1,10 +1,11 @@
-"""SSH frpc 客户端扫描与升级（主机端脚本模式）"""
+"""SSH frpc client scanning and upgrade services."""
 from __future__ import annotations
 
 import json
 import logging
 import os
 import re
+import shlex
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -39,6 +40,11 @@ ARCH_MAP = {
 }
 
 GROUP_SCAN_CONCURRENCY = 3
+
+DETACHED_UNKNOWN_MESSAGE = (
+    "升级脚本已在目标机脱离 SSH 会话执行。若当前 SSH 走 frpc 隧道，"
+    "重启期间断联属于预期；目标机本地脚本会继续校验并在失败时回滚。"
+)
 
 
 def map_linux_arch(uname_m: str) -> Optional[str]:
@@ -108,17 +114,15 @@ def _run_cmd(ssh: SSHClientProtocol, cmd: str, timeout: float = 30.0):
 
 
 def _parse_systemd_exec_start(stdout: str) -> Dict[str, Optional[str]]:
-    """解析 systemd ExecStart 获取 frpc 二进制路径和 -c 配置路径。"""
+    """Parse systemd ExecStart for frpc binary and config paths."""
     result = {"bin_path": None, "config_path": None}
     for line in stdout.splitlines():
         line = line.strip()
         if line.startswith("ExecStart="):
             exec_part = line[len("ExecStart="):]
-            # 解析命令行参数
             parts = exec_part.split()
             if parts:
                 result["bin_path"] = parts[0]
-                # 查找 -c 参数
                 for i, part in enumerate(parts):
                     if part == "-c" and i + 1 < len(parts):
                         result["config_path"] = parts[i + 1]
@@ -133,7 +137,7 @@ def _detect_config_files(
     service_name: str = "frpc",
     systemd_config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """检测 frpc 配置文件位置和格式。"""
+    """Detect frpc config file path and format."""
     result = {
         "config_path": None,
         "config_format": "unknown",
@@ -143,11 +147,9 @@ def _detect_config_files(
 
     candidate_paths = []
 
-    # 1. systemd ExecStart -c 参数优先
     if systemd_config_path:
         candidate_paths.append(systemd_config_path)
 
-    # 2. 安装路径下的配置文件
     candidate_paths.extend([
         f"{install_path}/frpc.toml",
         f"{install_path}/frpc.ini",
@@ -187,21 +189,18 @@ def _detect_frpc_binary(
     install_path: str,
     service_name: str = "frpc",
 ) -> Dict[str, Any]:
-    """检测 frpc 二进制路径。"""
+    """Detect the frpc binary path."""
     result = {"frpc_bin_path": None, "install_path": install_path}
 
-    # 从 systemd 服务获取
     svc_cat = _run_cmd(ssh, f"systemctl cat {service_name} 2>/dev/null || true")
     if svc_cat.exit_code == 0 and svc_cat.stdout:
         parsed = _parse_systemd_exec_start(svc_cat.stdout)
         if parsed["bin_path"]:
             result["frpc_bin_path"] = parsed["bin_path"]
-            # 从二进制路径推导安装路径
             bin_dir = os.path.dirname(parsed["bin_path"])
             if bin_dir and bin_dir != "/usr/bin" and bin_dir != "/bin":
                 result["install_path"] = bin_dir
 
-    # 如果没找到，检查安装路径
     if not result["frpc_bin_path"]:
         candidates = [
             f"{install_path}/frpc",
@@ -228,14 +227,13 @@ def scan_proxy_remote(
     install_path: str,
     service_name: str = "frpc",
 ) -> Dict[str, Any]:
-    """在已连接的 SSH 上收集扫描信息（增强版）。"""
+    """Collect remote scan info over an established SSH connection."""
     install_path = install_path.rstrip("/") or "/opt/frp"
     info: Dict[str, Any] = {
         "install_path": install_path,
         "service_name": service_name,
     }
 
-    # OS 和架构
     os_result = _run_cmd(ssh, "uname -s")
     arch_result = _run_cmd(ssh, "uname -m")
     info["os_name"] = os_result.stdout.strip()
@@ -253,7 +251,6 @@ def scan_proxy_remote(
         return info
     info["platform"] = platform
 
-    # 权限检测
     uid_result = _run_cmd(ssh, "id -u")
     info["uid"] = uid_result.stdout.strip()
     info["is_root"] = info["uid"] == "0"
@@ -261,14 +258,11 @@ def scan_proxy_remote(
     sudo_result = _run_cmd(ssh, "sudo -n true 2>/dev/null; echo $?")
     info["has_passwordless_sudo"] = sudo_result.stdout.strip().endswith("0")
 
-    # 检测 frpc 二进制
     bin_info = _detect_frpc_binary(ssh, install_path, service_name)
     info["frpc_bin_path"] = bin_info["frpc_bin_path"]
     info["install_path"] = bin_info["install_path"]
     actual_install_path = bin_info["install_path"] or install_path
 
-    # 检测配置文件
-    # 先获取 systemd 信息
     systemd_config_path = None
     svc_cat = _run_cmd(ssh, f"systemctl cat {service_name} 2>/dev/null || true")
     if svc_cat.exit_code == 0 and svc_cat.stdout:
@@ -283,28 +277,23 @@ def scan_proxy_remote(
     info["has_ini"] = config_info["has_ini"]
     info["has_toml"] = config_info["has_toml"]
 
-    # 版本检测
     frpc_bin = info["frpc_bin_path"] or f"{actual_install_path}/frpc"
     ver_result = _run_cmd(ssh, f"{frpc_bin} --version 2>&1 || true")
     info["current_version_raw"] = ver_result.stdout or ver_result.stderr
     info["current_version"] = normalize_version_display(info["current_version_raw"])
 
-    # 服务状态
     svc_active = _run_cmd(ssh, f"systemctl is-active {service_name} 2>/dev/null || echo inactive")
     info["service_active"] = svc_active.stdout.strip() == "active"
 
     svc_enabled = _run_cmd(ssh, f"systemctl is-enabled {service_name} 2>/dev/null || echo disabled")
     info["service_enabled"] = svc_enabled.stdout.strip() == "enabled"
 
-    # 写权限检测
     writable = _run_cmd(
         ssh,
         f"test -w {actual_install_path} 2>/dev/null && echo ok || "
         f"(sudo -n test -w {actual_install_path} 2>/dev/null && echo ok_sudo || echo denied)",
     )
     info["writable"] = "ok" in writable.stdout or "ok_sudo" in writable.stdout
-
-    # 回滚能力：需要写权限和备份空间
     info["rollback_capable"] = info["writable"] and (
         info["is_root"] or info["has_passwordless_sudo"]
     )
@@ -317,7 +306,6 @@ def scan_proxy_remote(
     info["status"] = "reachable"
     info["message"] = "扫描成功"
     return info
-
 
 def finalize_scan_state(
     db: Session,
@@ -385,7 +373,6 @@ def finalize_scan_state(
     db.refresh(state)
     return state
 
-
 def scan_single_proxy(
     db: Session,
     proxy: Proxy,
@@ -436,15 +423,13 @@ def scan_single_proxy(
 
     return finalize_scan_state(db, state, proxy, remote_info, credential.id, install_path)
 
-
 def _connect_credential(auth_type, password, private_key, passphrase) -> SSHClientProtocol:
     return build_ssh_client(auth_type, password, private_key, passphrase)
 
 
-# ── 主机端升级脚本生成 ──────────────────────────────────────────────
 
 def generate_upgrade_script(
-    job_id: int,
+    job_id: Any,
     frpc_bin: str,
     config_path: Optional[str],
     install_path: str,
@@ -459,10 +444,12 @@ def generate_upgrade_script(
     has_ini: bool = False,
     has_toml: bool = False,
 ) -> str:
-    """生成主机端执行的升级脚本。"""
+    """Generate the host-side upgrade script."""
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     backup_dir = f"{install_path}/.frp-agent-backups/{timestamp}"
     result_file = f"/tmp/frp-agent-upgrade/{job_id}/result.json"
+    status_file = f"/tmp/frp-agent-upgrade/{job_id}/status.json"
+    log_file = f"/tmp/frp-agent-upgrade/{job_id}/upgrade.log"
 
     config_backup_section = ""
     if config_path:
@@ -472,7 +459,6 @@ CONFIG_PATH="{config_path}"
 CONFIG_BASENAME="{config_basename}"
 '''
 
-    # 配置备份命令
     config_backup_cmd = ""
     if config_path:
         config_backup_cmd = f'''
@@ -481,7 +467,6 @@ if [ -f "$CONFIG_PATH" ]; then
     echo "Backed up config: $CONFIG_PATH"
 fi'''
 
-    # 额外备份 INI/TOML
     extra_backup_cmd = ""
     if has_ini:
         extra_backup_cmd += f'''
@@ -496,7 +481,6 @@ if [ -f "{install_path}/frpc.toml" ]; then
     echo "Backed up frpc.toml"
 fi'''
 
-    # 配置恢复命令
     config_restore_cmd = ""
     if config_path:
         config_restore_cmd = f'''
@@ -505,7 +489,6 @@ if [ -f "$BACKUP_DIR/$CONFIG_BASENAME" ]; then
     echo "Restored config: $CONFIG_PATH"
 fi'''
 
-    # 额外恢复
     extra_restore_cmd = ""
     if has_ini:
         extra_restore_cmd += f'''
@@ -520,7 +503,6 @@ if [ -f "$BACKUP_DIR/frpc.toml" ]; then
     echo "Restored frpc.toml"
 fi'''
 
-    # 验证模式
     verify_section = ""
     if verify_mode == "agent_callback" and verify_url:
         verify_section = f'''
@@ -550,7 +532,6 @@ VERIFY_OK=true'''
 echo "No remote verification configured"
 VERIFY_OK=true'''
 
-    # 回滚函数
     rollback_func = f'''
 rollback() {{
     echo "Rolling back..."
@@ -581,9 +562,31 @@ NEW_FRPC_PATH="{new_frpc_path}"
 EXPECTED_VERSION="{expected_version}"
 BACKUP_DIR="{backup_dir}"
 RESULT_FILE="{result_file}"
+STATUS_FILE="{status_file}"
+LOG_FILE="{log_file}"
 {config_backup_section}
 
 ROLLBACK_REASON=""
+
+RESULT_DIR=$(dirname "$RESULT_FILE")
+mkdir -p "$RESULT_DIR"
+touch "$LOG_FILE"
+exec >> "$LOG_FILE" 2>&1
+
+write_status() {{
+    local state="$1"
+    local msg="$2"
+    cat > "$STATUS_FILE" << EOF
+{{
+  "state": "$state",
+  "message": "$msg",
+  "job_id": "$JOB_ID",
+  "remote_result_path": "$RESULT_FILE",
+  "remote_log_path": "$LOG_FILE",
+  "updated_at": "$(date -Iseconds 2>/dev/null || date)"
+}}
+EOF
+}}
 
 {rollback_func}
 
@@ -593,6 +596,7 @@ write_result() {{
     local old_ver="$3"
     local final_ver="$4"
     local msg="$5"
+    local final_state="$6"
     cat > "$RESULT_FILE" << EOF
 {{
   "success": $success,
@@ -601,21 +605,29 @@ write_result() {{
   "target_version": "$EXPECTED_VERSION",
   "final_version": "$final_ver",
   "message": "$msg",
-  "backup_dir": "$BACKUP_DIR"
+  "backup_dir": "$BACKUP_DIR",
+  "remote_result_path": "$RESULT_FILE",
+  "remote_log_path": "$LOG_FILE",
+  "remote_status_path": "$STATUS_FILE",
+  "final_state": "$final_state"
 }}
 EOF
 }}
 
+write_status "started" "Upgrade script started"
+
 # 1. Validate
 if [ ! -f "$FRPC_BIN" ]; then
     echo "Error: Old binary not found: $FRPC_BIN"
-    write_result false false "" "" "Old binary not found: $FRPC_BIN"
+    write_status "failed" "Old binary not found: $FRPC_BIN"
+    write_result false false "" "" "Old binary not found: $FRPC_BIN" "failed"
     exit 1
 fi
 
 if [ ! -f "$NEW_FRPC_PATH" ]; then
     echo "Error: New binary not found: $NEW_FRPC_PATH"
-    write_result false false "" "" "New binary not found: $NEW_FRPC_PATH"
+    write_status "failed" "New binary not found: $NEW_FRPC_PATH"
+    write_result false false "" "" "New binary not found: $NEW_FRPC_PATH" "failed"
     exit 1
 fi
 
@@ -626,6 +638,7 @@ mkdir -p "$BACKUP_DIR"
 mkdir -p "$(dirname $RESULT_FILE)"
 
 # 3. Backup
+write_status "running" "Creating backup"
 echo "Creating backup in $BACKUP_DIR..."
 cp -f "$FRPC_BIN" "$BACKUP_DIR/frpc"
 {config_backup_cmd}
@@ -646,6 +659,7 @@ EOF
 echo "Backup metadata written"
 
 # 4. Stop service
+write_status "running" "Restarting frpc service"
 echo "Stopping service $SERVICE_NAME..."
 systemctl stop $SERVICE_NAME 2>/dev/null || true
 
@@ -675,23 +689,99 @@ fi
 
 # 9. Remote verification
 if [ -z "$ROLLBACK_REASON" ]; then
+    write_status "verifying" "Verifying upgraded frpc"
     {verify_section}
 fi
 
 # 10. Handle result
 if [ -n "$ROLLBACK_REASON" ]; then
     echo "Upgrade failed: $ROLLBACK_REASON"
+    write_status "rolling_back" "Upgrade failed: $ROLLBACK_REASON"
     rollback
-    write_result false true "$OLD_VERSION" "$OLD_VERSION" "Upgrade failed ($ROLLBACK_REASON); rolled back to $OLD_VERSION"
+    write_status "rolled_back" "Upgrade failed ($ROLLBACK_REASON); rolled back to $OLD_VERSION"
+    write_result false true "$OLD_VERSION" "$OLD_VERSION" "Upgrade failed ($ROLLBACK_REASON); rolled back to $OLD_VERSION" "rolled_back"
 else
     echo "Upgrade successful: $OLD_VERSION -> $NEW_VERSION"
-    write_result true false "$OLD_VERSION" "$NEW_VERSION" "Upgrade successful: $OLD_VERSION -> $NEW_VERSION"
+    write_status "success" "Upgrade successful: $OLD_VERSION -> $NEW_VERSION"
+    write_result true false "$OLD_VERSION" "$NEW_VERSION" "Upgrade successful: $OLD_VERSION -> $NEW_VERSION" "success"
 fi
 
 echo "Result written to $RESULT_FILE"
 '''
 
     return script
+
+
+def _remote_job_paths(job_id: Any) -> Dict[str, str]:
+    base = f"/tmp/frp-agent-upgrade/{job_id}"
+    return {
+        "dir": base,
+        "frpc": f"{base}/frpc.new",
+        "script": f"{base}/upgrade.sh",
+        "result": f"{base}/result.json",
+        "status": f"{base}/status.json",
+        "log": f"{base}/upgrade.log",
+    }
+
+
+def _start_detached_upgrade(
+    ssh: SSHClientProtocol,
+    remote_script: str,
+    remote_log: str,
+    remote_status: str,
+    job_id: Any,
+    use_sudo: bool,
+) -> Dict[str, Any]:
+    """Start the remote upgrade so it survives SSH tunnel loss."""
+    sudo_prefix = "sudo -n " if use_sudo else ""
+    script_q = shlex.quote(remote_script)
+    log_q = shlex.quote(remote_log)
+    status_q = shlex.quote(remote_status)
+    unit = f"frp-agent-upgrade-{job_id}"
+
+    if use_sudo:
+        sudo_check = _run_cmd(ssh, "sudo -n true 2>/dev/null; echo $?", timeout=15.0)
+        if not sudo_check.stdout.strip().endswith("0"):
+            raise RuntimeError("目标机需要 sudo 权限，但当前凭据无法免密 sudo，无法安全启动脱离会话的升级任务")
+
+    systemd_check = _run_cmd(
+        ssh,
+        f"{sudo_prefix}sh -c 'command -v systemd-run >/dev/null 2>&1 && "
+        "systemctl --version >/dev/null 2>&1 && echo yes || echo no'",
+        timeout=20.0,
+    )
+    if systemd_check.stdout.strip().endswith("yes"):
+        unit_q = shlex.quote(unit)
+        cmd = (
+            f"{sudo_prefix}systemd-run --unit={unit_q} --collect "
+            f"--property=StandardOutput=append:{log_q} "
+            f"--property=StandardError=append:{log_q} "
+            f"/bin/bash {script_q}"
+        )
+        result = _run_cmd(ssh, cmd, timeout=30.0)
+        if result.exit_code == 0:
+            return {
+                "execution_mode": "detached_systemd",
+                "remote_task_id": unit,
+                "launch_stdout": result.stdout,
+                "launch_stderr": result.stderr,
+            }
+        logger.warning("systemd-run launch failed, falling back to nohup: %s", result.stderr or result.stdout)
+
+    nohup_cmd = (
+        f"{sudo_prefix}sh -c "
+        f"'echo \"{{\\\"state\\\":\\\"started\\\",\\\"message\\\":\\\"Detached upgrade launched\\\"}}\" > {status_q}; "
+        f"nohup setsid /bin/bash {script_q} >> {log_q} 2>&1 < /dev/null & echo $!'"
+    )
+    result = _run_cmd(ssh, nohup_cmd, timeout=30.0)
+    if result.exit_code != 0:
+        raise RuntimeError(result.stderr or result.stdout or "无法启动脱离会话的升级任务")
+    return {
+        "execution_mode": "detached_nohup",
+        "remote_task_id": result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "",
+        "launch_stdout": result.stdout,
+        "launch_stderr": result.stderr,
+    }
 
 
 def upgrade_single_proxy(
@@ -706,7 +796,7 @@ def upgrade_single_proxy(
     auto_scan: bool = True,
     ssh_factory=None,
 ) -> Dict[str, Any]:
-    """使用主机端脚本升级单个代理。"""
+    """Upload the host-side upgrade script and launch it detached from SSH."""
     state = get_or_create_ssh_state(db, proxy.id)
 
     if auto_scan or state.status not in ("upgradeable",):
@@ -718,6 +808,7 @@ def upgrade_single_proxy(
             "proxy_id": proxy.id,
             "status": state.status,
             "message": state.message or "当前不可升级",
+            "final_state": "failed",
         }
 
     package = db.query(FrpPackage).filter(FrpPackage.id == state.target_package_id).first()
@@ -725,60 +816,60 @@ def upgrade_single_proxy(
         state.status = "no_package"
         state.message = "目标安装包不存在"
         db.commit()
-        return {"success": False, "proxy_id": proxy.id, "status": state.status, "message": state.message}
+        return {
+            "success": False,
+            "proxy_id": proxy.id,
+            "status": state.status,
+            "message": state.message,
+            "final_state": "failed",
+        }
 
-    # 提取 frpc 二进制
     local_frpc = None
     try:
         local_frpc = extract_frpc_binary(package)
     except Exception as e:
-        return {"success": False, "proxy_id": proxy.id, "status": "upgrade_failed", "message": str(e)}
+        return {"success": False, "proxy_id": proxy.id, "status": "upgrade_failed", "message": str(e), "final_state": "failed"}
 
     auth_type, password, private_key, passphrase = get_credential_secrets(credential)
     host = ssh_target_host(proxy)
     port = ssh_target_port(proxy)
-
-    actual_install_path = (state.install_path or install_path).rstrip("/")
+    actual_install_path = (state.install_path or install_path).rstrip("/") or "/opt/frp"
     frpc_bin = state.frpc_bin_path or f"{actual_install_path}/frpc"
     service_name = state.service_name or "frpc"
 
-    # 生成 job_id
-    job_ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    job_id = int(job_ts) if len(job_ts) < 10 else hash(job_ts) % 1000000000
-    remote_tmp_dir = f"/tmp/frp-agent-upgrade/{job_id}"
-    remote_frpc = f"{remote_tmp_dir}/frpc.new"
-    remote_script = f"{remote_tmp_dir}/upgrade.sh"
-    remote_result = f"{remote_tmp_dir}/result.json"
-
-    # 构建验证 URL
+    remote_job_id = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{proxy.id}"
+    remote_paths = _remote_job_paths(remote_job_id)
+    effective_verify_mode = verify_mode
     verify_url = None
+    warnings: List[str] = []
     if verify_mode == "agent_callback" and verify_url_base:
         verify_url = f"{verify_url_base}/api/proxies/{proxy.id}/ssh-upgrade/verify?expected_version={package.version}"
+    elif verify_mode == "agent_callback":
+        effective_verify_mode = "skip"
+        warnings.append("未配置目标机可访问的 frp-agent 回调地址，已跳过远端连通性校验；断联后无法可靠证明已恢复。")
+    elif verify_mode in ("skip", "backend_poll"):
+        effective_verify_mode = "skip"
+        warnings.append("已跳过目标机回调校验；若 SSH 走 frpc 隧道，断联后只能等待隧道恢复或带外登录确认。")
 
     ssh = ssh_factory(credential) if ssh_factory else _connect_credential(
         auth_type, password, private_key, passphrase
     )
-
     try:
         if ssh_factory is None:
             ssh.connect(host, port, credential.username)
 
-        # 创建远程目录
-        _run_cmd(ssh, f"mkdir -p {remote_tmp_dir}")
+        _run_cmd(ssh, f"mkdir -p {shlex.quote(remote_paths['dir'])}")
+        ssh.upload_file(local_frpc, remote_paths["frpc"])
 
-        # 上传新二进制
-        ssh.upload_file(local_frpc, remote_frpc)
-
-        # 生成升级脚本
         script = generate_upgrade_script(
-            job_id=job_id,
+            job_id=remote_job_id,
             frpc_bin=frpc_bin,
             config_path=state.config_path,
             install_path=actual_install_path,
             service_name=service_name,
-            new_frpc_path=remote_frpc,
+            new_frpc_path=remote_paths["frpc"],
             expected_version=package.version,
-            verify_mode=verify_mode,
+            verify_mode=effective_verify_mode,
             verify_url=verify_url,
             verify_proxy_name=proxy.name,
             verify_attempts=verify_attempts,
@@ -787,63 +878,50 @@ def upgrade_single_proxy(
             has_toml=state.has_toml,
         )
 
-        # 写入脚本到本地临时文件并上传
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False, encoding="utf-8") as f:
             f.write(script)
             script_path = f.name
-
         try:
-            ssh.upload_file(script_path, remote_script)
+            ssh.upload_file(script_path, remote_paths["script"])
         finally:
             os.unlink(script_path)
 
-        # 执行脚本
-        use_sudo = not _run_cmd(ssh, f"test -w {actual_install_path} && echo yes || echo no").stdout.strip().endswith("yes")
-        sudo_prefix = "sudo -n " if use_sudo else ""
-        exec_result = _run_cmd(ssh, f"{sudo_prefix}bash {remote_script}", timeout=300.0)
+        _run_cmd(ssh, f"chmod 755 {shlex.quote(remote_paths['frpc'])} {shlex.quote(remote_paths['script'])}")
+        writable = _run_cmd(ssh, f"test -w {shlex.quote(actual_install_path)} && echo yes || echo no")
+        use_sudo = not writable.stdout.strip().endswith("yes")
+        launch_info = _start_detached_upgrade(
+            ssh,
+            remote_script=remote_paths["script"],
+            remote_log=remote_paths["log"],
+            remote_status=remote_paths["status"],
+            job_id=remote_job_id,
+            use_sudo=use_sudo,
+        )
 
-        # 读取结果
-        result_json_raw = _run_cmd(ssh, f"cat {remote_result} 2>/dev/null || echo '{{}}'").stdout
-        try:
-            result_json = json.loads(result_json_raw)
-        except json.JSONDecodeError:
-            result_json = {
-                "success": False,
-                "rolled_back": False,
-                "message": "无法解析脚本结果",
-                "stdout": exec_result.stdout[:500] if exec_result.stdout else "",
-                "stderr": exec_result.stderr[:500] if exec_result.stderr else "",
-            }
-
-        # 更新状态
-        if result_json.get("success"):
-            state.status = "upgraded"
-            state.upgradeable = False
-            state.current_version = result_json.get("final_version") or package.version
-            state.last_upgraded_at = datetime.utcnow()
-            state.message = result_json.get("message", "升级成功")
-        elif result_json.get("rolled_back"):
-            state.status = "rolled_back"
-            state.upgradeable = True  # 仍然可升级
-            state.message = result_json.get("message", "升级失败已回退")
-        else:
-            state.status = "upgrade_failed"
-            state.message = result_json.get("message", "升级失败")
-
+        state.status = "running_detached"
+        state.upgradeable = False
+        state.message = DETACHED_UNKNOWN_MESSAGE
+        state.last_upgraded_at = datetime.utcnow()
         db.commit()
 
         return {
-            "success": result_json.get("success", False),
+            "success": False,
             "proxy_id": proxy.id,
             "status": state.status,
             "message": state.message,
-            "rolled_back": result_json.get("rolled_back", False),
+            "rolled_back": False,
             "current_version": state.current_version,
-            "backup_dir": result_json.get("backup_dir"),
+            "execution_mode": launch_info.get("execution_mode"),
+            "remote_task_id": launch_info.get("remote_task_id"),
+            "remote_result_path": remote_paths["result"],
+            "remote_log_path": remote_paths["log"],
+            "remote_status_path": remote_paths["status"],
+            "connection_lost_expected": True,
+            "final_state": "unknown_disconnected",
+            "warnings": warnings,
         }
-
     except Exception as e:
-        logger.exception("升级失败 proxy_id=%s", proxy.id)
+        logger.exception("upgrade failed proxy_id=%s", proxy.id)
         state.status = "upgrade_failed"
         state.message = f"升级异常: {e}"
         db.commit()
@@ -852,6 +930,7 @@ def upgrade_single_proxy(
             "proxy_id": proxy.id,
             "status": "upgrade_failed",
             "message": str(e),
+            "final_state": "failed",
         }
     finally:
         ssh.close()
@@ -917,12 +996,16 @@ def finish_job(
     skipped_count: int,
 ):
     total = len(results)
+    detached_count = sum(1 for r in results if r.get("status") == "running_detached")
     job.total_count = total
     job.success_count = success_count
     job.failed_count = failed_count
     job.skipped_count = skipped_count
     job.result_json = json.dumps(results, ensure_ascii=False)
-    if failed_count == 0 and success_count > 0:
+    if detached_count > 0:
+        job.status = "running_detached"
+        job.summary = f"已投递 {detached_count} 个脱离 SSH 会话执行的升级任务；目标机本地脚本会继续校验并在失败时回滚。"
+    elif failed_count == 0 and success_count > 0:
         job.status = "success"
     elif success_count > 0:
         job.status = "partial_success"
@@ -932,9 +1015,162 @@ def finish_job(
     else:
         job.status = "failed"
     job.summary = f"共 {total} 项，成功 {success_count}，失败 {failed_count}，跳过 {skipped_count}"
+    if detached_count > 0:
+        job.summary = f"已投递 {detached_count} 个脱离 SSH 会话执行的升级任务；目标机本地脚本会继续校验并在失败时回滚。"
     job.finished_at = datetime.utcnow()
     db.commit()
     db.refresh(job)
+
+
+def _apply_remote_upgrade_result(row: Dict[str, Any], remote_result: Dict[str, Any]) -> Dict[str, Any]:
+    merged = dict(row)
+    merged.update({
+        "message": remote_result.get("message") or row.get("message"),
+        "rolled_back": bool(remote_result.get("rolled_back")),
+        "backup_dir": remote_result.get("backup_dir") or row.get("backup_dir"),
+        "old_version": remote_result.get("old_version") or row.get("old_version"),
+        "target_version": remote_result.get("target_version") or row.get("target_version"),
+        "final_version": remote_result.get("final_version") or row.get("final_version"),
+        "remote_result_path": remote_result.get("remote_result_path") or row.get("remote_result_path"),
+        "remote_log_path": remote_result.get("remote_log_path") or row.get("remote_log_path"),
+        "remote_status_path": remote_result.get("remote_status_path") or row.get("remote_status_path"),
+        "final_state": remote_result.get("final_state") or row.get("final_state"),
+    })
+
+    final_state = merged.get("final_state")
+    if remote_result.get("success") or final_state == "success":
+        merged["success"] = True
+        merged["status"] = "upgraded"
+        merged["rolled_back"] = False
+        merged["final_state"] = "success"
+        merged["current_version"] = merged.get("final_version") or merged.get("target_version")
+    elif remote_result.get("rolled_back") or final_state == "rolled_back":
+        merged["success"] = False
+        merged["status"] = "rolled_back"
+        merged["rolled_back"] = True
+        merged["final_state"] = "rolled_back"
+        merged["current_version"] = merged.get("old_version") or row.get("current_version")
+    else:
+        merged["success"] = False
+        merged["status"] = "upgrade_failed"
+        merged["final_state"] = "failed"
+    return merged
+
+
+def _update_state_from_remote_result(
+    db: Session,
+    row: Dict[str, Any],
+    package_version: Optional[str] = None,
+) -> None:
+    proxy_id = row.get("proxy_id")
+    if not proxy_id:
+        return
+    state = db.query(ProxySshState).filter(ProxySshState.proxy_id == proxy_id).first()
+    if not state:
+        return
+
+    if row.get("final_state") == "success":
+        state.status = "upgraded"
+        state.upgradeable = False
+        state.current_version = row.get("current_version") or row.get("final_version") or package_version
+        state.message = row.get("message") or "升级成功"
+    elif row.get("final_state") == "rolled_back":
+        state.status = "rolled_back"
+        state.upgradeable = True
+        state.message = row.get("message") or "升级失败已回滚"
+    elif row.get("final_state") == "failed":
+        state.status = "upgrade_failed"
+        state.message = row.get("message") or "升级失败"
+
+
+def _recount_job_from_results(job: ClientUpgradeJob, results: List[Dict[str, Any]]) -> None:
+    total = len(results)
+    skipped = sum(1 for r in results if r.get("status") in ("skipped", "not_ssh"))
+    pending = sum(1 for r in results if r.get("status") == "running_detached")
+    success = sum(1 for r in results if r.get("success") is True)
+    failed = max(total - skipped - pending - success, 0)
+
+    job.total_count = total
+    job.success_count = success + pending
+    job.failed_count = failed
+    job.skipped_count = skipped
+    if pending:
+        job.status = "running_detached"
+        job.summary = f"仍有 {pending} 个目标机本地升级任务等待隧道恢复或结果回收。"
+    elif failed == 0 and success > 0:
+        job.status = "success"
+        job.summary = f"共 {total} 项，成功 {success}，失败 {failed}，跳过 {skipped}"
+    elif success > 0:
+        job.status = "partial_success"
+        job.summary = f"共 {total} 项，成功 {success}，失败 {failed}，跳过 {skipped}"
+    elif total == 0:
+        job.status = "success"
+        job.summary = "无 SSH 候选代理"
+    else:
+        job.status = "failed"
+        job.summary = f"共 {total} 项，成功 {success}，失败 {failed}，跳过 {skipped}"
+    job.result_json = json.dumps(results, ensure_ascii=False)
+    job.finished_at = datetime.utcnow()
+
+
+def refresh_detached_job_results(db: Session, job: ClientUpgradeJob) -> List[Dict[str, Any]]:
+    """Best-effort refresh for detached SSH upgrade results."""
+    if not job.result_json:
+        return []
+    try:
+        results = json.loads(job.result_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(results, list):
+        return []
+    if not any(r.get("status") == "running_detached" for r in results if isinstance(r, dict)):
+        return results
+
+    credential = None
+    if job.credential_id:
+        credential = db.query(SshCredential).filter(SshCredential.id == job.credential_id).first()
+    if not credential:
+        return results
+
+    auth_type, password, private_key, passphrase = get_credential_secrets(credential)
+    changed = False
+    refreshed: List[Dict[str, Any]] = []
+    for row in results:
+        if not isinstance(row, dict) or row.get("status") != "running_detached":
+            refreshed.append(row)
+            continue
+
+        proxy = _load_proxy_with_server(db, row.get("proxy_id"))
+        result_path = row.get("remote_result_path")
+        if not proxy or not result_path:
+            refreshed.append(row)
+            continue
+
+        ssh = _connect_credential(auth_type, password, private_key, passphrase)
+        try:
+            ssh.connect(ssh_target_host(proxy), ssh_target_port(proxy), credential.username, timeout=8.0)
+            result_raw = _run_cmd(ssh, f"cat {shlex.quote(result_path)} 2>/dev/null || true", timeout=8.0).stdout
+            if not result_raw.strip():
+                row["final_state"] = "unknown_disconnected"
+                refreshed.append(row)
+                continue
+            remote_result = json.loads(result_raw)
+            merged = _apply_remote_upgrade_result(row, remote_result)
+            _update_state_from_remote_result(db, merged)
+            refreshed.append(merged)
+            changed = True
+        except Exception as e:
+            row["final_state"] = "unknown_disconnected"
+            row["last_refresh_error"] = str(e)
+            refreshed.append(row)
+        finally:
+            ssh.close()
+
+    if changed:
+        _recount_job_from_results(job, refreshed)
+        db.commit()
+        db.refresh(job)
+    return refreshed
 
 
 def scan_group(
@@ -1043,7 +1279,7 @@ def upgrade_group(
             auto_scan=explicit_ids,
         )
         results.append({"proxy_name": proxy.name, **r})
-        if r.get("success"):
+        if r.get("success") or r.get("status") == "running_detached":
             success += 1
         else:
             failed += 1

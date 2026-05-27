@@ -43,7 +43,11 @@
             <select v-model="verifyMode" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm">
               <option value="agent_callback">回调验证（推荐）</option>
               <option value="skip">跳过远程验证</option>
-            </select>
+            </select>
+
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900">
+              升级脚本会上传到目标机后脱离 SSH 会话执行。若当前 SSH 连接本身走 frpc 隧道，重启 frpc 时连接中断属于预期，目标机本地脚本会继续校验并在失败时回滚。
+            </div>
             <p v-if="verifyMode === 'skip'" class="text-xs text-amber-600">
               跳过远程验证将无法确认 frps 端连接状态，可能导致无法自动回滚
             </p>
@@ -77,15 +81,23 @@
             <div v-if="scanState.message" class="mt-1 text-gray-500">{{ scanState.message }}</div>
           </div>
 
-          <div v-if="upgradeResult" class="mt-4 rounded-lg border p-3" :class="upgradeResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
-            <div class="font-medium" :class="upgradeResult.success ? 'text-green-800' : 'text-red-800'">
+          <div v-if="upgradeResult" class="mt-4 rounded-lg border p-3" :class="upgradeResult.success ? 'border-green-200 bg-green-50' : upgradeResult.status === 'running_detached' ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'">
+            <div v-if="upgradeResult.status === 'running_detached'" class="font-medium text-blue-800">已投递，目标机本地执行中</div>
+            <div v-else class="font-medium" :class="upgradeResult.success ? 'text-green-800' : 'text-red-800'">
               {{ upgradeResult.success ? '升级成功' : upgradeResult.rolled_back ? '已回滚' : '升级失败' }}
             </div>
-            <div v-if="upgradeResult.message" class="mt-1" :class="upgradeResult.success ? 'text-green-700' : 'text-red-700'">
+            <div v-if="upgradeResult.message" class="mt-1" :class="upgradeResult.success ? 'text-green-700' : upgradeResult.status === 'running_detached' ? 'text-blue-700' : 'text-red-700'">
               {{ upgradeResult.message }}
             </div>
-            <div v-if="upgradeResult.current_version" class="text-gray-600">当前版本：{{ upgradeResult.current_version }}</div>
-            <div v-if="upgradeResult.backup_dir" class="break-all text-gray-600">备份目录：{{ upgradeResult.backup_dir }}</div>
+            <div v-if="upgradeResult.current_version" class="text-gray-600">当前版本：{{ upgradeResult.current_version }}</div>
+            <div v-if="upgradeResult.backup_dir" class="break-all text-gray-600">备份目录：{{ upgradeResult.backup_dir }}</div>
+            <div v-if="upgradeResult.warnings?.length" class="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-800">
+              <div v-for="(warning, idx) in upgradeResult.warnings" :key="idx">{{ warning }}</div>
+            </div>
+            <div v-if="upgradeResult.execution_mode" class="text-gray-600">执行模式：{{ upgradeResult.execution_mode }}</div>
+            <div v-if="upgradeResult.remote_task_id" class="break-all text-gray-600">远端任务：{{ upgradeResult.remote_task_id }}</div>
+            <div v-if="upgradeResult.remote_result_path" class="break-all text-gray-600">结果文件：{{ upgradeResult.remote_result_path }}</div>
+            <div v-if="upgradeResult.remote_log_path" class="break-all text-gray-600">日志文件：{{ upgradeResult.remote_log_path }}</div>
           </div>
         </div>
         <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
@@ -158,7 +170,9 @@ const STATUS_LABELS = {
   no_package: '无安装包',
   upgraded: '已升级',
   rolled_back: '已回滚',
-  upgrade_failed: '升级失败',
+  upgrade_failed: '升级失败',
+  running_detached: '本地执行中',
+  unknown_disconnected: '等待恢复',
   unknown: '未知'
 }
 
@@ -167,7 +181,7 @@ const statusLabel = computed(() => STATUS_LABELS[scanState.value?.status] || sca
 const statusClass = computed(() => {
   const s = scanState.value?.status
   if (s === 'upgradeable') return 'text-green-700'
-  if (s === 'latest' || s === 'upgraded') return 'text-blue-700'
+  if (s === 'latest' || s === 'upgraded' || s === 'running_detached') return 'text-blue-700'
   if (s === 'rolled_back') return 'text-amber-700'
   if (s === 'not_ssh') return 'text-gray-600'
   return 'text-amber-700'
@@ -211,7 +225,7 @@ async function runScan() {
 
 async function runUpgrade() {
   if (!props.proxy?.id || !credentialId.value) return
-  const warnMsg = `将备份 frpc 二进制和现有配置文件。若升级后代理无法重新上线，目标主机上的升级脚本会自动回退。\n\n确认升级？`
+  const warnMsg = `将备份 frpc 二进制和现有配置文件，并在目标机本地脱离 SSH 会话执行升级。若 SSH 走 frpc 隧道，重启期间断联属于预期；目标机脚本会继续校验并在失败时回滚。${verifyMode.value === 'skip' ? '\n\n注意：已跳过远程回调校验，断联后无法可靠证明代理已恢复。' : ''}\n\n确认升级？`
   if (!confirm(warnMsg)) return
   upgrading.value = true
   try {

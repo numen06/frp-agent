@@ -17,6 +17,8 @@ VERIFY_URL='{{verify_url}}'
 ROLLBACK_FRPC_AVAILABLE=0
 ROLLBACK_TOML_BAK=""
 
+echo "提示: 如果当前 shell 是通过 frpc 隧道 SSH 进入目标机，重启 frpc 时 SSH 可能中断。脚本会在目标机本地继续执行校验/回滚；verify=false 时无法可靠证明代理已恢复。"
+
 # 若文件存在则复制一份带时间戳的备份（不删除原文件）
 backup_copy() {
     local f="$1"

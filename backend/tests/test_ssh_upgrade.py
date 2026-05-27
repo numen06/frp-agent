@@ -18,9 +18,11 @@ from app.services.ssh_upgrade_service import map_linux_arch
 from app.services.ssh_client import CommandResult
 from app.services.ssh_upgrade_service import (
     finalize_scan_state,
+    generate_upgrade_script,
     get_or_create_ssh_state,
     scan_proxy_remote,
     scan_single_proxy,
+    _start_detached_upgrade,
     upgrade_single_proxy,
 )
 
@@ -98,12 +100,14 @@ class FakeSSH:
     def __init__(self, responses=None):
         self.responses = responses or {}
         self.uploaded = []
+        self.commands = []
 
     def connect(self, host, port, username, timeout=15.0):
         pass
 
     def exec_command(self, command, timeout=30.0):
-        for key, result in self.responses.items():
+        self.commands.append(command)
+        for key, result in sorted(self.responses.items(), key=lambda item: len(item[0]), reverse=True):
             if key in command:
                 return result
         return CommandResult(0, "", "")
@@ -222,3 +226,148 @@ def test_scan_proxy_remote_unsupported_os():
     )
     info = scan_proxy_remote(fake, "/opt/frp")
     assert info["status"] == "unsupported_platform"
+
+
+def test_generate_upgrade_script_writes_status_and_log_paths():
+    script = generate_upgrade_script(
+        job_id="job-1",
+        frpc_bin="/opt/frp/frpc",
+        config_path="/opt/frp/frpc.toml",
+        install_path="/opt/frp",
+        service_name="frpc",
+        new_frpc_path="/tmp/frp-agent-upgrade/job-1/frpc.new",
+        expected_version="0.61.1",
+        verify_mode="skip",
+        has_ini=True,
+        has_toml=True,
+    )
+
+    assert 'STATUS_FILE="/tmp/frp-agent-upgrade/job-1/status.json"' in script
+    assert 'LOG_FILE="/tmp/frp-agent-upgrade/job-1/upgrade.log"' in script
+    assert "write_status" in script
+    assert '"remote_result_path": "$RESULT_FILE"' in script
+    assert '"final_state": "$final_state"' in script
+    assert "Restored frpc.ini" in script
+    assert "Restored frpc.toml" in script
+
+
+def test_start_detached_upgrade_prefers_systemd_run():
+    fake = FakeSSH(
+        responses={
+            "command -v systemd-run": CommandResult(0, "yes", ""),
+            "systemd-run": CommandResult(0, "Running as unit frp-agent-upgrade-job-1.service", ""),
+        }
+    )
+
+    result = _start_detached_upgrade(
+        fake,
+        "/tmp/frp-agent-upgrade/job-1/upgrade.sh",
+        "/tmp/frp-agent-upgrade/job-1/upgrade.log",
+        "/tmp/frp-agent-upgrade/job-1/status.json",
+        "job-1",
+        use_sudo=False,
+    )
+
+    assert result["execution_mode"] == "detached_systemd"
+    assert result["remote_task_id"] == "frp-agent-upgrade-job-1"
+    assert any("systemd-run" in cmd for cmd in fake.commands)
+
+
+def test_start_detached_upgrade_falls_back_to_nohup():
+    fake = FakeSSH(
+        responses={
+            "command -v systemd-run": CommandResult(0, "no", ""),
+            "nohup setsid": CommandResult(0, "12345", ""),
+        }
+    )
+
+    result = _start_detached_upgrade(
+        fake,
+        "/tmp/frp-agent-upgrade/job-1/upgrade.sh",
+        "/tmp/frp-agent-upgrade/job-1/upgrade.log",
+        "/tmp/frp-agent-upgrade/job-1/status.json",
+        "job-1",
+        use_sudo=False,
+    )
+
+    assert result["execution_mode"] == "detached_nohup"
+    assert result["remote_task_id"] == "12345"
+    assert any("nohup setsid" in cmd for cmd in fake.commands)
+
+
+def test_upgrade_single_proxy_launches_detached(db, tmp_path, monkeypatch):
+    server = FrpsServer(
+        name="s1",
+        server_addr="1.2.3.4",
+        server_port=7000,
+        api_base_url="http://x/api",
+        auth_username="a",
+        auth_password="b",
+    )
+    db.add(server)
+    db.commit()
+    db.refresh(server)
+
+    pkg = FrpPackage(
+        version="0.61.1",
+        platform="linux_amd64",
+        filename="frp.tar.gz",
+        file_path="/tmp/x.tar.gz",
+        file_size=1,
+        is_active=True,
+    )
+    db.add(pkg)
+    proxy = Proxy(
+        frps_server_id=server.id,
+        name="g_ssh",
+        group_name="g",
+        proxy_type="tcp",
+        local_port=22,
+        remote_port=60022,
+        status="online",
+    )
+    db.add(proxy)
+    cred = SshCredential(
+        name="c1",
+        username="root",
+        auth_type="password",
+        password_encrypted=encrypt_secret("pass"),
+    )
+    db.add(cred)
+    db.commit()
+    db.refresh(proxy)
+    proxy.frps_server = server
+
+    local_frpc = tmp_path / "frpc"
+    local_frpc.write_text("fake frpc")
+    monkeypatch.setattr("app.services.ssh_upgrade_service.extract_frpc_binary", lambda _pkg: str(local_frpc))
+
+    fake = FakeSSH(
+        responses={
+            "uname -s": CommandResult(0, "Linux", ""),
+            "uname -m": CommandResult(0, "x86_64", ""),
+            "id -u": CommandResult(0, "0", ""),
+            "sudo -n true": CommandResult(0, "0", ""),
+            "--version": CommandResult(0, "0.60.0", ""),
+            "systemctl is-active": CommandResult(0, "active", ""),
+            "test -w": CommandResult(0, "ok", ""),
+            "command -v systemd-run": CommandResult(0, "yes", ""),
+            "systemd-run": CommandResult(0, "Running as unit frp-agent-upgrade-x.service", ""),
+        }
+    )
+
+    result = upgrade_single_proxy(
+        db,
+        proxy,
+        cred,
+        verify_url_base="http://agent.local",
+        ssh_factory=lambda _cred: fake,
+    )
+
+    assert result["status"] == "running_detached"
+    assert result["execution_mode"] == "detached_systemd"
+    assert result["connection_lost_expected"] is True
+    assert result["final_state"] == "unknown_disconnected"
+    assert result["remote_result_path"].endswith("/result.json")
+    assert any("systemd-run" in cmd for cmd in fake.commands)
+    assert not any(cmd.strip().startswith(("bash /tmp/frp-agent-upgrade", "sudo -n bash /tmp/frp-agent-upgrade")) for cmd in fake.commands)

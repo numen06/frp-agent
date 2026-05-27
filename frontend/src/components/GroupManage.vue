@@ -584,6 +584,9 @@
             <p class="text-sm text-gray-600">
               在目标 Linux 服务器上执行下方命令。首次安装会自动下载 frpc、拉取本分组配置并注册 <code class="rounded bg-gray-100 px-1 text-xs">systemd</code>（需 <code class="rounded bg-gray-100 px-1 text-xs">sudo</code>）。部署结束后可轮询 frp-agent 校验本分组代理在线数；不通过时会尝试用备份回退二进制与配置（需目标机可访问 frp-agent 且已安装 <code class="rounded bg-gray-100 px-1 text-xs">python3</code>）。
             </p>
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              如果你是通过当前 frpc 隧道 SSH 到目标机执行部署，重启 frpc 会中断 SSH。请让命令在目标机本地完整执行；关闭部署后校验时，断联后无法可靠证明代理已恢复。
+            </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">分组</label>
               <input

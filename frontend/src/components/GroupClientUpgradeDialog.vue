@@ -38,7 +38,11 @@
             <select v-model="verifyMode" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm sm:max-w-md">
               <option value="agent_callback">回调验证（推荐）</option>
               <option value="skip">跳过远程验证</option>
-            </select>
+            </select>
+
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900">
+              升级任务会上传到每台目标机后脱离 SSH 会话执行。若 SSH 连接本身走 frpc 隧道，重启 frpc 时连接中断属于预期，目标机本地脚本会继续校验并在失败时回滚。
+            </div>
             <p v-if="verifyMode === 'skip'" class="text-xs text-amber-600">
               跳过远程验证将无法确认 frps 端连接状态，可能导致无法自动回滚
             </p>
@@ -65,8 +69,9 @@
                   <th class="px-2 py-2">目标版本</th>
                   <th class="px-2 py-2">配置</th>
                   <th class="px-2 py-2">状态</th>
-                  <th class="px-2 py-2">回滚</th>
-                  <th class="px-2 py-2">说明</th>
+                  <th class="px-2 py-2">回滚</th>
+                  <th class="px-2 py-2">远端任务</th>
+                  <th class="px-2 py-2">说明</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,7 +102,13 @@
                     <span v-else-if="row.rollback_capable === false" class="text-amber-600">不支持</span>
                     <span v-else>-</span>
                   </td>
-                  <td class="px-2 py-2 text-gray-500">{{ row.message || '-' }}</td>
+                  <td class="break-all px-2 py-2 text-gray-500">
+                    <div v-if="row.execution_mode">{{ row.execution_mode }}</div>
+                    <div v-if="row.remote_task_id">{{ row.remote_task_id }}</div>
+                    <div v-if="row.remote_result_path">{{ row.remote_result_path }}</div>
+                    <div v-if="!row.execution_mode && !row.remote_task_id && !row.remote_result_path">-</div>
+                  </td>
+                  <td class="px-2 py-2 text-gray-500">{{ row.message || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -167,7 +178,9 @@ const STATUS_LABELS = {
   no_package: '无安装包',
   upgraded: '已升级',
   rolled_back: '已回滚',
-  upgrade_failed: '升级失败'
+  upgrade_failed: '升级失败',
+  running_detached: '本地执行中',
+  unknown_disconnected: '等待恢复'
 }
 
 function statusLabel(s) {
@@ -176,7 +189,7 @@ function statusLabel(s) {
 
 function statusClass(s) {
   if (s === 'upgradeable') return 'text-green-700'
-  if (s === 'latest' || s === 'upgraded') return 'text-blue-700'
+  if (s === 'latest' || s === 'upgraded' || s === 'running_detached') return 'text-blue-700'
   if (s === 'rolled_back') return 'text-amber-700'
   return 'text-amber-700'
 }
@@ -270,7 +283,7 @@ async function runGroupScan() {
 
 async function runGroupUpgrade() {
   if (!selectedIds.value.length) return
-  const warnMsg = `将备份选中的 ${selectedIds.value.length} 个客户端的 frpc 二进制和现有配置文件。若升级后代理无法重新上线，目标主机上的升级脚本会自动回退。\n\n确认升级？`
+  const warnMsg = `将备份选中的 ${selectedIds.value.length} 个客户端的 frpc 二进制和现有配置文件，并在每台目标机本地脱离 SSH 会话执行升级。若 SSH 走 frpc 隧道，重启期间断联属于预期；目标机脚本会继续校验并在失败时回滚。${verifyMode.value === 'skip' ? '\n\n注意：已跳过远程回调校验，断联后无法可靠证明代理已恢复。' : ''}\n\n确认升级？`
   if (!confirm(warnMsg)) return
   upgrading.value = true
   try {
