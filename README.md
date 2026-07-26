@@ -37,6 +37,7 @@ frp-agent 是一个基于 Web 的 frp（Fast Reverse Proxy）客户端配置管�
 ### 系统管理
 
 - **认证系统** — 支持 Basic Auth（数据库用户）+ API Key（Bearer Token / URL 参数），首次登录强制修改默认密码
+- **主机资源管理** — SSH 主机与 Portainer Docker 环境独立纳管，支持用户/API Key 授权、远程操作和访问审计（[使用说明](docs/host-management.md)）
 - **分组管理** — 从代理名称自动解析分组前缀（如 `dlyy_ssh` → `dlyy`），支持手动调整、批量端口重分配、一键安装
 - **数据对比分析** — 对比 frps 实际代理与本地数据库记录，识别差异
 - **代理历史记录** — 记录代理状态变更历史，便于问题追溯
@@ -84,6 +85,12 @@ docker compose up -d
 | `DATABASE_URL` | `sqlite:///./data/frp_agent.db` | 数据库连接 |
 | `SYNC_INTERVAL_SECONDS` | `1800` | 代理同步间隔（秒） |
 | `PACKAGES_DIR` | `data/packages` | 安装包存储目录 |
+| `SSH_CREDENTIAL_SECRET` | 空 | SSH 与 Portainer 凭据加密密钥；生产环境必须设置并保持不变 |
+| `SSH_GATEWAY_ENABLED` | `true` | 是否启用原生 SSH 跳板端口 |
+| `SSH_GATEWAY_PORT` | `2222` | 原生 SSH 跳板监听端口 |
+| `DOCKER_GATEWAY_ENABLED` | `true` | 是否启用 Docker Engine API 兼容 HTTPS 网关 |
+| `DOCKER_GATEWAY_PORT` | `23750` | Docker HTTPS 网关监听端口 |
+| `DOCKER_GATEWAY_TLS_COMMON_NAME` | `localhost` | Docker 网关自动生成 TLS 证书时使用的访问域名或 IP |
 
 ## 默认账号
 

@@ -19,6 +19,8 @@ from app.schemas.api_key import (
 )
 from app.database import get_db
 from app.config import get_settings
+from app.services.credential_encryption import decrypt_secret, encrypt_secret
+from app.services.host_access_service import require_admin
 
 router = APIRouter(prefix="/api/api-keys", tags=["API Key 管理"])
 
@@ -41,18 +43,16 @@ def mask_api_key(key: str) -> str:
 
 
 def encrypt_key(key: str) -> str:
-    """加密 API Key（使用 base64 编码，简单但足够）"""
-    # 使用应用密钥作为盐值
-    settings = get_settings()
-    salt = f"{settings.auth_username}{settings.auth_password}".encode()
-    # 简单的 XOR 加密 + base64 编码
-    encoded = base64.b64encode(bytes([ord(c) ^ salt[i % len(salt)] for i, c in enumerate(key)])).decode()
-    return encoded
+    """使用与主机凭据相同的 AES-GCM 机制加密 API Key。"""
+    return encrypt_secret(key)
 
 
 def decrypt_key(encrypted_key: str) -> Optional[str]:
     """解密 API Key"""
     try:
+        if encrypted_key.startswith("v2:"):
+            return decrypt_secret(encrypted_key)
+        # 兼容旧版本基于认证用户名/密码的 XOR 数据。
         settings = get_settings()
         salt = f"{settings.auth_username}{settings.auth_password}".encode()
         decoded = base64.b64decode(encrypted_key.encode())
@@ -69,6 +69,7 @@ def create_api_key(
     current_user: User = Depends(get_current_user)
 ):
     """创建新的 API Key"""
+    require_admin(current_user)
     # 生成密钥
     raw_key = generate_api_key()
     key_hash = hash_api_key(raw_key)
@@ -113,6 +114,7 @@ def list_api_keys(
     current_user: User = Depends(get_current_user)
 ):
     """获取 API Key 列表"""
+    require_admin(current_user)
     api_keys = db.query(ApiKey).order_by(ApiKey.created_at.desc()).offset(skip).limit(limit).all()
     
     result = []
@@ -140,6 +142,7 @@ def get_api_key_full_key(
     current_user: User = Depends(get_current_user)
 ):
     """获取 API Key 的完整密钥（仅限已认证用户）"""
+    require_admin(current_user)
     api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
@@ -183,6 +186,7 @@ def get_api_key(
     current_user: User = Depends(get_current_user)
 ):
     """获取单个 API Key 详情"""
+    require_admin(current_user)
     api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
@@ -227,6 +231,7 @@ def update_api_key(
     current_user: User = Depends(get_current_user)
 ):
     """更新 API Key"""
+    require_admin(current_user)
     api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
@@ -272,6 +277,7 @@ def delete_api_key(
     current_user: User = Depends(get_current_user)
 ):
     """删除 API Key"""
+    require_admin(current_user)
     api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
     if not api_key:
         raise HTTPException(

@@ -13,6 +13,7 @@ from app.schemas.ssh_credential import (
     SshCredentialResponse,
 )
 from app.services.credential_encryption import encrypt_secret
+from app.services.host_access_service import require_admin
 
 router = APIRouter(prefix="/api/ssh-credentials", tags=["SSH 凭据"])
 
@@ -36,6 +37,7 @@ def list_credentials(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_admin(current_user)
     rows = db.query(SshCredential).order_by(SshCredential.id.desc()).all()
     return [_to_response(c) for c in rows]
 
@@ -46,6 +48,7 @@ def create_credential(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_admin(current_user)
     if body.auth_type == "password" and not body.password:
         raise HTTPException(status_code=400, detail="密码认证需要提供 password")
     if body.auth_type == "private_key" and not body.private_key:
@@ -72,6 +75,7 @@ def update_credential(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_admin(current_user)
     cred = db.query(SshCredential).filter(SshCredential.id == credential_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="凭据不存在")
@@ -100,8 +104,20 @@ def delete_credential(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_admin(current_user)
     cred = db.query(SshCredential).filter(SshCredential.id == credential_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="凭据不存在")
+    # 防止删除仍被纳管主机引用的凭据，避免主机配置悄然失效。
+    from app.models.managed_host import ManagedHost
+
+    used_count = (
+        db.query(ManagedHost).filter(ManagedHost.credential_id == credential_id).count()
+    )
+    if used_count:
+        raise HTTPException(
+            status_code=409,
+            detail=f"该凭据正被 {used_count} 台主机使用，请先调整主机配置",
+        )
     db.delete(cred)
     db.commit()

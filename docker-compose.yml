@@ -7,10 +7,17 @@ services:
     restart: always
     ports:
       - "8000:8000"
+      - "2222:2222"
+      - "23750:23750"
     volumes:
       - ./data:/app/data
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
+      - SSH_GATEWAY_ENABLED=true
+      - SSH_GATEWAY_PORT=2222
+      - DOCKER_GATEWAY_ENABLED=true
+      - DOCKER_GATEWAY_PORT=23750
+      - DOCKER_GATEWAY_TLS_COMMON_NAME=${DOCKER_GATEWAY_TLS_COMMON_NAME:-localhost}
       - APP_DEBUG=false
       - SYNC_INTERVAL_SECONDS=30

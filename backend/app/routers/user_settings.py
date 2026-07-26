@@ -20,6 +20,7 @@ class PasswordChange(BaseModel):
 class UserSettings(BaseModel):
     """用户设置响应"""
     username: str
+    role: str
 
 
 class PasswordCheckResponse(BaseModel):
@@ -63,9 +64,9 @@ def check_password_requirement(
 @router.get("/user", response_model=UserSettings)
 def get_user_settings(current_user: User = Depends(get_current_user)):
     """获取用户设置"""
-    settings = get_settings()
     return {
-        "username": settings.auth_username
+        "username": current_user.username,
+        "role": getattr(current_user, "role", "admin"),
     }
 
 
@@ -131,10 +132,11 @@ def change_password(
                 existing_user.password_hash = get_password_hash(password_data.new_password)
                 db.commit()
         
-        # 同时更新 .env 文件（保持环境变量同步）
-        update_env_file('AUTH_PASSWORD', password_data.new_password)
-        # 清理配置缓存，确保后续请求读取到最新密码
-        get_settings.cache_clear()
+        # 只有环境变量管理员修改密码时才同步 AUTH_PASSWORD。
+        # 普通系统用户不得改写全局认证配置或凭据派生参数。
+        if current_user.id == 0 or current_user.username == settings.auth_username:
+            update_env_file('AUTH_PASSWORD', password_data.new_password)
+            get_settings.cache_clear()
         
         return {
             "success": True,

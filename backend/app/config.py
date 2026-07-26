@@ -41,6 +41,21 @@ class Settings(BaseSettings):
     # SSH 凭据加密密钥（生产环境务必配置）
     ssh_credential_secret: str = ""
 
+    # 原生 SSH 跳板服务
+    ssh_gateway_enabled: bool = True
+    ssh_gateway_host: str = "0.0.0.0"
+    ssh_gateway_port: int = 2222
+    ssh_gateway_host_key_path: str = "data/ssh_gateway_host_key"
+
+    # Docker Engine API 兼容 HTTPS 网关（转发至 Portainer）
+    docker_gateway_enabled: bool = True
+    docker_gateway_host: str = "0.0.0.0"
+    docker_gateway_port: int = 23750
+    docker_gateway_tls_common_name: str = "localhost"
+    docker_gateway_tls_cert_path: str = "data/docker_gateway_tls_cert.pem"
+    docker_gateway_tls_key_path: str = "data/docker_gateway_tls_key.pem"
+    docker_gateway_request_timeout: int = 300
+
     class Config:
         env_file = ".env"
         case_sensitive = False

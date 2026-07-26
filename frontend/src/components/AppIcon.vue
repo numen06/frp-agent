@@ -42,6 +42,13 @@
       <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none" />
       <circle cx="7" cy="17" r="1" fill="currentColor" stroke="none" />
     </template>
+    <template v-else-if="name === 'hosts'">
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 18v3" />
+      <path d="m7 9 2 2-2 2" />
+      <path d="M12 13h4" />
+    </template>
     <template v-else-if="name === 'apiKeys'">
       <path d="M15.5 7.5a3.5 3.5 0 1 0-5.8 2.6L4 16v4h4l5.7-5.7A3.5 3.5 0 0 0 15.5 7.5z" />
       <path d="M14 6l4 4" />

@@ -35,7 +35,7 @@
                 class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
               ></span>
             </button>
-            <div class="hidden lg:flex items-center gap-2">
+            <div v-if="currentUserRole === 'admin'" class="hidden lg:flex items-center gap-2">
               <label class="text-xs text-gray-500 whitespace-nowrap">默认APPKey</label>
               <select
                 class="block min-w-[200px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -373,15 +373,20 @@ const showUserManageDialog = ref(false)
 const forcePasswordChange = ref(false)
 const forcePasswordChangeReason = ref('')
 const suppressForcePasswordPrompt = ref(false)
-const navItems = [
+const currentUserRole = ref('user')
+const baseNavItems = [
   { path: '/dashboard', label: '仪表板', icon: 'dashboard' },
   { path: '/proxies', label: '代理列表', icon: 'proxies' },
   { path: '/groups', label: '分组管理', icon: 'groups' },
   { path: '/converter', label: 'INI 转换', icon: 'converter' },
   { path: '/servers', label: '服务器管理', icon: 'servers' },
+  { path: '/hosts', label: '主机资源', icon: 'hosts' },
   { path: '/api-keys', label: '密钥管理', icon: 'apiKeys' },
   { path: '/packages', label: '安装包管理', icon: 'packages' }
 ]
+const navItems = computed(() => baseNavItems.filter(
+  item => item.path !== '/api-keys' || currentUserRole.value === 'admin'
+))
 
 // 下拉菜单和折叠功能
 const userDropdown = useDropdown()
@@ -538,7 +543,15 @@ watch(() => route.query, (newQuery) => {
 
 // 组件挂载时检查
 onMounted(async () => {
-  apiKeysStore.init()
+  try {
+    const userSettings = await settingsApi.getUserSettings()
+    currentUserRole.value = userSettings.role || 'user'
+  } catch (error) {
+    console.warn('获取当前用户角色失败:', error)
+  }
+  if (currentUserRole.value === 'admin') {
+    apiKeysStore.init()
+  }
   if (route.query.forcePasswordChange === 'true') {
     checkPasswordRequirement()
   }

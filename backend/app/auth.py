@@ -33,6 +33,8 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return None
+    if not getattr(user, "is_active", True):
+        return None
     if not verify_password(password, user.password_hash):
         return None
     return user
@@ -101,6 +103,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
                     id=-api_key_obj.id,  # 使用负数 ID 标识 API Key 用户
                     username=f"api_key_{api_key_obj.id}",
                     password_hash="",
+                    role="api_key",
+                    is_active=True,
                 )
                 return temp_user
             else:
@@ -125,6 +129,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
                 id=-api_key_obj.id,  # 使用负数 ID 标识 API Key 用户
                 username=f"api_key_{api_key_obj.id}",
                 password_hash="",
+                role="api_key",
+                is_active=True,
             )
             return temp_user
         else:
@@ -160,7 +166,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     settings = get_settings()
     if username == settings.auth_username and password == settings.auth_password:
         temp_user = User(
-            id=0, username=username, password_hash=get_password_hash(password)
+            id=0,
+            username=username,
+            password_hash=get_password_hash(password),
+            role="admin",
+            is_active=True,
         )
         return temp_user
 

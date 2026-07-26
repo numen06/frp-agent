@@ -65,11 +65,18 @@ COPY backend/ ./backend/
 RUN mkdir -p /app/data /app/logs
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 8000 2222 23750
 
 # 应用环境变量
 ENV APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
+    SSH_GATEWAY_ENABLED=true \
+    SSH_GATEWAY_HOST=0.0.0.0 \
+    SSH_GATEWAY_PORT=2222 \
+    DOCKER_GATEWAY_ENABLED=true \
+    DOCKER_GATEWAY_HOST=0.0.0.0 \
+    DOCKER_GATEWAY_PORT=23750 \
+    DOCKER_GATEWAY_TLS_COMMON_NAME=localhost \
     APP_DEBUG=false \
     AUTH_USERNAME=admin \
     AUTH_PASSWORD=admin \

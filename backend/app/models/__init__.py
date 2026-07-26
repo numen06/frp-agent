@@ -11,6 +11,8 @@ from app.models.ssh_credential import SshCredential
 from app.models.proxy_ssh_state import ProxySshState
 from app.models.client_upgrade_job import ClientUpgradeJob
 from app.models.package_sync_job import PackageSyncJob
+from app.models.managed_host import ManagedHost, HostAccessGrant, HostAuditLog
+from app.models.docker_credential import DockerCredential
 
 __all__ = [
     "User",
@@ -25,5 +27,9 @@ __all__ = [
     "ProxySshState",
     "ClientUpgradeJob",
     "PackageSyncJob",
+    "ManagedHost",
+    "HostAccessGrant",
+    "HostAuditLog",
+    "DockerCredential",
 ]
 

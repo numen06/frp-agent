@@ -11,5 +11,6 @@ pydantic-settings==2.1.0
 toml==0.10.2
 pyyaml==6.0.1
 paramiko==3.4.0
+cryptography>=41.0.0
 pytest==8.0.0
 

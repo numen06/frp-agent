@@ -26,8 +26,12 @@ from app.routers import (
     frp_package,
     ssh_credential,
     client_upgrade,
+    managed_host,
+    docker_credential,
 )
 from app.scheduler import start_scheduler, shutdown_scheduler
+from app.services.ssh_gateway_service import ssh_gateway_service
+from app.services.docker_gateway_service import docker_gateway_service
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -66,6 +70,11 @@ async def lifespan(app: FastAPI):
         package_sync_job_upgrade()
     except Exception as e:
         logger.warning("安装包同步任务表迁移跳过或失败: %s", e)
+    try:
+        from app.migrations.add_host_management_tables import upgrade as host_management_upgrade
+        host_management_upgrade()
+    except Exception as e:
+        logger.warning("主机管理表迁移跳过或失败: %s", e)
     
     # 创建默认用户和 API Key（如果不存在）
     logger.info("检查并创建默认用户和 API Key...")
@@ -81,11 +90,21 @@ async def lifespan(app: FastAPI):
     # 启动定时任务
     logger.info("启动定时同步任务...")
     await start_scheduler()
+    try:
+        ssh_gateway_service.start()
+    except Exception as e:
+        logger.error("SSH 网关启动失败: %s", e)
+    try:
+        docker_gateway_service.start()
+    except Exception as e:
+        logger.error("Docker 网关启动失败: %s", e)
     
     yield
     
     # 关闭时清理资源
     logger.info("关闭定时任务...")
+    docker_gateway_service.stop()
+    ssh_gateway_service.stop()
     shutdown_scheduler()
 
 
@@ -128,6 +147,8 @@ app.include_router(api_key.router)
 app.include_router(frp_package.router)
 app.include_router(ssh_credential.router)
 app.include_router(client_upgrade.router)
+app.include_router(managed_host.router)
+app.include_router(docker_credential.router)
 
 
 @app.get("/api/public/version")
