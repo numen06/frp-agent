@@ -253,7 +253,7 @@ def update_api_key(
     
     if api_key_data.is_active is not None:
         api_key.is_active = api_key_data.is_active
-    
+
     db.commit()
     db.refresh(api_key)
     

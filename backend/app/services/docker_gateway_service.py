@@ -17,12 +17,18 @@ from urllib.parse import urlsplit
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models.managed_host import ManagedHost
-from app.services.host_access_service import add_audit_log, portainer_proxy_request
+from app.models.user import User
+from app.services.host_access_service import (
+    active_grant,
+    add_audit_log,
+    is_admin,
+    portainer_proxy_request,
+)
 from app.services.ssh_gateway_service import (
     GatewayAuthContext,
     authenticate_gateway_resource,
@@ -121,6 +127,81 @@ def docker_gateway_certificate_fingerprint() -> Optional[str]:
         return None
 
 
+def issue_docker_client_certificate(user: User, host: ManagedHost) -> bytes:
+    if user.id <= 0 or not user.ssh_public_key:
+        raise ValueError("当前系统用户未配置 SSH 公钥")
+    public_key = serialization.load_ssh_public_key(
+        user.ssh_public_key.encode("utf-8")
+    )
+    cert_path, key_path = _ensure_tls_certificate()
+    with open(cert_path, "rb") as cert_file:
+        ca_cert = x509.load_pem_x509_certificate(cert_file.read())
+    with open(key_path, "rb") as key_file:
+        ca_key = serialization.load_pem_private_key(key_file.read(), password=None)
+    now = datetime.now(timezone.utc)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, f"frp-agent:{user.id}:{host.id}")]
+        ))
+        .issuer_name(ca_cert.subject)
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=5))
+        .not_valid_after(now + timedelta(days=365))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.CLIENT_AUTH]),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    return certificate.public_bytes(serialization.Encoding.PEM)
+
+
+def authenticate_docker_client_certificate(db, certificate_der: bytes):
+    try:
+        certificate = x509.load_der_x509_certificate(certificate_der)
+        common_name = certificate.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[
+            0
+        ].value
+        prefix, user_id, host_id = common_name.split(":")
+        if prefix != "frp-agent":
+            return None
+        user = (
+            db.query(User)
+            .filter(User.id == int(user_id), User.is_active.is_(True))
+            .first()
+        )
+        host = (
+            db.query(ManagedHost)
+            .filter(
+                ManagedHost.id == int(host_id),
+                ManagedHost.host_type == "docker",
+                ManagedHost.is_active.is_(True),
+            )
+            .first()
+        )
+        if not user or not host or not user.ssh_public_key:
+            return None
+        certificate_key = certificate.public_key().public_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PublicFormat.OpenSSH,
+        ).decode("ascii")
+        if certificate_key != user.ssh_public_key:
+            return None
+        if not is_admin(user) and not active_grant(db, user, host.id, "docker"):
+            return None
+        return GatewayAuthContext(
+            user=user,
+            host_id=host.id,
+            host_name=host.name,
+            mode="client_certificate",
+        )
+    except Exception:
+        return None
+
+
 class DockerGatewayHandler(BaseHTTPRequestHandler):
     server_version = "frp-agent-docker-gateway/1.0"
     protocol_version = "HTTP/1.1"
@@ -139,6 +220,13 @@ class DockerGatewayHandler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def _authenticate(self) -> Optional[GatewayAuthContext]:
+        peer_certificate = self.connection.getpeercert(binary_form=True)
+        if peer_certificate:
+            db = SessionLocal()
+            try:
+                return authenticate_docker_client_certificate(db, peer_certificate)
+            finally:
+                db.close()
         authorization = self.headers.get("Authorization", "")
         basic = _decode_basic_auth(authorization)
         if basic:
@@ -290,6 +378,8 @@ class DockerGatewayService:
         tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
         tls_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        tls_context.load_verify_locations(cafile=cert_path)
+        tls_context.verify_mode = ssl.CERT_OPTIONAL
         server.socket = tls_context.wrap_socket(server.socket, server_side=True)
         self._server = server
         self._thread = threading.Thread(

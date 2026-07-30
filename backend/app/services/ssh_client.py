@@ -22,7 +22,9 @@ class CommandResult:
 
 class SSHClientProtocol(Protocol):
     def connect(self, host: str, port: int, username: str, timeout: float = 15.0) -> None: ...
-    def exec_command(self, command: str, timeout: float = 30.0) -> CommandResult: ...
+    def exec_command(
+        self, command: str, timeout: float = 30.0, stdin_data: Optional[str] = None
+    ) -> CommandResult: ...
     def upload_file(self, local_path: str, remote_path: str) -> None: ...
     def close(self) -> None: ...
 
@@ -139,10 +141,16 @@ class ParamikoSSHClient:
         channel.invoke_subsystem(subsystem)
         return channel
 
-    def exec_command(self, command: str, timeout: float = 30.0) -> CommandResult:
+    def exec_command(
+        self, command: str, timeout: float = 30.0, stdin_data: Optional[str] = None
+    ) -> CommandResult:
         if not self._client:
             raise RuntimeError("SSH 未连接")
         stdin, stdout, stderr = self._client.exec_command(command, timeout=timeout)
+        if stdin_data is not None:
+            stdin.write(stdin_data)
+            stdin.flush()
+            stdin.channel.shutdown_write()
         exit_code = stdout.channel.recv_exit_status()
         out = stdout.read().decode("utf-8", errors="replace").strip()
         err = stderr.read().decode("utf-8", errors="replace").strip()

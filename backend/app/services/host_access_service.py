@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import ssl
 import time
 from datetime import datetime
@@ -155,7 +156,7 @@ def build_host_client(host: ManagedHost, credential: SshCredential):
 
 
 def run_host_command(
-    host: ManagedHost, command: str, timeout: int = 30
+    host: ManagedHost, command: str, timeout: int = 30, use_sudo: bool = False
 ) -> Tuple[CommandResult, int, Optional[str]]:
     if not host.credential:
         raise ValueError("主机未配置 SSH 凭据")
@@ -167,7 +168,17 @@ def run_host_command(
         client.connect(host.address, host.port, host.credential.username, timeout=15.0)
         fingerprint_getter = getattr(client, "get_server_fingerprint", None)
         fingerprint = fingerprint_getter() if fingerprint_getter else None
-        result = client.exec_command(command, timeout=float(timeout))
+        if use_sudo:
+            sudo_password = decrypt_secret(host.credential.sudo_password_encrypted)
+            if not sudo_password:
+                raise ValueError("该 SSH 凭据未配置 sudo 密码")
+            result = client.exec_command(
+                f"sudo -S -p '' -- sh -c {shlex.quote(command)}",
+                timeout=float(timeout),
+                stdin_data=f"{sudo_password}\n",
+            )
+        else:
+            result = client.exec_command(command, timeout=float(timeout))
         duration_ms = int((time.monotonic() - started) * 1000)
         return result, duration_ms, fingerprint
     finally:
@@ -192,7 +203,11 @@ def portainer_proxy_request(
         raise ValueError("Docker 主机未配置 Portainer Endpoint ID")
 
     scheme = "https" if host.docker_use_tls else "http"
-    base_url = f"{scheme}://{host.address}:{host.port}"
+    base_url = (
+        f"{host.address.rstrip('/')}/"
+        if "://" in host.address
+        else f"{scheme}://{host.address}:{host.port}/"
+    )
     ca_cert = decrypt_secret(credential.ca_cert_encrypted)
     verify = (
         (ssl.create_default_context(cadata=ca_cert) if ca_cert else True)

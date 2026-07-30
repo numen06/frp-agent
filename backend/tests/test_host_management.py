@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 import httpx
 import paramiko
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy import inspect, text
@@ -25,27 +27,34 @@ from app.models.api_key import ApiKey
 from app.models.managed_host import HostAccessGrant, ManagedHost
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
-from app.services.credential_encryption import encrypt_secret
+from app.services.credential_encryption import decrypt_secret, encrypt_secret
 from app.services.host_access_service import (
     add_audit_log,
     accessible_host_ids,
     list_docker_containers,
     permissions_for,
     require_host_access,
+    run_host_command,
     run_docker_action,
     test_docker_connection as check_docker_connection,
 )
 from app.services.ssh_gateway_service import (
     GatewayServerInterface,
     SSHGatewayService,
+    _prepare_gateway_exec,
     authenticate_gateway_login,
+    authenticate_gateway_public_key,
     authenticate_gateway_resource,
     parse_gateway_username,
 )
 from app.services import docker_gateway_service as docker_gateway_module
 from app.services import ssh_gateway_service as ssh_gateway_module
 from app.services.docker_gateway_service import _decode_basic_auth
-from app.services.docker_gateway_service import DockerGatewayService
+from app.services.docker_gateway_service import (
+    DockerGatewayService,
+    authenticate_docker_client_certificate,
+    issue_docker_client_certificate,
+)
 
 
 @pytest.fixture
@@ -147,9 +156,11 @@ class _Response:
 class _FakeHttpClient:
     calls = []
     default_headers = None
+    last_base_url = None
 
     def __init__(self, base_url, verify, timeout, headers):
         self.base_url = base_url
+        _FakeHttpClient.last_base_url = base_url
         self.verify = verify
         self.timeout = timeout
         self.headers = dict(headers)
@@ -178,6 +189,9 @@ class _FakeHttpClient:
 def test_portainer_api_key_uses_endpoint_proxy(db, monkeypatch):
     _, _, _, docker_host = _seed(db)
     docker_host = db.query(ManagedHost).filter(ManagedHost.id == docker_host.id).first()
+    docker_host.address = "http://portainer.example.test/docker/"
+    docker_host.port = 80
+    docker_host.docker_use_tls = False
     _FakeHttpClient.calls = []
     monkeypatch.setattr("app.services.host_access_service.httpx.Client", _FakeHttpClient)
 
@@ -185,6 +199,7 @@ def test_portainer_api_key_uses_endpoint_proxy(db, monkeypatch):
     assert result.exit_code == 0
     assert containers[0]["Names"] == ["/web"]
     assert _FakeHttpClient.default_headers == {"X-API-Key": "ptr_test"}
+    assert _FakeHttpClient.last_base_url == "http://portainer.example.test/docker/"
     assert _FakeHttpClient.calls[-1][1] == (
         "/api/endpoints/7/docker/containers/json?all=true"
     )
@@ -239,6 +254,24 @@ def test_managed_host_http_create_flow():
     app.dependency_overrides[get_current_user] = lambda: admin
     client = TestClient(app)
     try:
+        ssh_credential_response = client.post(
+            "/api/ssh-credentials",
+            json={
+                "name": "ssh-with-sudo",
+                "username": "operator",
+                "auth_type": "password",
+                "password": "login-secret",
+                "sudo_password": "sudo-secret",
+            },
+        )
+        assert ssh_credential_response.status_code == 201
+        assert ssh_credential_response.json()["has_sudo_password"] is True
+        stored_ssh_credential = db.query(SshCredential).filter(
+            SshCredential.id == ssh_credential_response.json()["id"]
+        ).one()
+        assert "sudo-secret" not in stored_ssh_credential.sudo_password_encrypted
+        assert decrypt_secret(stored_ssh_credential.sudo_password_encrypted) == "sudo-secret"
+
         credential_response = client.post(
             "/api/docker-credentials",
             json={
@@ -254,7 +287,7 @@ def test_managed_host_http_create_flow():
             "/api/managed-hosts",
             json={
                 "name": "docker-prod",
-                "address": "portainer.internal",
+                "address": "http://portainer.internal/docker/",
                 "port": 9443,
                 "host_type": "docker",
                 "docker_credential_id": credential_id,
@@ -269,6 +302,10 @@ def test_managed_host_http_create_flow():
         assert payload["credential_kind"] == "Docker"
         assert payload["docker_endpoint_id"] == 3
         assert payload["credential_id"] is None
+        assert payload["address"] == "http://portainer.internal/docker"
+        assert payload["port"] == 80
+        assert payload["docker_use_tls"] is False
+        assert payload["docker_verify_tls"] is False
         assert payload["permissions"] == ["connect", "execute", "docker"]
 
         user_response = client.post(
@@ -333,7 +370,10 @@ def test_migration_upgrades_existing_user_table(monkeypatch):
     credential_columns = {
         column["name"] for column in inspector.get_columns("docker_credentials")
     }
-    assert {"role", "is_active"} <= user_columns
+    ssh_credential_columns = {
+        column["name"] for column in inspector.get_columns("ssh_credentials")
+    }
+    assert {"role", "is_active", "ssh_public_key"} <= user_columns
     assert {
         "docker_credential_id",
         "docker_endpoint_id",
@@ -341,6 +381,47 @@ def test_migration_upgrades_existing_user_table(monkeypatch):
         "version_info",
     } <= host_columns
     assert "api_key_encrypted" in credential_columns
+    assert "sudo_password_encrypted" in ssh_credential_columns
+
+
+def test_sudo_command_sends_password_only_over_stdin(db, monkeypatch):
+    _, _, ssh_host, _ = _seed(db)
+    ssh_host.credential.sudo_password_encrypted = encrypt_secret("sudo-secret")
+    db.commit()
+
+    class FakeSSHClient:
+        command = None
+        stdin_data = None
+
+        def connect(self, *args, **kwargs):
+            pass
+
+        def get_server_fingerprint(self):
+            return "SHA256:test"
+
+        def exec_command(self, command, timeout=30.0, stdin_data=None):
+            self.command = command
+            self.stdin_data = stdin_data
+            return SimpleNamespace(exit_code=0, stdout="root", stderr="")
+
+        def close(self):
+            pass
+
+    fake = FakeSSHClient()
+    monkeypatch.setattr(
+        "app.services.host_access_service.build_host_client",
+        lambda host, credential: fake,
+    )
+
+    result, _, fingerprint = run_host_command(
+        ssh_host, "id -u; echo 'safe'", use_sudo=True
+    )
+
+    assert result.stdout == "root"
+    assert fingerprint == "SHA256:test"
+    assert fake.command == "sudo -S -p '' -- sh -c 'id -u; echo '\"'\"'safe'\"'\"''"
+    assert "sudo-secret" not in fake.command
+    assert fake.stdin_data == "sudo-secret\n"
 
 
 def test_api_key_encryption_is_authenticated_and_legacy_compatible():
@@ -397,6 +478,8 @@ def test_gateway_username_and_password_authentication(db):
     from app.auth import get_password_hash
 
     member.password_hash = get_password_hash("member-password")
+    member_key = paramiko.RSAKey.generate(1024)
+    member.ssh_public_key = f"{member_key.get_name()} {member_key.get_base64()}"
     db.commit()
 
     assert parse_gateway_username("member#ssh-1") == ("user", "member", "ssh-1")
@@ -404,6 +487,12 @@ def test_gateway_username_and_password_authentication(db):
     assert authenticate_gateway_login(
         db, "member#ssh-1", "member-password"
     ).host_id == ssh_host.id
+    public_key_context = authenticate_gateway_public_key(
+        db, "member#ssh-1", member_key
+    )
+    assert public_key_context.host_id == ssh_host.id
+    assert public_key_context.mode == "public_key"
+    assert authenticate_gateway_public_key(db, "ssh-1", member_key) is None
     assert authenticate_gateway_login(db, "ssh-1", raw_api_key).mode == "api_key"
     assert authenticate_gateway_login(db, "member#ssh-1", "wrong") is None
     assert (
@@ -435,6 +524,42 @@ def test_docker_gateway_basic_auth_parser():
         "password",
     ]
     assert _decode_basic_auth("Bearer token") is None
+
+
+def test_docker_client_certificate_reuses_registered_ssh_key(
+    db, tmp_path, monkeypatch
+):
+    admin, _, _, docker_host = _seed(db)
+    user_key = paramiko.RSAKey.generate(1024)
+    admin.ssh_public_key = f"{user_key.get_name()} {user_key.get_base64()}"
+    db.commit()
+    monkeypatch.setattr(
+        docker_gateway_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            docker_gateway_tls_cert_path=str(tmp_path / "ca.pem"),
+            docker_gateway_tls_key_path=str(tmp_path / "ca-key.pem"),
+            docker_gateway_tls_common_name="gateway.test",
+        ),
+    )
+
+    certificate = x509.load_pem_x509_certificate(
+        issue_docker_client_certificate(admin, docker_host)
+    )
+    context = authenticate_docker_client_certificate(
+        db, certificate.public_bytes(serialization.Encoding.DER)
+    )
+
+    assert context.host_id == docker_host.id
+    assert context.user.id == admin.id
+    assert context.mode == "client_certificate"
+    assert (
+        certificate.public_key().public_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PublicFormat.OpenSSH,
+        ).decode()
+        == admin.ssh_public_key
+    )
 
 
 def test_gateway_session_audit_accepts_no_command_result(db):
@@ -482,6 +607,17 @@ def test_gateway_tracks_requests_per_channel():
     assert third_request.request_type == "subsystem"
     assert third_request.subsystem_name == "sftp"
     assert not server.check_channel_subsystem_request(Channel(4), "netconf")
+
+
+def test_gateway_only_autofills_exact_admin_sudo_command(db):
+    admin, member, ssh_host, _ = _seed(db)
+
+    command, password = _prepare_gateway_exec(ssh_host, admin, " sudo -i ")
+    assert command == "sudo -S -p '' -i"
+    assert password == "secret"
+    assert "secret" not in command
+    assert _prepare_gateway_exec(ssh_host, member, "sudo -i") == ("sudo -i", None)
+    assert _prepare_gateway_exec(ssh_host, admin, "sudo id") == ("sudo id", None)
 
 
 def test_gateway_accepts_multiple_channels_on_one_transport(monkeypatch):

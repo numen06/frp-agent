@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models.managed_host import ManagedHost
 from app.models.user import User
+from app.services.credential_encryption import decrypt_secret
 from app.services.host_access_service import (
     active_grant,
     add_audit_log,
@@ -28,12 +29,23 @@ from app.services.ssh_client import format_host_key_fingerprint
 logger = logging.getLogger(__name__)
 
 
+def _prepare_gateway_exec(host, user: User, command: str):
+    if command.strip() != "sudo -i" or not is_admin(user):
+        return command, None
+    credential = host.credential
+    encrypted = credential.sudo_password_encrypted
+    if not encrypted and credential.auth_type == "password":
+        encrypted = credential.password_encrypted
+    password = decrypt_secret(encrypted)
+    return ("sudo -S -p '' -i", password) if password else (command, None)
+
+
 @dataclass
 class GatewayAuthContext:
     user: User
     host_id: int
     host_name: str
-    mode: str  # user | api_key
+    mode: str  # user | api_key | public_key
 
 
 @dataclass
@@ -106,6 +118,21 @@ def authenticate_gateway_resource(
     if not user:
         return None
 
+    return _authorize_gateway_identity(
+        db, user, host_name, mode=mode, host_type=host_type, permission=permission
+    )
+
+
+def _authorize_gateway_identity(
+    db: Session,
+    user: User,
+    host_name: str,
+    *,
+    mode: str,
+    host_type: str,
+    permission: str,
+) -> Optional[GatewayAuthContext]:
+
     host = (
         db.query(ManagedHost)
         .filter(
@@ -121,6 +148,34 @@ def authenticate_gateway_resource(
         return None
     return GatewayAuthContext(
         user=user, host_id=host.id, host_name=host.name, mode=mode
+    )
+
+
+def authenticate_gateway_public_key(
+    db: Session, gateway_username: str, key: paramiko.PKey
+) -> Optional[GatewayAuthContext]:
+    mode, login_name, host_name = parse_gateway_username(gateway_username)
+    if mode != "user" or not login_name or not host_name:
+        return None
+    public_key = f"{key.get_name()} {key.get_base64()}"
+    user = (
+        db.query(User)
+        .filter(
+            User.username == login_name,
+            User.ssh_public_key == public_key,
+            User.is_active.is_(True),
+        )
+        .first()
+    )
+    if not user:
+        return None
+    return _authorize_gateway_identity(
+        db,
+        user,
+        host_name,
+        mode="public_key",
+        host_type="ssh",
+        permission="execute",
     )
 
 
@@ -152,13 +207,13 @@ class GatewayServerInterface(paramiko.ServerInterface):
 
     def get_banner(self):
         return (
-            "frp-agent SSH gateway: use user#host with account password, "
+            "frp-agent SSH gateway: use user#host with account password/public key, "
             "or host with API Key.\r\n",
             "zh-CN",
         )
 
     def get_allowed_auths(self, username):
-        return "password"
+        return "publickey,password"
 
     def check_auth_password(self, username, password):
         db = SessionLocal()
@@ -171,6 +226,21 @@ class GatewayServerInterface(paramiko.ServerInterface):
             )
         except Exception:
             logger.exception("SSH 网关认证发生异常")
+            return paramiko.AUTH_FAILED
+        finally:
+            db.close()
+
+    def check_auth_publickey(self, username, key):
+        db = SessionLocal()
+        try:
+            self.auth_context = authenticate_gateway_public_key(db, username, key)
+            return (
+                paramiko.AUTH_SUCCESSFUL
+                if self.auth_context
+                else paramiko.AUTH_FAILED
+            )
+        except Exception:
+            logger.exception("SSH 网关公钥认证发生异常")
             return paramiko.AUTH_FAILED
         finally:
             db.close()
@@ -401,13 +471,21 @@ class SSHGatewayService:
                     open_exec = getattr(upstream_client, "open_exec_channel", None)
                     if not open_exec:
                         raise RuntimeError("SSH 客户端不支持 exec 请求")
-                    upstream = open_exec(
+                    upstream_command, sudo_password = _prepare_gateway_exec(
+                        host,
+                        server.auth_context.user,
                         request.exec_command or "",
-                        request_pty=request.pty_requested,
+                    )
+                    upstream = open_exec(
+                        upstream_command,
+                        request_pty=request.pty_requested or bool(sudo_password),
                         term=request.pty_term,
                         width=request.pty_width,
                         height=request.pty_height,
                     )
+                    if sudo_password:
+                        upstream.sendall(f"{sudo_password}\n".encode("utf-8"))
+                        sudo_password = None
                 elif request.request_type == "shell":
                     open_shell = getattr(upstream_client, "open_shell", None)
                     if not open_shell:

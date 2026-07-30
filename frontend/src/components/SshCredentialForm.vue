@@ -64,6 +64,13 @@
           <input v-model="form.passphrase" type="password" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
         </div>
       </template>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600">
+          sudo 密码（可选）{{ editingId ? '（留空不修改）' : '' }}
+        </label>
+        <input v-model="form.sudo_password" type="password" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
+        <p class="mt-1 text-xs text-gray-400">仅管理员明确点击“提权执行”时使用，加密保存且不会显示。</p>
+      </div>
       <div class="flex gap-2">
         <button
           type="button"
@@ -108,7 +115,8 @@ const form = ref({
   auth_type: 'password',
   password: '',
   private_key: '',
-  passphrase: ''
+  passphrase: '',
+  sudo_password: ''
 })
 
 watch(() => props.modelValue, (v) => {
@@ -122,7 +130,8 @@ function resetForm() {
     auth_type: 'password',
     password: '',
     private_key: '',
-    passphrase: ''
+    passphrase: '',
+    sudo_password: ''
   }
   editingId.value = null
 }
@@ -130,6 +139,7 @@ function resetForm() {
 async function loadCredentials() {
   try {
     credentials.value = await sshCredentialsApi.list()
+    if (selectedId.value) onSelect()
   } catch (e) {
     console.error(e)
   }
@@ -146,6 +156,7 @@ function onSelect() {
     form.value.password = ''
     form.value.private_key = ''
     form.value.passphrase = ''
+    form.value.sudo_password = ''
   }
 }
 
@@ -164,6 +175,7 @@ async function saveCredential() {
       if (form.value.private_key) payload.private_key = form.value.private_key
       if (form.value.passphrase) payload.passphrase = form.value.passphrase
     }
+    if (form.value.sudo_password) payload.sudo_password = form.value.sudo_password
     if (editingId.value) {
       await sshCredentialsApi.update(editingId.value, payload)
     } else {
@@ -177,7 +189,8 @@ async function saveCredential() {
         ...payload,
         password: form.value.password,
         private_key: form.value.private_key,
-        passphrase: form.value.passphrase || undefined
+        passphrase: form.value.passphrase || undefined,
+        sudo_password: form.value.sudo_password || undefined
       })
       selectedId.value = created.id
       emit('update:modelValue', created.id)

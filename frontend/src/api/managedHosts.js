@@ -4,6 +4,7 @@ export const managedHostsApi = {
   context: () => api.get('/managed-hosts/context'),
   gatewayInfo: () => api.get('/managed-hosts/gateway/info'),
   dockerGatewayCa: () => api.get('/managed-hosts/gateway/docker-ca', { responseType: 'blob' }),
+  dockerClientCert: (id) => api.get(`/managed-hosts/${id}/docker-client-cert`, { responseType: 'blob' }),
   list: () => api.get('/managed-hosts'),
   create: (data) => api.post('/managed-hosts', data),
   update: (id, data) => api.put(`/managed-hosts/${id}`, data),

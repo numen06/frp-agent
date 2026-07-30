@@ -45,7 +45,7 @@
                 >{{ host.host_type === 'ssh' ? 'SSH' : 'Docker / Portainer' }}</span>
               </div>
               <p class="mt-1 break-all font-mono text-xs text-gray-500">
-                {{ host.host_type === 'docker' ? (host.docker_use_tls ? 'https://' : 'http://') : '' }}{{ host.address }}:{{ host.port }}
+                {{ hostAddress(host) }}
               </p>
             </div>
             <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="statusDot(host.last_status)" :title="host.last_status"></span>
@@ -142,6 +142,7 @@
         <div class="mt-4 space-y-3">
           <input v-model.trim="userForm.username" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="用户名" required minlength="2">
           <input v-model="userForm.password" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="初始密码（至少 8 位）" required minlength="8">
+          <textarea v-model.trim="userForm.ssh_public_key" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" placeholder="SSH 公钥（可选，ssh-ed25519 / ssh-rsa）"></textarea>
           <select v-model="userForm.role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option value="user">普通用户</option><option value="admin">管理员</option></select>
           <button class="btn btn-md btn-primary w-full">创建用户</button>
         </div>
@@ -150,8 +151,11 @@
         <div class="border-b border-gray-200 px-4 py-3 font-semibold">系统用户</div>
         <div class="divide-y divide-gray-100">
           <div v-for="user in userSubjects" :key="user.id" class="flex items-center justify-between gap-3 px-4 py-3">
-            <div><div class="font-medium">{{ user.name }}</div><div class="text-xs text-gray-400">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</div></div>
-            <button class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="toggleUser(user)">{{ user.is_active ? '禁用' : '启用' }}</button>
+            <div><div class="font-medium">{{ user.name }}</div><div class="text-xs text-gray-400">{{ user.role === 'admin' ? '管理员' : '普通用户' }} · {{ user.has_ssh_public_key ? '已配置 SSH 证书' : '未配置 SSH 证书' }}</div></div>
+            <div class="flex shrink-0 gap-2">
+              <button class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="setUserPublicKey(user)">证书</button>
+              <button class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="toggleUser(user)">{{ user.is_active ? '禁用' : '启用' }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -205,6 +209,9 @@
       <p v-if="gatewayInfo.host_key_fingerprint" class="mt-1 break-all font-mono text-xs text-gray-500">主机指纹：{{ gatewayInfo.host_key_fingerprint }}</p>
       <pre class="mt-2 max-w-full overflow-x-auto rounded-lg bg-gray-950 p-3 text-[11px] text-gray-100 sm:p-4 sm:text-xs"># 系统用户密码
 ssh -p {{ gatewayInfo.port || 2222 }} '系统用户#SSH主机名'@平台地址
+
+# 系统用户 SSH 私钥
+ssh -i ~/.ssh/id_ed25519 -p {{ gatewayInfo.port || 2222 }} '系统用户#SSH主机名'@平台地址
 
 # API Key 作为 SSH 密码
 ssh -p {{ gatewayInfo.port || 2222 }} 'SSH主机名'@平台地址</pre>
@@ -300,7 +307,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                 </svg>
               </button>
             </dd>
-            <dt class="text-gray-500">密码</dt>
+            <dt class="text-gray-500">认证</dt>
             <dd class="text-gray-900">{{ connectionInfo.passwordHint }}</dd>
             <template v-if="connectionHost.host_type === 'ssh' && gatewayInfo.host_key_fingerprint">
               <dt class="text-gray-500">网关指纹</dt>
@@ -324,6 +331,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           </p>
           <div class="grid gap-2 sm:flex sm:justify-end">
             <button v-if="connectionHost.host_type === 'docker'" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="downloadDockerCa">下载 CA 证书</button>
+            <button v-if="connectionHost.host_type === 'docker' && gatewayInfo.docker_gateway?.client_certificate_available" class="btn btn-md btn-outline-primary min-h-11 touch-manipulation sm:min-h-9" @click="downloadDockerClientCert">下载客户端证书</button>
             <button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" @click="copyConnectionCommand(connectionHost, $event.currentTarget)">复制命令</button>
           </div>
         </div>
@@ -341,7 +349,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="text-sm">名称<input v-model.trim="hostForm.name" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" required></label>
-            <label class="text-sm">地址<input v-model.trim="hostForm.address" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="主机名或 IP" required></label>
+            <label class="text-sm">地址<input v-model.trim="hostForm.address" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" :placeholder="hostForm.host_type === 'docker' ? '主机名，或 http://host/docker/' : '主机名或 IP'" required></label>
             <label class="text-sm">端口<input v-model.number="hostForm.port" type="number" min="1" max="65535" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" required></label>
             <label class="flex items-center gap-2 pt-6 text-sm"><input v-model="hostForm.is_active" type="checkbox">启用资源</label>
           </div>
@@ -364,10 +372,11 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             </div>
             <div class="grid gap-3 sm:grid-cols-2">
               <label class="text-sm">Portainer Endpoint ID<input v-model.number="hostForm.docker_endpoint_id" type="number" min="1" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="例如 1" required></label>
-              <div class="space-y-2 pt-1">
+              <div v-if="!hasUrlScheme(hostForm.address)" class="space-y-2 pt-1">
                 <label class="flex items-center gap-2 text-sm"><input v-model="hostForm.docker_use_tls" type="checkbox">使用 HTTPS（通常端口 9443）</label>
                 <label v-if="hostForm.docker_use_tls" class="flex items-center gap-2 text-sm"><input v-model="hostForm.docker_verify_tls" type="checkbox">校验 Portainer TLS 证书</label>
               </div>
+              <p v-else class="pt-1 text-xs leading-5 text-gray-500">协议、端口和反向代理路径按完整 URL 自动识别。</p>
             </div>
           </template>
           <label class="block text-sm">标签<input v-model.trim="hostForm.tags" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="生产, 华东"></label>
@@ -381,8 +390,13 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
       <div class="absolute inset-0 bg-black/50" @click="consoleHost = null"></div>
       <div class="relative z-10 w-full max-w-3xl rounded-t-2xl bg-white shadow-xl sm:rounded-xl">
         <div class="flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="min-w-0 truncate font-semibold">{{ consoleHost.name }} · 命令终端</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="consoleHost = null">✕</button></div>
-        <form class="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="runCommand">
-          <div class="grid gap-2 sm:flex"><input v-model="command" class="min-h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm sm:min-h-9" placeholder="uptime" required><button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="operating">执行</button></div>
+        <form class="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="runCommand(false)">
+          <div class="grid gap-2 sm:flex">
+            <input v-model="command" class="min-h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm sm:min-h-9" placeholder="uptime" required>
+            <button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="operating">执行</button>
+            <button v-if="context.is_admin" type="button" class="btn btn-md min-h-11 touch-manipulation border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 sm:min-h-9" :disabled="operating" @click="runCommand(true)">提权执行</button>
+          </div>
+          <p v-if="context.is_admin" class="mt-2 text-xs text-gray-500">提权执行使用该 SSH 凭据中加密保存的 sudo 密码；命令和审计记录不会包含密码。</p>
           <pre class="mt-4 min-h-44 max-h-[50dvh] overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-950 p-3 text-xs text-gray-100 sm:max-h-96 sm:p-4">{{ commandOutput || '等待执行…' }}</pre>
         </form>
       </div>
@@ -468,7 +482,7 @@ const aiHostPrompt = computed(() => {
   ]
   const specific = aiPromptForm.host_type === 'ssh'
     ? [
-        '6. SSH 凭据接口为 /api/ssh-credentials。取得 credential_id 后，POST /api/managed-hosts，JSON 中使用 host_type="ssh"、credential_id、名称、地址和端口。',
+        '6. SSH 凭据接口为 /api/ssh-credentials；目标用户需要 sudo 密码时，可在凭据 JSON 中加入 sudo_password。取得 credential_id 后，POST /api/managed-hosts，JSON 中使用 host_type="ssh"、credential_id、名称、地址和端口。',
         '7. 从创建响应取得主机 id，再 POST /api/managed-hosts/{id}/test。首次连接返回服务器指纹时先让我核对；测试成功后只报告主机状态、登录用户和指纹。',
       ]
     : [
@@ -482,7 +496,7 @@ const emptyHost = () => ({ name: '', address: '', port: 22, host_type: 'ssh', cr
 const hostForm = reactive(emptyHost())
 const dockerCredForm = reactive({ name: '', auth_type: 'api_key', username: '', password: '', api_key: '', ca_cert: '' })
 const grantForm = reactive({ host_id: 0, subject: '', can_connect: true, can_execute: false, can_manage_docker: false })
-const userForm = reactive({ username: '', password: '', role: 'user' })
+const userForm = reactive({ username: '', password: '', role: 'user', ssh_public_key: '' })
 const aiPromptForm = reactive({ host_type: 'ssh', name: '', address: '', port: 22, docker_endpoint_id: 1 })
 
 async function loadHosts() { hosts.value = await managedHostsApi.list() }
@@ -547,9 +561,9 @@ async function testHost(host) {
   try { const result = await managedHostsApi.test(host.id); alert(result.success ? `连接成功（${result.duration_ms}ms）` : result.stderr); await loadHosts(); await loadAudit() } catch (e) { alert(e.message) }
 }
 function openConsole(host) { consoleHost.value = host; command.value = 'uptime'; commandOutput.value = '' }
-async function runCommand() {
+async function runCommand(useSudo = false) {
   operating.value = true
-  try { const result = await managedHostsApi.execute(consoleHost.value.id, { command: command.value, timeout: 30 }); commandOutput.value = [`exit_code=${result.exit_code}`, result.stdout, result.stderr].filter(Boolean).join('\n') } catch (e) { commandOutput.value = e.message } finally { operating.value = false; loadAudit() }
+  try { const result = await managedHostsApi.execute(consoleHost.value.id, { command: command.value, timeout: 30, use_sudo: useSudo }); commandOutput.value = [`exit_code=${result.exit_code}`, result.stdout, result.stderr].filter(Boolean).join('\n') } catch (e) { commandOutput.value = e.message } finally { operating.value = false; loadAudit() }
 }
 async function openDocker(host) { dockerHost.value = host; await loadContainers() }
 async function loadContainers() {
@@ -579,15 +593,25 @@ async function saveGrant() {
 }
 async function removeGrant(grant) { if (confirm('确定撤销该授权？')) { try { await managedHostsApi.removeGrant(grant.id); grants.value = await managedHostsApi.grants() } catch (e) { alert(e.message) } } }
 async function createUser() {
-  try { await managedHostsApi.createUser({ ...userForm }); Object.assign(userForm, { username: '', password: '', role: 'user' }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
+  try { await managedHostsApi.createUser({ ...userForm, ssh_public_key: userForm.ssh_public_key || null }); Object.assign(userForm, { username: '', password: '', role: 'user', ssh_public_key: '' }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
 }
 async function toggleUser(user) {
   try { await managedHostsApi.updateUser(user.id, { is_active: !user.is_active }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
 }
+async function setUserPublicKey(user) {
+  const value = prompt(`设置 ${user.name} 的 OpenSSH 公钥；留空并确认将删除现有证书。`, '')
+  if (value === null) return
+  try { await managedHostsApi.updateUser(user.id, { ssh_public_key: value.trim() || null }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
+}
 function grantPermissions(g) { return [g.can_connect && '连接', g.can_execute && 'SSH 命令', g.can_manage_docker && 'Docker'].filter(Boolean).join('、') || '无' }
+function hasUrlScheme(value) { return /^https?:\/\//i.test(value || '') }
+function hostAddress(host) {
+  if (host.host_type !== 'docker') return `${host.address}:${host.port}`
+  return hasUrlScheme(host.address) ? host.address : `${host.docker_use_tls ? 'https' : 'http'}://${host.address}:${host.port}`
+}
 function statusDot(s) { return s === 'online' ? 'bg-emerald-500' : s === 'offline' || s === 'error' ? 'bg-red-500' : 'bg-gray-300' }
 function formatDate(value) { return value ? new Date(value).toLocaleString('zh-CN') : '-' }
-function actionLabel(value) { return ({ connection_test: '连接测试', execute_command: '执行命令', ssh_gateway_session: 'SSH 跳板会话', docker_gateway_request: 'Docker 网关请求', docker_list: '查询容器', docker_start: '启动容器', docker_stop: '停止容器', docker_restart: '重启容器' })[value] || value }
+function actionLabel(value) { return ({ connection_test: '连接测试', execute_command: '执行命令', execute_sudo_command: '提权执行', ssh_gateway_session: 'SSH 跳板会话', docker_gateway_request: 'Docker 网关请求', docker_list: '查询容器', docker_start: '启动容器', docker_stop: '停止容器', docker_restart: '重启容器' })[value] || value }
 function shellQuote(value) { return `'${String(value).replaceAll("'", "'\\''")}'` }
 function buildConnectionInfo(host) {
   const gatewayHost = window.location.hostname || '平台地址'
@@ -596,12 +620,16 @@ function buildConnectionInfo(host) {
   const port = host.host_type === 'ssh'
     ? (gatewayInfo.value.port || 2222)
     : (gatewayInfo.value.docker_gateway?.port || 23750)
+  const useClientCertificate = host.host_type === 'docker' && !isApiKey && gatewayInfo.value.docker_gateway?.client_certificate_available
+  const clientCertificate = `frp-agent-docker-client-${host.id}.pem`
   return {
     gateway: `${gatewayHost}:${port}`,
     loginName,
-    passwordHint: isApiKey ? '已授权的 API Key' : '当前系统用户的登录密码',
+    passwordHint: isApiKey ? '已授权的 API Key' : useClientCertificate ? '已登记 SSH 私钥 + Docker 客户端证书' : '系统用户密码',
     command: host.host_type === 'ssh'
       ? `ssh -p ${port} ${shellQuote(loginName)}@${gatewayHost}`
+      : useClientCertificate
+        ? `docker --tlsverify --tlscacert frp-agent-docker-gateway-ca.pem --tlscert ${clientCertificate} --tlskey ~/.ssh/jbm_rsa -H tcp://${gatewayHost}:${port} ps`
       : `curl -u ${shellQuote(loginName)} --cacert frp-agent-docker-gateway-ca.pem ${shellQuote(`https://${gatewayHost}:${port}/containers/json?all=true`)}`
   }
 }
@@ -619,6 +647,17 @@ async function downloadDockerCa() {
     const link = document.createElement('a')
     link.href = url
     link.download = 'frp-agent-docker-gateway-ca.pem'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { alert(e.message) }
+}
+async function downloadDockerClientCert() {
+  try {
+    const blob = await managedHostsApi.dockerClientCert(connectionHost.value.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `frp-agent-docker-client-${connectionHost.value.id}.pem`
     link.click()
     URL.revokeObjectURL(url)
   } catch (e) { alert(e.message) }

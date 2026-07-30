@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 import os
+from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -50,6 +51,7 @@ from app.services.ssh_gateway_service import ssh_gateway_service
 from app.services.docker_gateway_service import (
     docker_gateway_certificate_fingerprint,
     docker_gateway_service,
+    issue_docker_client_certificate,
 )
 from app.config import get_settings
 
@@ -100,9 +102,37 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
             raise HTTPException(
                 status_code=400, detail="Docker 主机必须配置 Portainer Endpoint ID"
             )
+        address = values.get("address", "").strip().rstrip("/")
+        if "://" in address:
+            try:
+                parsed = urlsplit(address)
+                port = parsed.port
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Portainer URL 端口无效")
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise HTTPException(status_code=400, detail="Portainer URL 格式无效")
+            values["address"] = urlunsplit(
+                (parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", "")
+            )
+            values["port"] = port or (443 if parsed.scheme == "https" else 80)
+            values["docker_use_tls"] = parsed.scheme == "https"
+            if parsed.scheme == "http":
+                values["docker_verify_tls"] = False
+        elif "/" in address:
+            raise HTTPException(
+                status_code=400,
+                detail="Portainer 含路径时请填写完整 URL，例如 http://host/docker/",
+            )
     else:
         raise HTTPException(status_code=400, detail="不支持的主机类型")
-    if "://" in values.get("address", ""):
+    if values["host_type"] == "ssh" and "://" in values.get("address", ""):
         raise HTTPException(status_code=400, detail="地址只填写主机名或 IP，不要包含协议")
 
 
@@ -179,6 +209,7 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
         "port": settings.ssh_gateway_port,
         "host_key_fingerprint": ssh_gateway_service.host_key_fingerprint,
         "user_login_format": "<系统用户>#<SSH主机名>",
+        "user_auth_methods": ["password", "publickey"],
         "api_key_login_format": "<SSH主机名>",
         "docker_gateway": {
             "enabled": settings.docker_gateway_enabled,
@@ -187,6 +218,9 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
             "port": settings.docker_gateway_port,
             "tls_common_name": settings.docker_gateway_tls_common_name,
             "certificate_fingerprint": docker_gateway_certificate_fingerprint(),
+            "client_certificate_available": bool(
+                current_user.id > 0 and current_user.ssh_public_key
+            ),
             "user_login_format": "<系统用户>#<Docker主机名>",
             "api_key_login_format": "<Docker主机名>",
         },
@@ -205,6 +239,28 @@ def get_docker_gateway_ca(current_user: User = Depends(get_current_user)):
         media_type="application/x-pem-file",
         headers={
             "Content-Disposition": 'attachment; filename="frp-agent-docker-gateway-ca.pem"'
+        },
+    )
+
+
+@router.get("/{host_id}/docker-client-cert")
+def get_docker_client_certificate(
+    host_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    host = require_host_access(db, current_user, host_id, "docker")
+    try:
+        content = issue_docker_client_certificate(current_user, host)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Response(
+        content=content,
+        media_type="application/x-pem-file",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="frp-agent-docker-client-{host.id}.pem"'
+            )
         },
     )
 
@@ -265,6 +321,11 @@ def update_host(
             "docker_credential_id", host.docker_credential_id
         ),
         "address": values.get("address", host.address),
+        "port": values.get("port", host.port),
+        "docker_use_tls": values.get("docker_use_tls", host.docker_use_tls),
+        "docker_verify_tls": values.get(
+            "docker_verify_tls", host.docker_verify_tls
+        ),
         "host_key_fingerprint": values.get(
             "host_key_fingerprint", host.host_key_fingerprint
         ),
@@ -279,6 +340,10 @@ def update_host(
             "docker_credential_id": effective["docker_credential_id"],
             "host_key_fingerprint": effective["host_key_fingerprint"],
             "docker_endpoint_id": effective["docker_endpoint_id"],
+            "address": effective["address"],
+            "port": effective["port"],
+            "docker_use_tls": effective["docker_use_tls"],
+            "docker_verify_tls": effective["docker_verify_tls"],
         }
     )
     if "name" in values:
@@ -408,15 +473,17 @@ def execute_command(
     current_user: User = Depends(get_current_user),
 ):
     host = require_host_access(db, current_user, host_id, "execute")
+    if body.use_sudo:
+        require_admin(current_user)
     try:
         result, duration_ms, fingerprint = run_host_command(
-            host, body.command, body.timeout
+            host, body.command, body.timeout, body.use_sudo
         )
         add_audit_log(
             db,
             host,
             current_user,
-            "execute_command",
+            "execute_sudo_command" if body.use_sudo else "execute_command",
             "success" if result.exit_code == 0 else "failed",
             _client_ip(request),
             command=body.command,
@@ -437,7 +504,7 @@ def execute_command(
             db,
             host,
             current_user,
-            "execute_command",
+            "execute_sudo_command" if body.use_sudo else "execute_command",
             "failed",
             _client_ip(request),
             command=body.command,
@@ -549,6 +616,7 @@ def list_access_subjects(
             description="系统用户",
             is_active=row.is_active,
             role=row.role,
+            has_ssh_public_key=bool(row.ssh_public_key),
         )
         for row in db.query(User).order_by(User.username).all()
     ]
@@ -577,13 +645,14 @@ def create_managed_user(
         password_hash=get_password_hash(body.password),
         role=body.role,
         is_active=True,
+        ssh_public_key=body.ssh_public_key,
     )
     db.add(user)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="用户名已存在")
+        raise HTTPException(status_code=409, detail="用户名或 SSH 公钥已存在")
     db.refresh(user)
     return AccessSubjectResponse(
         subject_type="user",
@@ -592,6 +661,7 @@ def create_managed_user(
         description="系统用户",
         is_active=user.is_active,
         role=user.role,
+        has_ssh_public_key=bool(user.ssh_public_key),
     )
 
 
@@ -619,7 +689,11 @@ def update_managed_user(
         user.password_hash = get_password_hash(values.pop("password"))
     for field, value in values.items():
         setattr(user, field, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="该 SSH 公钥已绑定其他用户")
     db.refresh(user)
     return AccessSubjectResponse(
         subject_type="user",
@@ -628,6 +702,7 @@ def update_managed_user(
         description="系统用户",
         is_active=user.is_active,
         role=user.role,
+        has_ssh_public_key=bool(user.ssh_public_key),
     )
 
 

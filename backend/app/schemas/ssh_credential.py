@@ -11,10 +11,17 @@ class SshCredentialCreate(BaseModel):
     password: Optional[str] = None
     private_key: Optional[str] = None
     passphrase: Optional[str] = None
+    sudo_password: Optional[str] = Field(None, max_length=1024)
 
     @validator("name", "username")
     def strip_fields(cls, v):
         return v.strip() if v else v
+
+    @validator("sudo_password")
+    def validate_sudo_password(cls, v):
+        if v and ("\n" in v or "\r" in v):
+            raise ValueError("sudo 密码不能包含换行符")
+        return v
 
 
 class SshCredentialUpdate(BaseModel):
@@ -24,6 +31,13 @@ class SshCredentialUpdate(BaseModel):
     password: Optional[str] = None
     private_key: Optional[str] = None
     passphrase: Optional[str] = None
+    sudo_password: Optional[str] = Field(None, max_length=1024)
+
+    @validator("sudo_password")
+    def validate_sudo_password(cls, v):
+        if v and ("\n" in v or "\r" in v):
+            raise ValueError("sudo 密码不能包含换行符")
+        return v
 
 
 class SshCredentialResponse(BaseModel):
@@ -34,6 +48,7 @@ class SshCredentialResponse(BaseModel):
     has_password: bool
     has_private_key: bool
     has_passphrase: bool
+    has_sudo_password: bool
     created_at: datetime
     updated_at: datetime
 

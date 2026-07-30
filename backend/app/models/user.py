@@ -1,6 +1,6 @@
 """用户模型"""
 from datetime import datetime
-from sqlalchemy import Boolean, Column, Integer, String, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, Text
 from app.database import Base
 
 
@@ -13,6 +13,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="user")  # admin | user
     is_active = Column(Boolean, nullable=False, default=True)
+    ssh_public_key = Column(Text, unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     def __repr__(self):

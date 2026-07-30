@@ -20,6 +20,19 @@ def upgrade():
             conn.execute(text(
                 "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
             ))
+        if "ssh_public_key" not in user_columns:
+            conn.execute(text(
+                "ALTER TABLE users ADD COLUMN ssh_public_key TEXT"
+            ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_ssh_public_key "
+            "ON users(ssh_public_key)"
+        ))
+        ssh_credential_columns = _columns(conn, "ssh_credentials")
+        if "sudo_password_encrypted" not in ssh_credential_columns:
+            conn.execute(text(
+                "ALTER TABLE ssh_credentials ADD COLUMN sudo_password_encrypted TEXT"
+            ))
 
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS docker_credentials (

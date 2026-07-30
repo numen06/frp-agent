@@ -15,5 +15,6 @@ class SshCredential(Base):
     password_encrypted = Column(Text, nullable=True)
     private_key_encrypted = Column(Text, nullable=True)
     passphrase_encrypted = Column(Text, nullable=True)
+    sudo_password_encrypted = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

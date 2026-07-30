@@ -1,8 +1,27 @@
 """主机管理 API schemas。"""
+import base64
+import binascii
 from datetime import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _normalize_ssh_public_key(value: Optional[str]) -> Optional[str]:
+    if value is None or not value.strip():
+        return None
+    parts = value.strip().split()
+    if len(parts) < 2 or not (
+        parts[0].startswith("ssh-")
+        or parts[0].startswith("ecdsa-")
+        or parts[0].startswith("sk-")
+    ):
+        raise ValueError("请输入 OpenSSH 公钥，例如 ssh-ed25519 AAAA...")
+    try:
+        base64.b64decode(parts[1], validate=True)
+    except (ValueError, binascii.Error):
+        raise ValueError("SSH 公钥内容无效")
+    return f"{parts[0]} {parts[1]}"
 
 
 class ManagedHostCreate(BaseModel):
@@ -122,6 +141,7 @@ class HostGrantResponse(BaseModel):
 class HostCommandRequest(BaseModel):
     command: str = Field(..., min_length=1, max_length=4000)
     timeout: int = Field(30, ge=1, le=120)
+    use_sudo: bool = False
 
     @field_validator("command")
     @classmethod
@@ -162,18 +182,31 @@ class AccessSubjectResponse(BaseModel):
     description: Optional[str] = None
     is_active: bool
     role: Optional[str] = None
+    has_ssh_public_key: bool = False
 
 
 class ManagedUserCreate(BaseModel):
     username: str = Field(..., min_length=2, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(..., min_length=8, max_length=128)
     role: Literal["admin", "user"] = "user"
+    ssh_public_key: Optional[str] = Field(None, max_length=16384)
+
+    @field_validator("ssh_public_key")
+    @classmethod
+    def validate_ssh_public_key(cls, value):
+        return _normalize_ssh_public_key(value)
 
 
 class ManagedUserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=128)
     role: Optional[Literal["admin", "user"]] = None
     is_active: Optional[bool] = None
+    ssh_public_key: Optional[str] = Field(None, max_length=16384)
+
+    @field_validator("ssh_public_key")
+    @classmethod
+    def validate_ssh_public_key(cls, value):
+        return _normalize_ssh_public_key(value)
 
 
 class HostAuditResponse(BaseModel):

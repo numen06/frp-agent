@@ -27,6 +27,7 @@ def _to_response(cred: SshCredential) -> SshCredentialResponse:
         has_password=bool(cred.password_encrypted),
         has_private_key=bool(cred.private_key_encrypted),
         has_passphrase=bool(cred.passphrase_encrypted),
+        has_sudo_password=bool(cred.sudo_password_encrypted),
         created_at=cred.created_at,
         updated_at=cred.updated_at,
     )
@@ -61,6 +62,9 @@ def create_credential(
         password_encrypted=encrypt_secret(body.password) if body.password else None,
         private_key_encrypted=encrypt_secret(body.private_key) if body.private_key else None,
         passphrase_encrypted=encrypt_secret(body.passphrase) if body.passphrase else None,
+        sudo_password_encrypted=(
+            encrypt_secret(body.sudo_password) if body.sudo_password else None
+        ),
     )
     db.add(cred)
     db.commit()
@@ -92,6 +96,10 @@ def update_credential(
         cred.private_key_encrypted = encrypt_secret(body.private_key) if body.private_key else None
     if body.passphrase is not None:
         cred.passphrase_encrypted = encrypt_secret(body.passphrase) if body.passphrase else None
+    if body.sudo_password is not None:
+        cred.sudo_password_encrypted = (
+            encrypt_secret(body.sudo_password) if body.sudo_password else None
+        )
 
     db.commit()
     db.refresh(cred)
