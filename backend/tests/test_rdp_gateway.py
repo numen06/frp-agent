@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
-from app.auth import get_current_user,get_password_hash
+from app.auth import authenticate_user,get_current_user,get_password_hash
 from app.config import get_settings
 from app.database import Base,get_db
 from app.main import app
@@ -20,6 +20,7 @@ from app.models.user import User
 from app.services.credential_encryption import encrypt_secret
 from app.services.rdp_gateway_service import RDPGatewayService,Relay,rdp_client_ip,require_secure_rdp_download,rdp_credential
 from app.services import rdp_gateway_service as module
+from app.services.rdp_auth_service import ntlm_verifier
 
 @pytest.fixture
 def setup(monkeypatch):
@@ -125,7 +126,7 @@ def test_rdp_file_contains_only_platform_login_and_public_endpoint(setup):
     content=service.issue_file(db,user,host,'198.51.100.10').decode('utf-16')
     assert 'full address:s:rdp.example.test:13389\r\n' in content
     assert 'username:s:rdp-user#win-1\r\n' in content
-    assert 'authentication level:i:1' in content and 'enablecredsspsupport:i:0' in content
+    assert 'authentication level:i:1' in content and 'enablecredsspsupport:i:1' in content
     for secret in ['windows-test-password','platform-test-password','win.internal','administrator','gatewayaccesstoken','password 51:']:
         assert secret not in content
 
@@ -139,6 +140,37 @@ def test_inactive_connection_and_failure_limits(setup):
     assert not service._admit('198.51.100.10')
 
 
+def test_nla_requires_web_password_login_and_returns_only_identity_specific_verifier(setup):
+    db,user,host,grant,service=setup
+    name=user.username+'#'+host.name
+    with pytest.raises(HTTPException):service.authorize(db,12345,name,'','ntlm')
+    assert not authenticate_user(db,user.username,'wrong')
+    assert ntlm_verifier(user) is None
+    assert authenticate_user(db,user.username,'platform-test-password')==user
+    value=service.authorize(db,12345,name,'','ntlm','DOMAIN')
+    from passlib.hash import nthash
+    import hmac
+    expected=hmac.new(bytes.fromhex(nthash.hash('platform-test-password')),(name.upper()+'DOMAIN').encode('utf-16-le'),'md5').hexdigest()
+    assert value=={'ntlm_v2':expected}
+    assert nthash.hash('platform-test-password') not in user.rdp_ntlm_encrypted
+    assert not service._sessions[12345].authorized
+    with pytest.raises(HTTPException):service.authorize(db,12345,name,'wrong')
+    assert login(setup)['username']=='administrator'
+
+
+@pytest.mark.parametrize('change',['password','grant','user','host','corrupt_verifier'])
+def test_nla_verifier_respects_password_and_access_revocation(setup,change):
+    db,user,host,grant,service=setup
+    authenticate_user(db,user.username,'platform-test-password')
+    if change=='password':user.password_hash=get_password_hash('new-password')
+    if change=='grant':grant.is_active=False
+    if change=='user':user.is_active=False
+    if change=='host':host.is_active=False
+    if change=='corrupt_verifier':user.rdp_ntlm_encrypted='corrupt'
+    db.commit()
+    with pytest.raises(HTTPException):service.authorize(db,12345,user.username+'#'+host.name,'','ntlm')
+
+
 def test_rdp_negotiation_is_length_bounded_and_preserved():
     class Socket:
         def __init__(self, data): self.data=data
@@ -150,6 +182,40 @@ def test_rdp_negotiation_is_length_bounded_and_preserved():
     assert RDPGatewayService._tpkt(Socket(packet))==packet
     for data in [b'\x03\x00\xff\xff',b'\x03\x00\x00\x04',b'\x03\x00\x00\x13\x0e',b'GET /']:
         with pytest.raises(OSError):RDPGatewayService._tpkt(Socket(data))
+
+
+def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monkeypatch):
+    import ssl
+    from types import SimpleNamespace
+    request=bytes.fromhex('030000130ee000000000000100080003000000')
+    response=bytes.fromhex('030000130ed000001234000200080002000000')
+    class Socket:
+        def __init__(self,negotiation,events):
+            self.negotiation=negotiation;self.events=iter(events);self.sent=[]
+        def recv(self,size):
+            if self.negotiation:
+                data,self.negotiation=self.negotiation[:size],self.negotiation[size:]
+                return data
+            data=next(self.events)
+            if isinstance(data,Exception):raise data
+            return data
+        def sendall(self,data):self.sent.append(data)
+        def settimeout(self,value):pass
+        def pending(self):return 0
+        def getsockname(self):return ('127.0.0.1',23456)
+        def close(self):pass
+    client=Socket(request,[ssl.SSLWantReadError(),'client-rdp'.encode()])
+    upstream=Socket(response,[b'server-rdp',b''])
+    db,user,host,grant,service=setup
+    service._sessions.clear()
+    service._tls_server=service._tls_proxy=SimpleNamespace(wrap_socket=lambda sock,**kw:sock)
+    monkeypatch.setattr(module.socket,'create_connection',lambda *a,**kw:upstream)
+    monkeypatch.setattr(module.select,'select',lambda *a:([client,upstream],[],[]))
+    assert service._admit('198.51.100.10')
+    service._relay(client,'198.51.100.10',50000)
+    assert client.sent==[response,b'server-rdp']
+    assert upstream.sent==[request,b'client-rdp']
+    assert service._active==0 and not service._sessions
 
 def test_internal_callback_cannot_be_called_from_public_api(setup):
     db,user,host,_,service=setup

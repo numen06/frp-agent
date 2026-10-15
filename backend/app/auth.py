@@ -37,6 +37,9 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
         return None
     if not verify_password(password, user.password_hash):
         return None
+    if get_settings().rdp_gateway_enabled:
+        from app.services.rdp_auth_service import remember_ntlm_password
+        remember_ntlm_password(db, user, password)
     return user
 
 

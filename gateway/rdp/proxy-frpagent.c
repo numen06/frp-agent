@@ -3,6 +3,7 @@
 #include <freerdp/server/proxy/proxy_context.h>
 #include <freerdp/settings.h>
 #include <winpr/synch.h>
+#include <winpr/string.h>
 #include <curl/curl.h>
 #include <json-c/json.h>
 #include <openssl/pem.h>
@@ -50,6 +51,78 @@ static int connection_port(proxyPlugin* plugin, proxyData* data)
     return port ? json_object_get_int(port) : 0;
 }
 
+static json_object* authenticate(json_object* request)
+{
+    const char* endpoint = getenv("FRP_RDP_AUTH_URL");
+    const char* secret = getenv("FRP_RDP_INTERNAL_SECRET");
+    if (!endpoint || !secret || strncmp(endpoint, "http://127.0.0.1:", 17) != 0) return NULL;
+    char header[256];
+    if (strlen(secret) > 128 || snprintf(header, sizeof(header), "X-Rdp-Internal-Secret: %s", secret) < 0) {
+        return NULL;
+    }
+    CURL* client = curl_easy_init();
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = curl_slist_append(headers, header);
+    responseBuffer response = {0}; long status = 0; json_object* result = NULL;
+    if (!client || !headers) goto cleanup;
+    curl_easy_setopt(client, CURLOPT_URL, endpoint);
+    curl_easy_setopt(client, CURLOPT_PROXY, "");
+    curl_easy_setopt(client, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(client, CURLOPT_POSTFIELDS, json_object_to_json_string_ext(request, JSON_C_TO_STRING_PLAIN));
+    curl_easy_setopt(client, CURLOPT_WRITEFUNCTION, receive_body);
+    curl_easy_setopt(client, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(client, CURLOPT_TIMEOUT_MS, 5000L);
+    curl_easy_setopt(client, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
+    curl_easy_setopt(client, CURLOPT_NOSIGNAL, 1L);
+    if (curl_easy_perform(client) != CURLE_OK) goto cleanup;
+    curl_easy_getinfo(client, CURLINFO_RESPONSE_CODE, &status);
+    if (status != 200) goto cleanup;
+    result = json_tokener_parse(response.data);
+cleanup:
+    if (client) curl_easy_cleanup(client);
+    curl_slist_free_all(headers);
+    OPENSSL_cleanse(response.data, sizeof(response.data));
+    return result;
+}
+
+static SECURITY_STATUS ntlm_hash(void* arg, const SEC_WINNT_AUTH_IDENTITY* identity,
+    const SecBuffer* proof, const BYTE* randkey, const BYTE* mic,
+    const SecBuffer* micvalue, BYTE* hash)
+{
+    freerdp_peer* peer = arg;
+    if (!identity || !(identity->Flags & SEC_WINNT_AUTH_IDENTITY_UNICODE) ||
+        !identity->User || identity->UserLength > 300 || identity->DomainLength > 300) return 0;
+    struct sockaddr_in address = {0}; socklen_t size = sizeof(address);
+    int fd = GetEventFileDescriptor(peer->GetEventHandle(peer));
+    if (fd < 0 || getpeername(fd, (struct sockaddr*)&address, &size) ||
+        address.sin_family != AF_INET || ntohl(address.sin_addr.s_addr) != INADDR_LOOPBACK) return 0;
+    char* username = ConvertWCharNToUtf8Alloc((WCHAR*)identity->User, identity->UserLength, NULL);
+    char* domain = identity->DomainLength ? ConvertWCharNToUtf8Alloc((WCHAR*)identity->Domain, identity->DomainLength, NULL) : strdup("");
+    if (!username || !domain) { free(username); free(domain); return 0; }
+    json_object* request = json_object_new_object();
+    json_object_object_add(request, "username", json_object_new_string(username));
+    json_object_object_add(request, "domain", json_object_new_string(domain));
+    json_object_object_add(request, "phase", json_object_new_string("ntlm"));
+    json_object_object_add(request, "connection_port", json_object_new_int(ntohs(address.sin_port)));
+    free(username); free(domain);
+    json_object* result = authenticate(request);
+    json_object_put(request);
+    const char* value = result ? field(result, "ntlm_v2") : NULL;
+    BOOL ok = value && strlen(value) == 32;
+    BYTE decoded[16] = {0};
+    for (size_t i = 0; ok && i < 16; i++) {
+        unsigned int byte;
+        if (sscanf(value + i * 2, "%2x", &byte) != 1) ok = FALSE;
+        else decoded[i] = (BYTE)byte;
+    }
+    if (ok) memcpy(hash, decoded, sizeof(decoded));
+    OPENSSL_cleanse(decoded, sizeof(decoded));
+    if (result) json_object_put(result);
+    /* WinPR's hash callback returns a boolean despite the SECURITY_STATUS type. */
+    return ok ? 1 : 0;
+}
+
 static BOOL fetch_target(proxyPlugin* plugin, proxyData* data, void* arg)
 {
     proxyFetchTargetEventInfo* event = arg;
@@ -66,38 +139,18 @@ static BOOL fetch_target(proxyPlugin* plugin, proxyData* data, void* arg)
     json_object_object_add(request, "username", json_object_new_string(username));
     json_object_object_add(request, "password", json_object_new_string(password));
     json_object_object_add(request, "connection_port", json_object_new_int(source_port));
-    char header[256];
-    if (strlen(secret) > 128 || snprintf(header, sizeof(header), "X-Rdp-Internal-Secret: %s", secret) < 0) {
-        json_object_put(request); return FALSE;
-    }
-    CURL* client = curl_easy_init();
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, header);
-    responseBuffer response = {0}; long status = 0; BOOL ok = FALSE;
-    if (!client || !headers) goto cleanup;
-    curl_easy_setopt(client, CURLOPT_URL, endpoint);
-    curl_easy_setopt(client, CURLOPT_PROXY, "");
-    curl_easy_setopt(client, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(client, CURLOPT_POSTFIELDS, json_object_to_json_string_ext(request, JSON_C_TO_STRING_PLAIN));
-    curl_easy_setopt(client, CURLOPT_WRITEFUNCTION, receive_body);
-    curl_easy_setopt(client, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(client, CURLOPT_TIMEOUT_MS, 5000L);
-    curl_easy_setopt(client, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
-    curl_easy_setopt(client, CURLOPT_NOSIGNAL, 1L);
-    if (curl_easy_perform(client) != CURLE_OK) goto cleanup;
-    curl_easy_getinfo(client, CURLINFO_RESPONSE_CODE, &status);
-    if (status != 200) goto cleanup;
-    json_object* result = json_tokener_parse(response.data);
+    json_object* result = authenticate(request);
+    json_object_put(request);
+    BOOL ok = FALSE;
+    if (!result) return FALSE;
     json_object* port = NULL;
-    if (!result) goto cleanup;
     const char* host = field(result, "address");
     const char* pin = field(result, "fingerprint");
     if (!host || !pin || strlen(pin) != 64 || !field(result, "username") ||
         !field(result, "password") || !field(result, "domain") ||
         !json_object_object_get_ex(result, "port", &port) ||
         json_object_get_int(port) < 1 || json_object_get_int(port) > 65535) {
-        json_object_put(result); goto cleanup;
+        goto cleanup;
     }
     event->target_address = strdup(host);
     event->target_port = json_object_get_int(port);
@@ -105,17 +158,14 @@ static BOOL fetch_target(proxyPlugin* plugin, proxyData* data, void* arg)
     json_object* state = plugin->mgr->GetPluginData(plugin->mgr, NAME, data);
     if (!event->target_address || !state) {
         free(event->target_address); event->target_address = NULL;
-        json_object_put(result); goto cleanup;
+        goto cleanup;
     }
-    json_object_object_add(state, "target", result);
+    json_object_object_add(state, "target", json_object_get(result));
     /* The copied client settings are overwritten before the upstream is opened. */
     freerdp_settings_set_string(settings, FreeRDP_Password, NULL);
     ok = TRUE;
 cleanup:
-    if (client) curl_easy_cleanup(client);
-    curl_slist_free_all(headers);
-    json_object_put(request);
-    OPENSSL_cleanse(response.data, sizeof(response.data));
+    json_object_put(result);
     return ok;
 }
 
@@ -210,6 +260,7 @@ static BOOL initialize(proxyPlugin* plugin, proxyData* data, void* arg)
     if (!plugin->mgr->SetPluginData(plugin->mgr, NAME, data, state)) {
         json_object_put(state); return FALSE;
     }
+    client->SspiNtlmHashCallback = ntlm_hash;
     return TRUE;
 }
 

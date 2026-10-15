@@ -123,7 +123,8 @@ class RdpGatewayAuthorization(BaseModel):
     connection_port: int = Field(..., ge=1, le=65535)
     username: str = Field("", max_length=300)
     password: str = Field("", max_length=4096, repr=False)
-    phase: Literal["login", "connected"] = "login"
+    phase: Literal["login", "connected", "ntlm"] = "login"
+    domain: str = Field("", max_length=300)
 
 
 class HostGrantUpdate(BaseModel):

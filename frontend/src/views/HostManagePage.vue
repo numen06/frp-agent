@@ -63,7 +63,7 @@
               连接凭证
             </button>
             <button v-if="host.host_type === 'rdp' && host.permissions.includes('connect')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" :disabled="!gatewayInfo.rdp_gateway?.running || operating" @click="downloadRdpFile(host)">下载远程桌面连接</button>
-            <p v-if="host.host_type === 'rdp'" class="col-span-2 w-full text-xs leading-5 text-gray-500">{{ gatewayInfo.rdp_gateway?.running ? '使用 mstsc 连接公网网关，填写“平台账号#主机名”和平台密码；也可下载连接文件。' : 'RDP 网关未运行，请管理员配置公网地址、TLS 证书并启用网关。' }}</p>
+            <p v-if="host.host_type === 'rdp'" class="col-span-2 w-full text-xs leading-5 text-gray-500">{{ gatewayInfo.rdp_gateway?.running ? '使用 mstsc 或 Windows App 连接公网地址，填写“平台账号#主机名”和平台密码，客户端的网关设置留空。首次使用或修改密码后，请先用平台密码登录网页一次；也可下载连接文件。' : 'RDP 网关未运行，请管理员配置公网地址、TLS 证书并启用网关。' }}</p>
             <button v-if="host.host_type === 'ssh' && host.permissions.includes('execute')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" @click="openConsole(host)">命令终端</button>
             <button v-if="host.host_type === 'docker' && host.permissions.includes('docker')" class="btn btn-sm min-h-11 touch-manipulation border border-violet-300 bg-white text-violet-700 hover:bg-violet-50 sm:min-h-8" @click="openDocker(host)">容器管理</button>
             <button v-if="host.can_manage" class="btn btn-icon-sm btn-icon-muted hidden sm:inline-flex" title="克隆" aria-label="克隆" @click="openHostEditor(host, true)">

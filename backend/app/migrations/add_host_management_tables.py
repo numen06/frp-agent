@@ -24,6 +24,8 @@ def upgrade():
             conn.execute(text(
                 "ALTER TABLE users ADD COLUMN ssh_public_key TEXT"
             ))
+        if "rdp_ntlm_encrypted" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN rdp_ntlm_encrypted TEXT"))
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_ssh_public_key "
             "ON users(ssh_public_key)"

@@ -268,7 +268,7 @@ def authorize_rdp_gateway(
             or not get_settings().rdp_gateway_enabled
             or not hmac.compare_digest(supplied, rdp_gateway_service.internal_secret)):
         raise HTTPException(status_code=403, detail="禁止访问 RDP 内部接口")
-    result = rdp_gateway_service.authorize(db, body.connection_port, body.username, body.password, body.phase)
+    result = rdp_gateway_service.authorize(db, body.connection_port, body.username, body.password, body.phase, body.domain)
     return Response(json.dumps(result), media_type="application/json", headers={"Cache-Control": "no-store"})
 
 

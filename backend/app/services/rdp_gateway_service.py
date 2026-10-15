@@ -24,7 +24,8 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models.managed_host import ManagedHost
 from app.services.credential_encryption import decrypt_secret
-from app.services.ssh_gateway_service import authenticate_gateway_resource
+from app.services.ssh_gateway_service import authenticate_gateway_resource, parse_gateway_username, _authorize_gateway_identity
+from app.services.rdp_auth_service import ntlm_verifier
 from app.models.api_key import ApiKey
 from app.models.user import User
 from app.services.host_access_service import add_audit_log, require_host_access
@@ -127,6 +128,7 @@ class Relay:
     authorized: bool = False
     connected: bool = False
     ended: bool = False
+    ntlm_requested: bool = False
 
 
 class RDPGatewayService:
@@ -174,7 +176,7 @@ class RDPGatewayService:
         if any(c in login for c in "\r\n\x00"):
             raise HTTPException(status_code=400, detail="用户名或主机名包含无效字符")
         lines = [f"full address:s:{self.public_address()}", f"username:s:{login}",
-                 "gatewayusagemethod:i:0", "enablecredsspsupport:i:0",
+                 "gatewayusagemethod:i:0", f"enablecredsspsupport:i:{int(user.id > 0)}",
                  "negotiate security layer:i:1", "authentication level:i:1",
                  "prompt for credentials:i:1", "autoreconnection enabled:i:0",
                  "redirectclipboard:i:0", "redirectprinters:i:0", "redirectcomports:i:0",
@@ -200,7 +202,7 @@ class RDPGatewayService:
                  host.host_key_fingerprint or ""]
         return hashlib.sha256("\x00".join(parts).encode()).hexdigest()
 
-    def authorize(self, db, connection_port, username, password, phase="login"):
+    def authorize(self, db, connection_port, username, password, phase="login", domain=""):
         with self._lock:
             relay = self._sessions.get(connection_port)
             if not relay or relay.ended or time.monotonic() - relay.created >= SESSION_SECONDS:
@@ -217,9 +219,19 @@ class RDPGatewayService:
             state = self._ips.get(relay.ip)
             if state and state["blocked"] > time.monotonic():
                 raise HTTPException(status_code=403, detail="RDP 认证暂时受限")
+            if phase == "ntlm":
+                relay.ntlm_requested = True
+                mode, login_name, host_name = parse_gateway_username(username)
+                user = db.query(User).filter_by(username=login_name, is_active=True).first() if mode == "user" else None
+                if (not user or not _authorize_gateway_identity(db, user, host_name, mode=mode,
+                        host_type="rdp", permission="connect") or not ntlm_verifier(user)):
+                    raise HTTPException(status_code=403, detail="NLA 凭据不可用，请先使用平台密码登录网页")
+                # Return only the identity-specific NTLMv2 key to the local FreeRDP callback.
+                identity = (username.upper() + domain).encode("utf-16-le")
+                return {"ntlm_v2": hmac.new(bytes.fromhex(ntlm_verifier(user)), identity, "md5").hexdigest()}
             context = authenticate_gateway_resource(db, username, password, host_type="rdp", permission="connect")
             if not context:
-                if state:
+                if state and not relay.ntlm_requested:
                     state["failures"] += 1
                     if state["failures"] >= 10:
                         state["blocked"] = time.monotonic() + 1800
@@ -295,6 +307,7 @@ class RDPGatewayService:
         upstream = None
         relay = None
         port = None
+        stage = "connect"
         try:
             upstream = socket.create_connection(("127.0.0.1", proxy_port), timeout=3)
             port = upstream.getsockname()[1]
@@ -311,12 +324,15 @@ class RDPGatewayService:
                 return
             upstream.sendall(request)
             response = self._tpkt(upstream)
-            if response[5] != 0xD0 or response[-8] != 2 or int.from_bytes(response[-4:], "little") != 1:
+            if response[5] != 0xD0 or response[-8] != 2 or int.from_bytes(response[-4:], "little") not in {1, 2, 8}:
                 return
             client.sendall(response)
             hostname = urlsplit("//" + self.public_address()).hostname
+            stage = "upstream_tls"
             upstream = self._tls_proxy.wrap_socket(upstream, server_hostname=hostname)
+            stage = "client_tls"
             client = self._tls_server.wrap_socket(client, server_side=True)
+            stage = "relay"
             relay.sockets = (client, upstream)
             check_at = time.monotonic()
             while not relay.ended and self.running:
@@ -331,18 +347,31 @@ class RDPGatewayService:
                 if not ready:
                     ready, _, _ = select.select(relay.sockets, [], [], 0.5)
                 for source in ready:
-                    chunk = source.recv(65536)
+                    # TLS control records can make select readable without any RDP
+                    # bytes. Never block the opposite direction waiting for them.
+                    try:
+                        source.settimeout(0)
+                        chunk = source.recv(65536)
+                    except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                        continue
+                    finally:
+                        source.settimeout(3)
                     if not chunk:
                         return
                     (upstream if source is client else client).sendall(chunk)
-        except (OSError, ValueError, HTTPException):
-            pass
+        except (OSError, ValueError, HTTPException) as exc:
+            logger.info("RDP connection closed: stage=%s error=%s", stage, type(exc).__name__)
         except Exception:
             logger.error("RDP relay closed because authorization or transport failed")
         finally:
             with self._lock:
                 if relay:
                     relay.ended = True
+                    if relay.ntlm_requested and not relay.authorized:
+                        state = self._ips[ip]
+                        state["failures"] += 1
+                        if state["failures"] >= 10:
+                            state["blocked"] = time.monotonic() + 1800
                 self._sessions.pop(port, None)
                 self._active -= 1
                 self._ips[ip]["active"] -= 1
@@ -408,7 +437,7 @@ Mouse=true
 Multitouch=false
 [Security]
 ServerTlsSecurity=true
-ServerNlaSecurity=false
+ServerNlaSecurity=true
 ServerRdpSecurity=false
 ClientNlaSecurity=true
 ClientTlsSecurity=false

@@ -14,6 +14,7 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user")  # admin | user
     is_active = Column(Boolean, nullable=False, default=True)
     ssh_public_key = Column(Text, unique=True, nullable=True)
+    rdp_ntlm_encrypted = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     def __repr__(self):
