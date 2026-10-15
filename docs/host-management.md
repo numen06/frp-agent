@@ -177,6 +177,10 @@ ports:
 
 该次人工验收镜像为 `frp-agent:rdp-platform-20261015-v2`，配置和数据库备份位于 `/data/compose/9/rdp-platform-20261015-v2/` 及应用数据目录中的 `rdp-platform-v2-database.before.sqlite`。后续代码更新提交 `dev` 后沿用项目自动发布流程。
 
+2026-10-15 NLA 修复验收：入口增加 NLA/CredSSP，修复 TLS 控制帧触发阻塞读取、约 3 秒后误断开的问题。使用 FreeRDP 的 NLA 模式，经公网 `13389` 和正式证书校验，临时普通平台用户实际进入 `10.81.73.29` 的 Windows 桌面，连接保持约 26 秒后由测试程序主动断开；授权、桌面已连接及断开审计齐全，临时用户与授权已删除。错误平台密码的 NLA 认证被拒绝，53 项相关回归测试通过。此为 FreeRDP NLA 实测，Windows App 客户端仍需用户重试确认。
+
+本轮按用户要求手动部署镜像 `frp-agent:rdp-nla-20261015-v3`，配置及容器快照备份在 `/data/compose/9/rdp-nla-20261015-v3/`，数据库备份为应用数据目录的 `rdp-nla-v3-database.before.sqlite`。代码已推送 `dev`；app2docker 自动发布尚未确认，当前线上仍为上述手动镜像。
+
 ## 安全配置
 
 生产环境必须设置稳定、随机的 `SSH_CREDENTIAL_SECRET`。它同时保护 SSH 和 Portainer 凭据；修改该值后，已有凭据将无法解密。
