@@ -179,7 +179,9 @@ ports:
 
 2026-10-15 NLA 修复验收：入口增加 NLA/CredSSP，修复 TLS 控制帧触发阻塞读取、约 3 秒后误断开的问题。使用 FreeRDP 的 NLA 模式，经公网 `13389` 和正式证书校验，临时普通平台用户实际进入 `10.81.73.29` 的 Windows 桌面，连接保持约 26 秒后由测试程序主动断开；授权、桌面已连接及断开审计齐全，临时用户与授权已删除。错误平台密码的 NLA 认证被拒绝，53 项相关回归测试通过。此为 FreeRDP NLA 实测，Windows App 客户端仍需用户重试确认。
 
-本轮按用户要求手动部署镜像 `frp-agent:rdp-nla-20261015-v3`，配置及容器快照备份在 `/data/compose/9/rdp-nla-20261015-v3/`，数据库备份为应用数据目录的 `rdp-nla-v3-database.before.sqlite`。代码已推送 `dev`；app2docker 自动发布尚未确认，当前线上仍为上述手动镜像。
+本轮按用户要求手动部署镜像 `frp-agent:rdp-nla-20261015-v3`，配置及容器快照备份在 `/data/compose/9/rdp-nla-20261015-v3/`，数据库备份为应用数据目录的 `rdp-nla-v3-database.before.sqlite`。代码已推送 `dev`；app2docker 自动发布尚未确认，该轮使用手动镜像。
+
+2026-10-15 指纹自动获取版本已手动部署为 `frp-agent:rdp-fingerprint-20261015-v4`（代码提交 `f137ee6`）。新增时留空自动获取和保存、管理员获取接口、已有指纹保持及变更拒绝均已验证，59 项相关测试和前端构建通过。线上官网、新前端资源、探测接口认证保护、RDP TLS 及 SSH 网关检查通过。配置和容器备份位于 `/data/compose/9/rdp-fingerprint-20261015-v4/`，数据库备份为应用数据目录中的 `rdp-fingerprint-v4-database.before.sqlite`。
 
 ## 安全配置
 
