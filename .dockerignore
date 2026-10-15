@@ -67,3 +67,8 @@ docker-compose.yml
 Dockerfile
 .dockerignore
 
+# Generated RDP artifacts are not build inputs.
+gateway/rdp/upstream
+gateway/rdp/*.exe
+gateway/rdp/frp-rdp-gateway
+gateway/rdp/*.so

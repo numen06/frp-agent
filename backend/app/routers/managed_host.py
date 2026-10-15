@@ -1,9 +1,12 @@
 """主机管理、授权、远程操作与审计 API。"""
 from datetime import datetime
+import hmac
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 import os
+import json
+import re
 from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -30,6 +33,7 @@ from app.schemas.managed_host import (
     ManagedHostUpdate,
     ManagedUserCreate,
     ManagedUserUpdate,
+    RdpGatewayAuthorization,
 )
 from app.services.host_access_service import (
     accessible_host_ids,
@@ -54,6 +58,10 @@ from app.services.docker_gateway_service import (
     issue_docker_client_certificate,
 )
 from app.config import get_settings
+from app.services.rdp_gateway_service import (
+    rdp_gateway_service, rdp_client_ip, validate_rdp_address, test_rdp_connection,
+    require_secure_rdp_download,
+)
 
 router = APIRouter(prefix="/api/managed-hosts", tags=["主机管理"])
 
@@ -130,6 +138,18 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
                 status_code=400,
                 detail="Portainer 含路径时请填写完整 URL，例如 http://host/docker/",
             )
+    elif values["host_type"] == "rdp":
+        values["address"] = validate_rdp_address(values["address"])
+        if not values.get("credential_id"):
+            raise HTTPException(status_code=400, detail="RDP 主机必须绑定 Windows 密码凭据")
+        credential = _get_credential(db, values["credential_id"])
+        if credential.auth_type != "password":
+            raise HTTPException(status_code=400, detail="RDP 不支持私钥凭据，请选择 Windows 密码凭据")
+        pin = values.get("host_key_fingerprint") or ""
+        if not re.fullmatch(r"SHA256:[0-9a-fA-F]{64}", pin):
+            raise HTTPException(status_code=400, detail="请填写 RDP 证书的 SHA256:十六进制指纹")
+        values["docker_credential_id"] = None
+        values["docker_endpoint_id"] = None
     else:
         raise HTTPException(status_code=400, detail="不支持的主机类型")
     if values["host_type"] == "ssh" and "://" in values.get("address", ""):
@@ -139,7 +159,7 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
 def _host_response(
     db: Session, host: ManagedHost, current_user: User
 ) -> ManagedHostResponse:
-    credential = host.credential if host.host_type == "ssh" else host.docker_credential
+    credential = host.credential if host.host_type in {"ssh", "rdp"} else host.docker_credential
     return ManagedHostResponse(
         id=host.id,
         name=host.name,
@@ -148,9 +168,9 @@ def _host_response(
         host_type=host.host_type,
         credential_id=host.credential_id,
         docker_credential_id=host.docker_credential_id,
-        credential_name=credential.name if credential else "已删除凭据",
+        credential_name=credential.name if credential else "未配置凭据",
         credential_username=(credential.username or "") if credential else "",
-        credential_kind="SSH" if host.host_type == "ssh" else "Docker",
+        credential_kind={"ssh": "SSH", "docker": "Docker", "rdp": "RDP"}[host.host_type],
         docker_use_tls=host.docker_use_tls,
         docker_verify_tls=host.docker_verify_tls,
         docker_endpoint_id=host.docker_endpoint_id,
@@ -211,6 +231,14 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
         "user_login_format": "<系统用户>#<SSH主机名>",
         "user_auth_methods": ["password", "publickey"],
         "api_key_login_format": "<SSH主机名>",
+        "rdp_gateway": {
+            "enabled": settings.rdp_gateway_enabled,
+            "running": rdp_gateway_service.running,
+            "port": settings.rdp_gateway_port,
+            "public_address": settings.rdp_gateway_public_address,
+            "user_login_format": "<系统用户>#<RDP主机名>",
+            "api_key_login_format": "<RDP主机名>",
+        },
         "docker_gateway": {
             "enabled": settings.docker_gateway_enabled,
             "running": docker_gateway_service.running,
@@ -225,6 +253,39 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
             "api_key_login_format": "<Docker主机名>",
         },
     }
+
+
+@router.post("/gateway/rdp/authorize")
+def authorize_rdp_gateway(
+    body: RdpGatewayAuthorization,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # This is a local child-process callback, never a browser-facing auth API.
+    peer = request.client.host if request.client else ""
+    supplied = request.headers.get("x-rdp-internal-secret", "")
+    if (peer not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+            or not get_settings().rdp_gateway_enabled
+            or not hmac.compare_digest(supplied, rdp_gateway_service.internal_secret)):
+        raise HTTPException(status_code=403, detail="禁止访问 RDP 内部接口")
+    result = rdp_gateway_service.authorize(db, body.connection_port, body.username, body.password, body.phase)
+    return Response(json.dumps(result), media_type="application/json", headers={"Cache-Control": "no-store"})
+
+
+@router.post("/{host_id}/rdp-file")
+def download_rdp_file(
+    host_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    host = require_host_access(db, current_user, host_id, "connect")
+    require_secure_rdp_download(request)
+    content = rdp_gateway_service.issue_file(db, current_user, host, rdp_client_ip(request))
+    return Response(content, media_type="application/x-rdp", headers={
+        "Content-Disposition": f'attachment; filename="frp-agent-rdp-{host.id}.rdp"',
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    })
 
 
 @router.get("/gateway/docker-ca")
@@ -403,6 +464,9 @@ def test_host(
             )
             if result.exit_code == 0:
                 version_info = " ".join(result.stdout.split())[:500] or None
+        elif host.host_type == "rdp":
+            result, duration_ms = test_rdp_connection(host)
+            fingerprint = None
         else:
             result, duration_ms = test_docker_connection(host, 20)
             fingerprint = None
@@ -413,7 +477,7 @@ def test_host(
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
         host.last_message = (
-            f"{'SSH' if host.host_type == 'ssh' else 'Portainer API'} 连接成功"
+            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TCP'}[host.host_type]} 连接成功"
             if success
             else (result.stderr or "连接成功，但测试失败")
         )[:500]

@@ -66,3 +66,5 @@ frpc_*.toml
 !examples/frpc_*.toml
 
 /.cursor/plans
+
+gateway/rdp/*.so

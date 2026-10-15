@@ -17,7 +17,7 @@ from app.database import Base
 
 
 class ManagedHost(Base):
-    """由系统代管 SSH 连接凭据的主机。"""
+    """由系统授权并代管 SSH、Windows 或 Portainer 凭据的资源。"""
 
     __tablename__ = "managed_hosts"
 
@@ -25,7 +25,7 @@ class ManagedHost(Base):
     name = Column(String(100), unique=True, nullable=False, index=True)
     address = Column(String(255), nullable=False)
     port = Column(Integer, nullable=False, default=22)
-    host_type = Column(String(20), nullable=False, default="ssh")  # ssh | docker
+    host_type = Column(String(20), nullable=False, default="ssh")  # ssh | docker | rdp
     credential_id = Column(Integer, ForeignKey("ssh_credentials.id"), nullable=True)
     docker_credential_id = Column(
         Integer, ForeignKey("docker_credentials.id"), nullable=True

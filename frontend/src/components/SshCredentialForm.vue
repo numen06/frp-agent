@@ -8,7 +8,7 @@
           class="block w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm"
           @change="onSelect"
         >
-          <option :value="0">请选择 SSH 凭据</option>
+          <option :value="0">{{ passwordOnly ? '请选择 Windows 密码凭据' : '请选择 SSH 凭据' }}</option>
           <option v-for="c in credentials" :key="c.id" :value="c.id">
             {{ c.name }} ({{ c.username }})
           </option>
@@ -38,7 +38,7 @@
         <label class="mb-1 block text-xs font-medium text-gray-600">认证方式</label>
         <select v-model="form.auth_type" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm">
           <option value="password">密码</option>
-          <option value="private_key">私钥</option>
+          <option v-if="!passwordOnly" value="private_key">私钥</option>
         </select>
       </div>
       <div v-if="form.auth_type === 'password'">
@@ -76,7 +76,7 @@
           <input v-model="form.passphrase" type="password" class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
         </div>
       </template>
-      <div>
+      <div v-if="!passwordOnly">
         <label class="mb-1 block text-xs font-medium text-gray-600">
           sudo 密码（可选）{{ editingId ? '（留空不修改）' : '' }}
         </label>
@@ -110,7 +110,8 @@ import { ref, watch, onMounted } from 'vue'
 import { sshCredentialsApi } from '@/api/sshCredentials'
 
 const props = defineProps({
-  modelValue: { type: Number, default: 0 }
+  modelValue: { type: Number, default: 0 },
+  passwordOnly: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -124,7 +125,7 @@ const privateKeyFileName = ref('')
 
 const form = ref({
   name: '',
-  username: 'root',
+  username: props.passwordOnly ? 'administrator' : 'root',
   auth_type: 'password',
   password: '',
   private_key: '',
@@ -139,7 +140,7 @@ watch(() => props.modelValue, (v) => {
 function resetForm() {
   form.value = {
     name: '',
-    username: 'root',
+    username: props.passwordOnly ? 'administrator' : 'root',
     auth_type: 'password',
     password: '',
     private_key: '',
@@ -169,7 +170,8 @@ async function loadPrivateKeyFile(event) {
 
 async function loadCredentials() {
   try {
-    credentials.value = await sshCredentialsApi.list()
+    const rows = await sshCredentialsApi.list()
+    credentials.value = props.passwordOnly ? rows.filter(c => c.auth_type === 'password') : rows
     if (selectedId.value) onSelect()
   } catch (e) {
     console.error(e)

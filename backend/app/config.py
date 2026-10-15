@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     docker_gateway_tls_key_path: str = "data/docker_gateway_tls_key.pem"
     docker_gateway_request_timeout: int = 300
 
+    # 原生 mstsc RDP/TLS 网关；证书和公网地址配置完成后再启用。
+    rdp_gateway_enabled: bool = False
+    rdp_gateway_host: str = "0.0.0.0"
+    rdp_gateway_port: int = 13389
+    rdp_gateway_public_address: str = ""
+    rdp_gateway_binary: str = "freerdp-proxy3"
+    rdp_gateway_tls_cert_path: str = "data/rdp_gateway_cert.pem"
+    rdp_gateway_tls_key_path: str = "data/rdp_gateway_key.pem"
+    # 只有来自这些 CIDR 的请求才读取 X-Forwarded-For；空值不信任代理头。
+    rdp_gateway_trusted_proxies: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = False

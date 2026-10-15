@@ -9,6 +9,7 @@ services:
       - "8000:8000"
       - "2222:2222"
       - "23750:23750"
+      - "13389:13389"
     volumes:
       - ./data:/app/data
     environment:
@@ -19,5 +20,11 @@ services:
       - DOCKER_GATEWAY_ENABLED=true
       - DOCKER_GATEWAY_PORT=23750
       - DOCKER_GATEWAY_TLS_COMMON_NAME=${DOCKER_GATEWAY_TLS_COMMON_NAME:-localhost}
+      - RDP_GATEWAY_ENABLED=${RDP_GATEWAY_ENABLED:-false}
+      - RDP_GATEWAY_PORT=13389
+      - RDP_GATEWAY_PUBLIC_ADDRESS=${RDP_GATEWAY_PUBLIC_ADDRESS:-}
+      - RDP_GATEWAY_TLS_CERT_PATH=/app/data/rdp_gateway_cert.pem
+      - RDP_GATEWAY_TLS_KEY_PATH=/app/data/rdp_gateway_key.pem
+      - RDP_GATEWAY_TRUSTED_PROXIES=${RDP_GATEWAY_TRUSTED_PROXIES:-}
       - APP_DEBUG=false
       - SYNC_INTERVAL_SECONDS=30

@@ -5,7 +5,7 @@
         <div>
           <h1 class="text-lg font-semibold text-gray-900">主机资源</h1>
           <p class="mt-1 text-sm text-gray-500">
-            SSH 主机与 Portainer Docker 环境独立纳管，共用用户/API Key 授权与访问审计。
+            SSH、RDP 远程桌面与 Portainer Docker 环境独立纳管，共用用户/API Key 授权与访问审计。
           </p>
         </div>
         <div v-if="context.is_admin" class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
@@ -42,7 +42,7 @@
                 <span
                   class="rounded-full px-2 py-0.5 text-xs font-medium"
                   :class="host.host_type === 'ssh' ? 'bg-blue-50 text-blue-700' : 'bg-violet-50 text-violet-700'"
-                >{{ host.host_type === 'ssh' ? 'SSH' : 'Docker / Portainer' }}</span>
+                >{{ { ssh: 'SSH', docker: 'Docker / Portainer', rdp: 'RDP 远程桌面' }[host.host_type] }}</span>
               </div>
               <p class="mt-1 break-all font-mono text-xs text-gray-500">
                 {{ hostAddress(host) }}
@@ -62,6 +62,8 @@
             <button v-if="host.permissions.includes('connect')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" @click="openConnectionDetails(host)">
               连接凭证
             </button>
+            <button v-if="host.host_type === 'rdp' && host.permissions.includes('connect')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" :disabled="!gatewayInfo.rdp_gateway?.running || operating" @click="downloadRdpFile(host)">下载远程桌面连接</button>
+            <p v-if="host.host_type === 'rdp'" class="col-span-2 w-full text-xs leading-5 text-gray-500">{{ gatewayInfo.rdp_gateway?.running ? '使用 mstsc 连接公网网关，填写“平台账号#主机名”和平台密码；也可下载连接文件。' : 'RDP 网关未运行，请管理员配置公网地址、TLS 证书并启用网关。' }}</p>
             <button v-if="host.host_type === 'ssh' && host.permissions.includes('execute')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" @click="openConsole(host)">命令终端</button>
             <button v-if="host.host_type === 'docker' && host.permissions.includes('docker')" class="btn btn-sm min-h-11 touch-manipulation border border-violet-300 bg-white text-violet-700 hover:bg-violet-50 sm:min-h-8" @click="openDocker(host)">容器管理</button>
             <button v-if="host.can_manage" class="btn btn-icon-sm btn-icon-muted hidden sm:inline-flex" title="克隆" aria-label="克隆" @click="openHostEditor(host, true)">
@@ -102,7 +104,7 @@
               {{ subject.subject_type === 'user' ? '用户' : 'API Key' }} · {{ subject.name }}
             </option>
           </select>
-          <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_connect" type="checkbox">连接测试</label>
+          <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_connect" type="checkbox">连接 / RDP 访问</label>
           <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_execute" type="checkbox">SSH 命令</label>
           <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_manage_docker" type="checkbox">Docker 操作</label>
           <button class="btn btn-md btn-primary min-h-11 md:col-span-1 md:min-h-9" type="submit">保存授权</button>
@@ -257,7 +259,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           <button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="aiPromptOpen = false">✕</button>
         </div>
         <div class="min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
-          <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+          <div class="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-1">
             <button type="button" class="min-h-10 rounded-md px-3 py-2 text-sm" :class="aiPromptForm.host_type === 'ssh' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setAiPromptType('ssh')">SSH 主机</button>
             <button type="button" class="min-h-10 rounded-md px-3 py-2 text-sm" :class="aiPromptForm.host_type === 'docker' ? 'bg-white font-medium text-violet-700 shadow-sm' : 'text-gray-500'" @click="setAiPromptType('docker')">Docker 主机</button>
           </div>
@@ -288,7 +290,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
         <div class="flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
           <div class="min-w-0">
             <h2 class="truncate font-semibold">{{ connectionHost.name }} · 连接凭证</h2>
-            <p class="mt-0.5 text-xs text-gray-500">{{ connectionHost.host_type === 'ssh' ? 'SSH 跳板连接' : 'Docker HTTPS 网关' }}</p>
+            <p class="mt-0.5 text-xs text-gray-500">{{ { ssh: 'SSH 跳板连接', docker: 'Docker HTTPS 网关', rdp: 'RDP 平台账号代登录' }[connectionHost.host_type] }}</p>
           </div>
           <button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="connectionHost = null">✕</button>
         </div>
@@ -353,6 +355,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
             <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'ssh' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setHostType('ssh')">SSH 主机</button>
             <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'docker' ? 'bg-white font-medium text-violet-700 shadow-sm' : 'text-gray-500'" @click="setHostType('docker')">Docker 主机</button>
+            <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'rdp' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setHostType('rdp')">RDP 主机</button>
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="text-sm">名称<input v-model.trim="hostForm.name" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" required></label>
@@ -364,7 +367,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             <SshCredentialForm v-model="hostForm.credential_id" />
             <label class="block text-sm">SSH 主机指纹（可选）<input v-model.trim="hostForm.host_key_fingerprint" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" placeholder="SHA256:..."><span class="mt-1 block text-xs text-gray-400">留空时首次连接自动记录，后续严格校验。</span></label>
           </template>
-          <template v-else>
+          <template v-else-if="hostForm.host_type === 'docker'">
             <div class="rounded-lg border border-violet-100 bg-violet-50/40 p-3">
               <label class="text-sm">Portainer 凭据<select v-model.number="hostForm.docker_credential_id" class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" required><option :value="0" disabled>请选择凭据</option><option v-for="cred in dockerCredentials" :key="cred.id" :value="cred.id">{{ cred.name }}（{{ cred.auth_type === 'api_key' ? 'API Key' : '用户名/密码' }}）</option></select></label>
               <button type="button" class="mt-2 text-xs font-medium text-violet-700" @click="dockerCredentialEditor = !dockerCredentialEditor">+ 新建 Docker 凭据</button>
@@ -385,6 +388,11 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               </div>
               <p v-else class="pt-1 text-xs leading-5 text-gray-500">协议、端口和反向代理路径按完整 URL 自动识别。</p>
             </div>
+          </template>
+          <template v-if="hostForm.host_type === 'rdp'">
+            <SshCredentialForm :key="hostForm.host_type" v-model="hostForm.credential_id" password-only />
+            <label class="block text-sm">Windows RDP 证书 SHA256 指纹<input v-model.trim="hostForm.host_key_fingerprint" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" placeholder="SHA256:64 位十六进制" required></label>
+            <p class="rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800">绑定 Windows 密码凭据后，用户使用“平台账号#主机名”和平台密码连接公网 13389，网关自动代登录。Windows 密码加密保存，不会出现在连接文件中。</p>
           </template>
           <label class="block text-sm">标签<input v-model.trim="hostForm.tags" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="生产, 华东"></label>
           <label class="block text-sm">描述<textarea v-model.trim="hostForm.description" rows="2" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"></textarea></label>
@@ -526,7 +534,7 @@ async function load() {
 function setHostType(type) {
   if (hostForm.host_type !== type) {
     hostForm.host_type = type
-    hostForm.port = type === 'ssh' ? 22 : 9443
+    hostForm.port = { ssh: 22, docker: 9443, rdp: 3389 }[type]
   }
 }
 function setAiPromptType(type) {
@@ -562,7 +570,7 @@ function openHostEditor(host = null, clone = false) {
   hostEditor.value = true
 }
 async function saveHost() {
-  const payload = { ...hostForm, credential_id: hostForm.host_type === 'ssh' ? hostForm.credential_id : null, docker_credential_id: hostForm.host_type === 'docker' ? hostForm.docker_credential_id : null, host_key_fingerprint: hostForm.host_key_fingerprint || null }
+  const payload = { ...hostForm, credential_id: ['ssh', 'rdp'].includes(hostForm.host_type) ? hostForm.credential_id : null, docker_credential_id: hostForm.host_type === 'docker' ? hostForm.docker_credential_id : null, host_key_fingerprint: hostForm.host_key_fingerprint || null }
   try {
     if (editingHostId.value) await managedHostsApi.update(editingHostId.value, payload)
     else await managedHostsApi.create(payload)
@@ -576,6 +584,19 @@ async function removeHost(host) {
 }
 async function testHost(host) {
   try { const result = await managedHostsApi.test(host.id); alert(result.success ? `连接成功（${result.duration_ms}ms）` : result.stderr); await loadHosts(); await loadAudit() } catch (e) { alert(e.message) }
+}
+async function downloadRdpFile(host) {
+  operating.value = true
+  try {
+    const blob = await managedHostsApi.rdpFile(host.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `frp-agent-rdp-${host.id}.rdp`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    await loadAudit()
+  } catch (e) { alert(e.message) } finally { operating.value = false }
 }
 function openConsole(host) { consoleHost.value = host; command.value = 'uptime'; commandOutput.value = '' }
 async function runCommand(useSudo = false) {
@@ -628,12 +649,16 @@ function hostAddress(host) {
 }
 function statusDot(s) { return s === 'online' ? 'bg-emerald-500' : s === 'offline' || s === 'error' ? 'bg-red-500' : 'bg-gray-300' }
 function formatDate(value) { return value ? new Date(value).toLocaleString('zh-CN') : '-' }
-function actionLabel(value) { return ({ connection_test: '连接测试', execute_command: '执行命令', execute_sudo_command: '提权执行', ssh_gateway_session: 'SSH 跳板会话', docker_gateway_request: 'Docker 网关请求', docker_list: '查询容器', docker_start: '启动容器', docker_stop: '停止容器', docker_restart: '重启容器' })[value] || value }
+function actionLabel(value) { return ({ rdp_file_downloaded: '下载 RDP 连接', rdp_desktop_connected: 'RDP 桌面已连接', rdp_ticket_issued: '签发 RDP 连接', rdp_gateway_authorized: 'RDP 网关授权', rdp_gateway_closed: 'RDP 网关断开', connection_test: '连接测试', execute_command: '执行命令', execute_sudo_command: '提权执行', ssh_gateway_session: 'SSH 跳板会话', docker_gateway_request: 'Docker 网关请求', docker_list: '查询容器', docker_start: '启动容器', docker_stop: '停止容器', docker_restart: '重启容器' })[value] || value }
 function shellQuote(value) { return `'${String(value).replaceAll("'", "'\\''")}'` }
 function buildConnectionInfo(host) {
   const gatewayHost = window.location.hostname || '平台地址'
   const isApiKey = context.actor_type === 'api_key'
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`
+  if (host.host_type === 'rdp') {
+    const gateway = gatewayInfo.value.rdp_gateway?.public_address || `${gatewayHost}:${gatewayInfo.value.rdp_gateway?.port || 13389}`
+    return { gateway, loginName, passwordHint: isApiKey ? '已授权的 API Key' : '平台账号密码（自动代登录 Windows）', command: `mstsc /v:${gateway}` }
+  }
   const port = host.host_type === 'ssh'
     ? (gatewayInfo.value.port || 2222)
     : (gatewayInfo.value.docker_gateway?.port || 23750)

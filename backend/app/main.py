@@ -32,6 +32,7 @@ from app.routers import (
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.services.ssh_gateway_service import ssh_gateway_service
 from app.services.docker_gateway_service import docker_gateway_service
+from app.services.rdp_gateway_service import rdp_gateway_service
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -98,11 +99,16 @@ async def lifespan(app: FastAPI):
         docker_gateway_service.start()
     except Exception as e:
         logger.error("Docker 网关启动失败: %s", e)
+    try:
+        rdp_gateway_service.start()
+    except Exception as e:
+        logger.error("RDP 网关启动失败: %s", e)
     
     yield
     
     # 关闭时清理资源
     logger.info("关闭定时任务...")
+    rdp_gateway_service.stop()
     docker_gateway_service.stop()
     ssh_gateway_service.stop()
     shutdown_scheduler()

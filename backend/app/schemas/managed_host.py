@@ -4,7 +4,7 @@ import binascii
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _normalize_ssh_public_key(value: Optional[str]) -> Optional[str]:
@@ -28,7 +28,7 @@ class ManagedHostCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     address: str = Field(..., min_length=1, max_length=255)
     port: int = Field(22, ge=1, le=65535)
-    host_type: Literal["ssh", "docker"] = "ssh"
+    host_type: Literal["ssh", "docker", "rdp"] = "ssh"
     credential_id: Optional[int] = Field(None, gt=0)
     docker_credential_id: Optional[int] = Field(None, gt=0)
     docker_use_tls: bool = True
@@ -38,6 +38,12 @@ class ManagedHostCreate(BaseModel):
     tags: Optional[str] = Field(None, max_length=500)
     is_active: bool = True
     host_key_fingerprint: Optional[str] = Field(None, max_length=100)
+
+    @model_validator(mode="after")
+    def default_rdp_port(self):
+        if self.host_type == "rdp" and "port" not in self.model_fields_set:
+            self.port = 3389
+        return self
 
     @field_validator("name", "address")
     @classmethod
@@ -62,7 +68,7 @@ class ManagedHostUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     address: Optional[str] = Field(None, min_length=1, max_length=255)
     port: Optional[int] = Field(None, ge=1, le=65535)
-    host_type: Optional[Literal["ssh", "docker"]] = None
+    host_type: Optional[Literal["ssh", "docker", "rdp"]] = None
     credential_id: Optional[int] = Field(None, gt=0)
     docker_credential_id: Optional[int] = Field(None, gt=0)
     docker_use_tls: Optional[bool] = None
@@ -111,6 +117,13 @@ class HostGrantCreate(BaseModel):
     can_manage_docker: bool = False
     is_active: bool = True
     expires_at: Optional[datetime] = None
+
+
+class RdpGatewayAuthorization(BaseModel):
+    connection_port: int = Field(..., ge=1, le=65535)
+    username: str = Field("", max_length=300)
+    password: str = Field("", max_length=4096, repr=False)
+    phase: Literal["login", "connected"] = "login"
 
 
 class HostGrantUpdate(BaseModel):

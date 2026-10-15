@@ -10,6 +10,7 @@ export const managedHostsApi = {
   update: (id, data) => api.put(`/managed-hosts/${id}`, data),
   remove: (id) => api.delete(`/managed-hosts/${id}`),
   test: (id) => api.post(`/managed-hosts/${id}/test`),
+  rdpFile: (id) => api.post(`/managed-hosts/${id}/rdp-file`, null, { responseType: 'blob' }),
   execute: (id, data) => api.post(`/managed-hosts/${id}/commands`, data),
   containers: (id) => api.get(`/managed-hosts/${id}/docker/containers`),
   dockerAction: (id, data) => api.post(`/managed-hosts/${id}/docker/actions`, data),
