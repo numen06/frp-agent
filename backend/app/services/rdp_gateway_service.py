@@ -91,12 +91,64 @@ def rdp_target(host):
     return f"[{address}]:{host.port}" if ":" in address else f"{address}:{host.port}"
 
 
+def probe_rdp_fingerprint(address, port):
+    """Inspect the target certificate without sending any Windows credentials."""
+    address = validate_rdp_address(address.strip())
+    if not 1 <= port <= 65535:
+        raise HTTPException(status_code=400, detail="RDP 端口无效")
+    deadline = time.monotonic() + 8
+
+    def remaining():
+        seconds = deadline - time.monotonic()
+        if seconds <= 0:
+            raise TimeoutError()
+        return seconds
+
+    def read(sock, size):
+        data = b""
+        while len(data) < size:
+            sock.settimeout(remaining())
+            chunk = sock.recv(size - len(data))
+            if not chunk:
+                raise ValueError("RDP 协商提前结束")
+            data += chunk
+        return data
+
+    try:
+        with socket.create_connection((address, port), timeout=5) as sock:
+            sock.sendall(bytes.fromhex("030000130ee000000000000100080003000000"))
+            header = read(sock, 4)
+            size = int.from_bytes(header[2:], "big")
+            if header[:2] != b"\x03\x00" or not 19 <= size <= 4096:
+                raise ValueError("目标未返回有效的 RDP 协商")
+            response = header + read(sock, size - 4)
+            if (response[5] != 0xD0 or response[-8] != 2 or response[-6:-4] != b"\x08\x00"
+                    or int.from_bytes(response[-4:], "little") not in {1, 2, 8}):
+                raise ValueError("目标不支持 RDP TLS/NLA")
+            # Certificate inspection only. Real gateway logins still require the saved pin.
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            sock.settimeout(remaining())
+            with context.wrap_socket(sock, server_hostname=address) as tls:
+                certificate = tls.getpeercert(binary_form=True)
+                if not certificate:
+                    raise ValueError("目标未提供 RDP 证书")
+                return "SHA256:" + hashlib.sha256(certificate).hexdigest()
+    except (OSError, ValueError) as exc:
+        reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+        raise HTTPException(status_code=502, detail=f"无法获取 RDP 证书：{reason}") from exc
+
+
 def test_rdp_connection(host):
     started = time.monotonic()
-    # TCP reachability is separate from an authenticated desktop session.
-    with socket.create_connection((host.address, host.port), timeout=5):
-        pass
-    return CommandResult(0, "RDP TCP 端口可达；请使用平台账号通过 mstsc 网关验证完整登录", ""), int(
+    fingerprint = probe_rdp_fingerprint(host.address, host.port)
+    if not hmac.compare_digest(fingerprint.lower(), (host.host_key_fingerprint or "").lower()):
+        result = CommandResult(1, "", "RDP 证书指纹不匹配，请核验目标机器后重新获取指纹")
+    else:
+        result = CommandResult(0, "RDP TLS/NLA 及证书校验通过；完整桌面登录仍需验证 Windows 凭据", "")
+    return result, int(
         (time.monotonic() - started) * 1000
     )
 

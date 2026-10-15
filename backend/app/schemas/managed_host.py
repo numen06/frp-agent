@@ -119,6 +119,11 @@ class HostGrantCreate(BaseModel):
     expires_at: Optional[datetime] = None
 
 
+class RdpFingerprintRequest(BaseModel):
+    address: str = Field(..., min_length=1, max_length=255)
+    port: int = Field(3389, ge=1, le=65535)
+
+
 class RdpGatewayAuthorization(BaseModel):
     connection_port: int = Field(..., ge=1, le=65535)
     username: str = Field("", max_length=300)

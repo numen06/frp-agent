@@ -236,3 +236,78 @@ def test_real_source_and_https_are_only_accepted_from_trusted_proxy(monkeypatch)
     require_secure_rdp_download(request('172.25.0.2',headers))
     assert rdp_client_ip(request('203.0.113.1',headers))=='203.0.113.1'
     with pytest.raises(HTTPException):require_secure_rdp_download(request('203.0.113.1',headers))
+
+
+def test_rdp_certificate_probe_hashes_der_after_fragmented_nla_negotiation(monkeypatch):
+    from types import SimpleNamespace
+    response=bytes.fromhex('030000130ed000001234000201080002000000')
+    class Socket:
+        def __init__(self):self.data=response;self.sent=[]
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def settimeout(self,value):assert 0<value<=8
+        def recv(self,size):
+            part,self.data=self.data[:min(size,2)],self.data[min(size,2):]
+            return part
+        def sendall(self,data):self.sent.append(data)
+        def getpeercert(self,binary_form):assert binary_form;return b'target-certificate-der'
+    sock=Socket()
+    context=SimpleNamespace(wrap_socket=lambda raw,**kw:raw)
+    monkeypatch.setattr(module.socket,'create_connection',lambda target,timeout:sock)
+    monkeypatch.setattr(module.ssl,'SSLContext',lambda protocol:context)
+    assert module.probe_rdp_fingerprint('win.test',3389)=='SHA256:'+hashlib.sha256(b'target-certificate-der').hexdigest()
+    assert sock.sent==[bytes.fromhex('030000130ee000000000000100080003000000')]
+
+
+@pytest.mark.parametrize('response',[b'HTTP',b'\x03\x00\xff\xff',bytes.fromhex('030000130ed000001234000300080005000000'),b''])
+def test_certificate_probe_rejects_non_rdp_oversized_or_failed_negotiation(monkeypatch,response):
+    from contextlib import nullcontext
+    sock=Mock();sock.recv.side_effect=[response,b'']
+    monkeypatch.setattr(module.socket,'create_connection',lambda *a,**kw:nullcontext(sock))
+    tls=Mock();monkeypatch.setattr(module.ssl,'SSLContext',tls)
+    with pytest.raises(HTTPException) as error:module.probe_rdp_fingerprint('win.test',3389)
+    assert error.value.status_code==502
+    tls.assert_not_called()
+
+
+def test_rdp_auto_enrollment_preserves_pin_on_updates_and_rejects_changed_certificate(setup,monkeypatch):
+    from app.routers import managed_host as router
+    db,user,host,grant,service=setup
+    app.dependency_overrides[get_db]=lambda:db
+    app.dependency_overrides[get_current_user]=lambda:user
+    probe=Mock(return_value='SHA256:'+'b'*64)
+    monkeypatch.setattr(router,'probe_rdp_fingerprint',probe)
+    client=TestClient(app)
+    payload={'name':'auto-win','address':'win.test','port':6021,'host_type':'rdp','credential_id':host.credential_id}
+    try:
+        assert client.post('/api/managed-hosts/rdp/fingerprint',json={'address':'win.test','port':6021}).status_code==403
+        assert client.post('/api/managed-hosts',json=payload).status_code==403
+        probe.assert_not_called()
+        user.role='admin';db.commit()
+        response=client.post('/api/managed-hosts',json=payload)
+        assert response.status_code==201,response.text
+        assert response.json()['host_key_fingerprint']=='SHA256:'+'b'*64
+        probe.assert_called_once_with('win.test',6021)
+        probe.reset_mock()
+        host_id=response.json()['id']
+        for update in [{'description':'updated'},{'host_key_fingerprint':None}]:
+            response=client.put(f'/api/managed-hosts/{host_id}',json=update)
+            assert response.status_code==200,response.text
+            assert response.json()['host_key_fingerprint']=='SHA256:'+'b'*64
+        probe.assert_not_called()
+        # Explicit probe only returns a candidate and does not change the saved pin.
+        probe.return_value='SHA256:'+'c'*64
+        response=client.post('/api/managed-hosts/rdp/fingerprint',json={'address':'win.test','port':6021})
+        assert response.status_code==200 and response.headers['cache-control']=='no-store'
+        assert response.json()['fingerprint']=='SHA256:'+'c'*64
+        saved=db.get(ManagedHost,host_id)
+        assert saved.host_key_fingerprint=='SHA256:'+'b'*64
+        monkeypatch.setattr(module,'probe_rdp_fingerprint',probe)
+        result,_=module.test_rdp_connection(saved)
+        assert result.exit_code==1 and saved.host_key_fingerprint=='SHA256:'+'b'*64
+        # An unavailable target fails creation rather than saving an unpinned host.
+        probe.side_effect=HTTPException(status_code=502,detail='unreachable')
+        payload['name']='unreachable-win'
+        assert client.post('/api/managed-hosts',json=payload).status_code==502
+        assert not db.query(ManagedHost).filter_by(name='unreachable-win').first()
+    finally:app.dependency_overrides.clear()

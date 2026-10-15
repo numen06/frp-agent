@@ -391,12 +391,19 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           </template>
           <template v-if="hostForm.host_type === 'rdp'">
             <SshCredentialForm :key="hostForm.host_type" v-model="hostForm.credential_id" password-only />
-            <label class="block text-sm">Windows RDP 证书 SHA256 指纹<input v-model.trim="hostForm.host_key_fingerprint" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" placeholder="SHA256:64 位十六进制" required></label>
+            <div class="text-sm">
+              <label for="rdp-fingerprint">Windows RDP 证书 SHA256 指纹</label>
+              <div class="mt-1 flex flex-wrap gap-2">
+                <input id="rdp-fingerprint" v-model.trim="hostForm.host_key_fingerprint" class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" placeholder="留空时保存自动获取">
+                <button type="button" class="btn btn-sm btn-outline min-h-11 sm:min-h-9" :disabled="fetchingRdpFingerprint || savingHost || !hostForm.address || !hostForm.port" @click="fetchRdpFingerprint">{{ fetchingRdpFingerprint ? '获取中…' : '获取指纹' }}</button>
+              </div>
+              <p class="mt-1 text-xs leading-5 text-gray-500">首次获取后保存指纹，后续证书变化会拒绝连接。更新已有指纹时，核对目标机器后点击“获取指纹”并保存。</p>
+            </div>
             <p class="rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800">绑定 Windows 密码凭据后，用户使用“平台账号#主机名”和平台密码连接公网 13389，网关自动代登录。Windows 密码加密保存，不会出现在连接文件中。</p>
           </template>
           <label class="block text-sm">标签<input v-model.trim="hostForm.tags" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="生产, 华东"></label>
           <label class="block text-sm">描述<textarea v-model.trim="hostForm.description" rows="2" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"></textarea></label>
-          <div class="grid grid-cols-2 gap-2 border-t pt-4 sm:flex sm:justify-end"><button type="button" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="hostEditor = false">取消</button><button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9">保存</button></div>
+          <div class="grid grid-cols-2 gap-2 border-t pt-4 sm:flex sm:justify-end"><button type="button" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="hostEditor = false">取消</button><button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="savingHost || fetchingRdpFingerprint">{{ savingHost ? '保存中…' : '保存' }}</button></div>
         </form>
       </div>
     </div>
@@ -510,6 +517,8 @@ const aiHostPrompt = computed(() => {
 
 const emptyHost = () => ({ name: '', address: '', port: 22, host_type: 'ssh', credential_id: 0, docker_credential_id: 0, docker_use_tls: true, docker_verify_tls: true, docker_endpoint_id: 1, host_key_fingerprint: '', tags: '', description: '', is_active: true })
 const hostForm = reactive(emptyHost())
+const fetchingRdpFingerprint = ref(false)
+const savingHost = ref(false)
 const dockerCredForm = reactive({ name: '', auth_type: 'api_key', username: '', password: '', api_key: '', ca_cert: '' })
 const grantForm = reactive({ host_id: 0, subject: '', can_connect: true, can_execute: false, can_manage_docker: false })
 const userForm = reactive({ username: '', password: '', role: 'user', ssh_public_key: '' })
@@ -570,13 +579,25 @@ function openHostEditor(host = null, clone = false) {
   hostEditor.value = true
 }
 async function saveHost() {
+  if (savingHost.value || fetchingRdpFingerprint.value) return
+  savingHost.value = true
   const payload = { ...hostForm, credential_id: ['ssh', 'rdp'].includes(hostForm.host_type) ? hostForm.credential_id : null, docker_credential_id: hostForm.host_type === 'docker' ? hostForm.docker_credential_id : null, host_key_fingerprint: hostForm.host_key_fingerprint || null }
   try {
     if (editingHostId.value) await managedHostsApi.update(editingHostId.value, payload)
     else await managedHostsApi.create(payload)
     hostEditor.value = false
     await loadHosts()
-  } catch (e) { alert(e.message) }
+  } catch (e) { alert(e.message) } finally { savingHost.value = false }
+}
+async function fetchRdpFingerprint() {
+  const { address, port } = hostForm
+  fetchingRdpFingerprint.value = true
+  try {
+    const result = await managedHostsApi.rdpFingerprint({ address, port })
+    if (hostEditor.value && hostForm.host_type === 'rdp' && hostForm.address === address && hostForm.port === port) {
+      hostForm.host_key_fingerprint = result.fingerprint
+    }
+  } catch (e) { alert(e.message) } finally { fetchingRdpFingerprint.value = false }
 }
 async function removeHost(host) {
   if (!confirm(`确定删除主机“${host.name}”及其授权、审计记录？`)) return

@@ -34,6 +34,7 @@ from app.schemas.managed_host import (
     ManagedUserCreate,
     ManagedUserUpdate,
     RdpGatewayAuthorization,
+    RdpFingerprintRequest,
 )
 from app.services.host_access_service import (
     accessible_host_ids,
@@ -61,6 +62,7 @@ from app.config import get_settings
 from app.services.rdp_gateway_service import (
     rdp_gateway_service, rdp_client_ip, validate_rdp_address, test_rdp_connection,
     require_secure_rdp_download,
+    probe_rdp_fingerprint,
 )
 
 router = APIRouter(prefix="/api/managed-hosts", tags=["主机管理"])
@@ -145,9 +147,12 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
         credential = _get_credential(db, values["credential_id"])
         if credential.auth_type != "password":
             raise HTTPException(status_code=400, detail="RDP 不支持私钥凭据，请选择 Windows 密码凭据")
-        pin = values.get("host_key_fingerprint") or ""
+        pin = (values.get("host_key_fingerprint") or "").strip()
+        if not pin:
+            pin = probe_rdp_fingerprint(values["address"], values["port"])
         if not re.fullmatch(r"SHA256:[0-9a-fA-F]{64}", pin):
             raise HTTPException(status_code=400, detail="请填写 RDP 证书的 SHA256:十六进制指纹")
+        values["host_key_fingerprint"] = "SHA256:" + pin.removeprefix("SHA256:").lower()
         values["docker_credential_id"] = None
         values["docker_endpoint_id"] = None
     else:
@@ -253,6 +258,16 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
             "api_key_login_format": "<Docker主机名>",
         },
     }
+
+
+@router.post("/rdp/fingerprint")
+def get_rdp_fingerprint(
+    body: RdpFingerprintRequest,
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    return Response(json.dumps({"fingerprint": probe_rdp_fingerprint(body.address, body.port)}),
+                    media_type="application/json", headers={"Cache-Control": "no-store"})
 
 
 @router.post("/gateway/rdp/authorize")
@@ -394,6 +409,9 @@ def update_host(
             "docker_endpoint_id", host.docker_endpoint_id
         ),
     }
+    if (host.host_type == effective["host_type"] == "rdp" and host.host_key_fingerprint
+            and not effective["host_key_fingerprint"]):
+        effective["host_key_fingerprint"] = host.host_key_fingerprint
     _validate_host_credentials(db, effective)
     values.update(
         {
@@ -477,7 +495,7 @@ def test_host(
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
         host.last_message = (
-            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TCP'}[host.host_type]} 连接成功"
+            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书'}[host.host_type]} 连接成功"
             if success
             else (result.stderr or "连接成功，但测试失败")
         )[:500]
