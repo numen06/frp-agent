@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import logging
+import ipaddress
+import json
 import os
 import socket
+import tempfile
 import threading
 import time
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Callable, Deque, Dict, Optional, Tuple
 
 import paramiko
 from sqlalchemy.orm import Session
@@ -28,16 +32,59 @@ from app.services.ssh_client import format_host_key_fingerprint
 
 logger = logging.getLogger(__name__)
 
+MAX_GATEWAY_SESSIONS = 64
+MAX_GATEWAY_SESSIONS_PER_IP = 24
+MAX_AUTH_FAILURES = 3
+AUTH_DEADLINE_SECONDS = 20
+HANDSHAKE_TIMEOUT_SECONDS = 10
+AUTH_FAILURE_WINDOW_SECONDS = 300
+AUTH_FAILURE_BAN_THRESHOLD = 10
+AUTH_BAN_SECONDS = 1800
+MAX_TRACKED_AUTH_IPS = 4096
 
-def _prepare_gateway_exec(host, user: User, command: str):
-    if command.strip() != "sudo -i" or not is_admin(user):
-        return command, None
+
+def _gateway_sudo_password(host, user: User) -> Optional[str]:
+    if not is_admin(user):
+        return None
     credential = host.credential
     encrypted = credential.sudo_password_encrypted
     if not encrypted and credential.auth_type == "password":
         encrypted = credential.password_encrypted
-    password = decrypt_secret(encrypted)
+    return decrypt_secret(encrypted)
+
+
+def _prepare_gateway_exec(host, user: User, command: str):
+    if command.strip() != "sudo -i":
+        return command, None
+    password = _gateway_sudo_password(host, user)
     return ("sudo -S -p '' -i", password) if password else (command, None)
+
+
+def _prime_interactive_sudo(upstream: paramiko.Channel, password: str) -> bool:
+    marker = b"[frp-agent-sudo]"
+    ready_marker = b"[frp-agent-sudo-ready]"
+    command = (
+        b"/usr/bin/sudo -n -v >/dev/null 2>&1 && "
+        b"printf '\\133frp-agent-sudo-ready\\135' || "
+        b"/usr/bin/sudo -S -p \"$(printf '\\133frp-agent-sudo\\135')\" -v\n"
+    )
+    upstream.sendall(command)
+    deadline = time.monotonic() + 5
+    response = bytearray()
+    while time.monotonic() < deadline:
+        if not upstream.recv_ready():
+            time.sleep(0.02)
+            continue
+        data = upstream.recv(32768)
+        if not data:
+            break
+        response.extend(data)
+        if ready_marker in response:
+            return True
+        if marker in response:
+            upstream.sendall(f"{password}\n".encode("utf-8"))
+            return True
+    return False
 
 
 @dataclass
@@ -59,6 +106,12 @@ class GatewayChannelRequest:
     pty_width: int = 120
     pty_height: int = 40
     upstream_channel: Optional[paramiko.Channel] = None
+
+
+@dataclass
+class _AuthFailureState:
+    attempts: Deque[float] = field(default_factory=deque)
+    blocked_until: float = 0.0
 
 
 def parse_gateway_username(username: str) -> Tuple[str, Optional[str], str]:
@@ -180,10 +233,28 @@ def authenticate_gateway_public_key(
 
 
 class GatewayServerInterface(paramiko.ServerInterface):
-    def __init__(self):
+    def __init__(
+        self,
+        on_auth_failure: Optional[Callable[[], None]] = None,
+        on_auth_success: Optional[Callable[[], None]] = None,
+    ):
         self.auth_context: Optional[GatewayAuthContext] = None
+        self.failed_auth_attempts = 0
+        self._on_auth_failure = on_auth_failure
+        self._on_auth_success = on_auth_success
         self._channel_requests: Dict[int, GatewayChannelRequest] = {}
         self._channel_lock = threading.Lock()
+
+    def _auth_result(self, context: Optional[GatewayAuthContext]):
+        self.auth_context = context
+        if context:
+            if self._on_auth_success:
+                self._on_auth_success()
+            return paramiko.AUTH_SUCCESSFUL
+        self.failed_auth_attempts += 1
+        if self._on_auth_failure:
+            self._on_auth_failure()
+        return paramiko.AUTH_FAILED
 
     @staticmethod
     def _channel_id(channel) -> int:
@@ -216,30 +287,34 @@ class GatewayServerInterface(paramiko.ServerInterface):
         return "publickey,password"
 
     def check_auth_password(self, username, password):
+        if self.failed_auth_attempts >= MAX_AUTH_FAILURES:
+            return paramiko.AUTH_FAILED
         db = SessionLocal()
         try:
-            self.auth_context = authenticate_gateway_login(db, username, password)
-            return (
-                paramiko.AUTH_SUCCESSFUL
-                if self.auth_context
-                else paramiko.AUTH_FAILED
+            return self._auth_result(
+                authenticate_gateway_login(db, username, password)
             )
         except Exception:
+            self.failed_auth_attempts += 1
+            if self._on_auth_failure:
+                self._on_auth_failure()
             logger.exception("SSH 网关认证发生异常")
             return paramiko.AUTH_FAILED
         finally:
             db.close()
 
     def check_auth_publickey(self, username, key):
+        if self.failed_auth_attempts >= MAX_AUTH_FAILURES:
+            return paramiko.AUTH_FAILED
         db = SessionLocal()
         try:
-            self.auth_context = authenticate_gateway_public_key(db, username, key)
-            return (
-                paramiko.AUTH_SUCCESSFUL
-                if self.auth_context
-                else paramiko.AUTH_FAILED
+            return self._auth_result(
+                authenticate_gateway_public_key(db, username, key)
             )
         except Exception:
+            self.failed_auth_attempts += 1
+            if self._on_auth_failure:
+                self._on_auth_failure()
             logger.exception("SSH 网关公钥认证发生异常")
             return paramiko.AUTH_FAILED
         finally:
@@ -362,6 +437,164 @@ class SSHGatewayService:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._host_key: Optional[paramiko.PKey] = None
+        self._sessions_lock = threading.Lock()
+        self._active_sessions = 0
+        self._sessions_by_ip: Dict[str, int] = {}
+        self._auth_lock = threading.Lock()
+        self._auth_by_ip: OrderedDict[str, _AuthFailureState] = OrderedDict()
+        self._ban_file_path: Optional[str] = None
+
+    def _load_bans(self) -> None:
+        path = self._ban_file_path
+        if not path or not os.path.exists(path):
+            return
+        try:
+            if os.path.getsize(path) > 1_000_000:
+                raise ValueError("SSH 网关封禁名单文件过大")
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            if (
+                not isinstance(payload, dict)
+                or payload.get("version") != 1
+                or not isinstance(payload.get("bans"), dict)
+            ):
+                raise ValueError("SSH 网关封禁名单格式无效")
+            now = time.time()
+            needs_cleanup = False
+            with self._auth_lock:
+                for ip, until in payload["bans"].items():
+                    if len(self._auth_by_ip) >= MAX_TRACKED_AUTH_IPS:
+                        needs_cleanup = True
+                        break
+                    try:
+                        ipaddress.ip_address(ip)
+                        until = float(until)
+                    except (ValueError, TypeError):
+                        needs_cleanup = True
+                        continue
+                    if until > now:
+                        self._auth_by_ip[ip] = _AuthFailureState(blocked_until=until)
+                    else:
+                        needs_cleanup = True
+                if needs_cleanup:
+                    self._persist_bans_locked()
+            logger.info("已恢复 %s 个 SSH 网关临时封禁来源", len(self._auth_by_ip))
+        except (OSError, ValueError, TypeError):
+            logger.exception("加载 SSH 网关封禁名单失败: %s", path)
+
+    def _persist_bans_locked(self) -> None:
+        path = self._ban_file_path
+        if not path:
+            return
+        now = time.time()
+        payload = {
+            "version": 1,
+            "bans": {
+                ip: state.blocked_until
+                for ip, state in self._auth_by_ip.items()
+                if state.blocked_until > now
+            },
+        }
+        temporary_path = None
+        try:
+            directory = os.path.dirname(path)
+            os.makedirs(directory, exist_ok=True)
+            fd, temporary_path = tempfile.mkstemp(
+                prefix=".ssh_gateway_bans-", dir=directory
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, path)
+        except OSError:
+            logger.exception("保存 SSH 网关封禁名单失败: %s", path)
+            if temporary_path:
+                try:
+                    os.unlink(temporary_path)
+                except OSError:
+                    pass
+
+    def _is_ip_blocked(self, ip: str) -> bool:
+        now = time.monotonic()
+        wall_now = time.time()
+        with self._auth_lock:
+            state = self._auth_by_ip.get(ip)
+            if not state:
+                return False
+            if state.blocked_until > wall_now:
+                return True
+            if state.blocked_until:
+                del self._auth_by_ip[ip]
+                self._persist_bans_locked()
+                return False
+            while state.attempts and now - state.attempts[0] > AUTH_FAILURE_WINDOW_SECONDS:
+                state.attempts.popleft()
+            if not state.attempts:
+                del self._auth_by_ip[ip]
+            return False
+
+    def _record_auth_failure(self, ip: str) -> None:
+        now = time.monotonic()
+        wall_now = time.time()
+        newly_blocked = False
+        with self._auth_lock:
+            state = self._auth_by_ip.get(ip)
+            if state is None:
+                if len(self._auth_by_ip) >= MAX_TRACKED_AUTH_IPS:
+                    self._auth_by_ip.popitem(last=False)
+                state = _AuthFailureState()
+                self._auth_by_ip[ip] = state
+            else:
+                self._auth_by_ip.move_to_end(ip)
+            if state.blocked_until > wall_now:
+                return
+            if state.blocked_until:
+                state.blocked_until = 0.0
+                state.attempts.clear()
+            while state.attempts and now - state.attempts[0] > AUTH_FAILURE_WINDOW_SECONDS:
+                state.attempts.popleft()
+            state.attempts.append(now)
+            if len(state.attempts) >= AUTH_FAILURE_BAN_THRESHOLD:
+                state.attempts.clear()
+                state.blocked_until = wall_now + AUTH_BAN_SECONDS
+                self._persist_bans_locked()
+                newly_blocked = True
+        if newly_blocked:
+            logger.warning("SSH 网关临时封禁来源 %s，持续 %s 秒", ip, AUTH_BAN_SECONDS)
+
+    def _clear_auth_failures(self, ip: str) -> None:
+        with self._auth_lock:
+            state = self._auth_by_ip.get(ip)
+            if state and not state.blocked_until:
+                self._auth_by_ip.pop(ip, None)
+
+    def _reserve_session(self, address) -> bool:
+        ip = address[0]
+        with self._sessions_lock:
+            if self._active_sessions >= MAX_GATEWAY_SESSIONS:
+                return False
+            if self._sessions_by_ip.get(ip, 0) >= MAX_GATEWAY_SESSIONS_PER_IP:
+                return False
+            self._active_sessions += 1
+            self._sessions_by_ip[ip] = self._sessions_by_ip.get(ip, 0) + 1
+            return True
+
+    def _release_session(self, address) -> None:
+        ip = address[0]
+        with self._sessions_lock:
+            self._active_sessions -= 1
+            remaining = self._sessions_by_ip[ip] - 1
+            if remaining:
+                self._sessions_by_ip[ip] = remaining
+            else:
+                del self._sessions_by_ip[ip]
+
+    def _serve_client(self, client, address) -> None:
+        try:
+            self._handle_client(client, address)
+        finally:
+            self._release_session(address)
 
     @property
     def running(self) -> bool:
@@ -398,6 +631,11 @@ class SSHGatewayService:
         if self.running:
             return
         self._host_key = self._load_or_create_host_key()
+        self._ban_file_path = os.path.join(
+            os.path.dirname(os.path.abspath(settings.ssh_gateway_host_key_path)),
+            "ssh_gateway_bans.json",
+        )
+        self._load_bans()
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((settings.ssh_gateway_host, settings.ssh_gateway_port))
@@ -426,12 +664,23 @@ class SSHGatewayService:
                 continue
             except OSError:
                 break
-            threading.Thread(
-                target=self._handle_client,
-                args=(client, address),
-                daemon=True,
-                name=f"ssh-gateway-session-{address[0]}",
-            ).start()
+            if self._is_ip_blocked(address[0]):
+                client.close()
+                continue
+            if not self._reserve_session(address):
+                client.close()
+                continue
+            try:
+                threading.Thread(
+                    target=self._serve_client,
+                    args=(client, address),
+                    daemon=True,
+                    name=f"ssh-gateway-session-{address[0]}",
+                ).start()
+            except Exception:
+                self._release_session(address)
+                client.close()
+                logger.exception("启动 SSH 网关会话失败")
 
     def _handle_channel(
         self,
@@ -495,6 +744,17 @@ class SSHGatewayService:
                         width=request.pty_width,
                         height=request.pty_height,
                     )
+                    if host.credential.username != "root":
+                        sudo_password = _gateway_sudo_password(
+                            host, server.auth_context.user
+                        )
+                        if sudo_password and not _prime_interactive_sudo(
+                            upstream, sudo_password
+                        ):
+                            logger.warning(
+                                "SSH 网关 sudo 预认证失败: host=%s", host.name
+                            )
+                        sudo_password = None
                 elif request.request_type == "subsystem":
                     open_subsystem = getattr(
                         upstream_client, "open_subsystem_channel", None
@@ -572,14 +832,28 @@ class SSHGatewayService:
 
     def _handle_client(self, client_socket: socket.socket, address):
         transport = None
-        server = GatewayServerInterface()
+        ip = address[0]
+        server = GatewayServerInterface(
+            on_auth_failure=lambda: self._record_auth_failure(ip),
+            on_auth_success=lambda: self._clear_auth_failures(ip),
+        )
         workers = []
         try:
             transport = paramiko.Transport(client_socket)
             transport.local_version = "SSH-2.0-frp-agent-gateway"
+            transport.banner_timeout = HANDSHAKE_TIMEOUT_SECONDS
+            transport.handshake_timeout = HANDSHAKE_TIMEOUT_SECONDS
             transport.add_server_key(self._host_key)
             transport.start_server(server=server)
+            auth_deadline = time.monotonic() + AUTH_DEADLINE_SECONDS
             while transport.is_active() and not self._stop_event.is_set():
+                if not server.auth_context and self._is_ip_blocked(ip):
+                    raise PermissionError("SSH 网关来源已临时封禁")
+                if not server.auth_context:
+                    if server.failed_auth_attempts >= MAX_AUTH_FAILURES:
+                        raise PermissionError("SSH 网关认证失败次数过多")
+                    if time.monotonic() >= auth_deadline:
+                        raise TimeoutError("SSH 网关认证超时")
                 inbound = transport.accept(1)
                 if inbound is None:
                     workers = [worker for worker in workers if worker.is_alive()]

@@ -1,0 +1,13 @@
+[Unit]
+Description=Protect the FRP SSH gateway on TCP 2222
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/frp-ssh-gateway-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

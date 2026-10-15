@@ -64,6 +64,12 @@
             </button>
             <button v-if="host.host_type === 'ssh' && host.permissions.includes('execute')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" @click="openConsole(host)">命令终端</button>
             <button v-if="host.host_type === 'docker' && host.permissions.includes('docker')" class="btn btn-sm min-h-11 touch-manipulation border border-violet-300 bg-white text-violet-700 hover:bg-violet-50 sm:min-h-8" @click="openDocker(host)">容器管理</button>
+            <button v-if="host.can_manage" class="btn btn-icon-sm btn-icon-muted hidden sm:inline-flex" title="克隆" aria-label="克隆" @click="openHostEditor(host, true)">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path>
+              </svg>
+            </button>
             <button v-if="host.can_manage" class="btn btn-sm btn-ghost hidden text-gray-500 sm:inline-flex sm:min-h-8" @click="openHostEditor(host)">编辑</button>
             <button v-if="host.can_manage" class="btn btn-sm hidden text-red-500 hover:bg-red-50 sm:inline-flex sm:min-h-8" @click="removeHost(host)">删除</button>
             <details v-if="host.can_manage" class="group col-span-2 rounded-lg border border-gray-200 bg-gray-50 sm:hidden">
@@ -71,7 +77,8 @@
                 更多管理操作
                 <span class="transition-transform group-open:rotate-180">⌄</span>
               </summary>
-              <div class="grid grid-cols-2 gap-2 border-t border-gray-200 p-2">
+              <div class="grid grid-cols-3 gap-2 border-t border-gray-200 p-2">
+                <button class="btn btn-sm btn-outline min-h-11 touch-manipulation" @click="openHostEditor(host, true)">克隆主机</button>
                 <button class="btn btn-sm btn-outline min-h-11 touch-manipulation" @click="openHostEditor(host)">编辑主机</button>
                 <button class="btn btn-sm min-h-11 touch-manipulation border border-red-200 bg-white text-red-600 hover:bg-red-50" @click="removeHost(host)">删除主机</button>
               </div>
@@ -341,7 +348,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
     <div v-if="hostEditor" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div class="absolute inset-0 bg-black/40" @click="hostEditor = false"></div>
       <div class="relative z-10 flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[92vh] sm:rounded-xl">
-        <div class="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="font-semibold">{{ editingHostId ? '编辑主机' : '添加主机' }}</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="hostEditor = false">✕</button></div>
+        <div class="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="font-semibold">{{ editingHostId ? '编辑主机' : cloningHostId ? '克隆主机' : '添加主机' }}</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="hostEditor = false">✕</button></div>
         <form class="min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="saveHost">
           <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
             <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'ssh' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setHostType('ssh')">SSH 主机</button>
@@ -442,6 +449,7 @@ const aiPromptOpen = ref(false)
 const hostEditor = ref(false)
 const dockerCredentialEditor = ref(false)
 const editingHostId = ref(null)
+const cloningHostId = ref(null)
 const connectionHost = ref(null)
 const consoleHost = ref(null)
 const dockerHost = ref(null)
@@ -532,9 +540,10 @@ function openAiHostPrompt() {
 async function copyAiHostPrompt(trigger) {
   if (!await copyWithTooltip(aiHostPrompt.value, trigger)) alert('复制失败，请手动选择提示词')
 }
-function openHostEditor(host = null) {
+function openHostEditor(host = null, clone = false) {
   Object.assign(hostForm, emptyHost())
-  editingHostId.value = host?.id || null
+  editingHostId.value = clone ? null : host?.id || null
+  cloningHostId.value = clone ? host?.id : null
   if (host) Object.assign(hostForm, {
     name: host.name, address: host.address, port: host.port, host_type: host.host_type,
     credential_id: host.credential_id || 0, docker_credential_id: host.docker_credential_id || 0,
@@ -542,6 +551,14 @@ function openHostEditor(host = null) {
     docker_endpoint_id: host.docker_endpoint_id || 1, host_key_fingerprint: host.host_key_fingerprint || '',
     tags: host.tags || '', description: host.description || '', is_active: host.is_active
   })
+  if (clone) {
+    const baseName = `${host.name} 副本`
+    let name = baseName
+    let suffix = 2
+    while (hosts.value.some(item => item.name === name)) name = `${baseName} ${suffix++}`
+    hostForm.name = name
+    hostForm.host_key_fingerprint = ''
+  }
   hostEditor.value = true
 }
 async function saveHost() {

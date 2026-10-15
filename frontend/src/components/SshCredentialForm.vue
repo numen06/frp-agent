@@ -49,9 +49,21 @@
       </div>
       <template v-else>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600">
-            私钥 {{ editingId ? '（留空不修改）' : '' }}
-          </label>
+          <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <label class="block text-xs font-medium text-gray-600">
+              私钥 {{ editingId ? '（留空不修改）' : '' }}
+            </label>
+            <label class="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 16V4"></path>
+                <path d="m7 9 5-5 5 5"></path>
+                <path d="M20 15v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4"></path>
+              </svg>
+              {{ privateKeyFileName ? '重新选择' : '上传证书/私钥' }}
+              <input type="file" class="sr-only" @change="loadPrivateKeyFile" />
+            </label>
+          </div>
+          <p v-if="privateKeyFileName" class="mb-1 truncate text-xs text-green-700" :title="privateKeyFileName">已读取：{{ privateKeyFileName }}</p>
           <textarea
             v-model="form.private_key"
             rows="4"
@@ -108,6 +120,7 @@ const selectedId = ref(props.modelValue || 0)
 const showEditor = ref(false)
 const saving = ref(false)
 const editingId = ref(null)
+const privateKeyFileName = ref('')
 
 const form = ref({
   name: '',
@@ -134,6 +147,24 @@ function resetForm() {
     sudo_password: ''
   }
   editingId.value = null
+  privateKeyFileName.value = ''
+}
+
+async function loadPrivateKeyFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (file.size > 1024 * 1024) return alert('私钥文件不能超过 1MB')
+  try {
+    const content = await file.text()
+    if (!/-----BEGIN (?:OPENSSH |RSA |EC |ENCRYPTED )?PRIVATE KEY-----/.test(content)) {
+      return alert('文件中未找到可用的 SSH 私钥，请选择私钥文件而不是公钥文件')
+    }
+    form.value.private_key = `${content.trim()}\n`
+    privateKeyFileName.value = file.name
+  } catch {
+    alert('读取私钥文件失败，请重新选择')
+  }
 }
 
 async function loadCredentials() {
@@ -157,6 +188,7 @@ function onSelect() {
     form.value.private_key = ''
     form.value.passphrase = ''
     form.value.sudo_password = ''
+    privateKeyFileName.value = ''
   }
 }
 

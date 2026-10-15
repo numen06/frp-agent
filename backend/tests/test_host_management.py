@@ -41,6 +41,7 @@ from app.services.host_access_service import (
 from app.services.ssh_gateway_service import (
     GatewayServerInterface,
     SSHGatewayService,
+    _prime_interactive_sudo,
     _prepare_gateway_exec,
     authenticate_gateway_login,
     authenticate_gateway_public_key,
@@ -618,6 +619,32 @@ def test_gateway_only_autofills_exact_admin_sudo_command(db):
     assert "secret" not in command
     assert _prepare_gateway_exec(ssh_host, member, "sudo -i") == ("sudo -i", None)
     assert _prepare_gateway_exec(ssh_host, admin, "sudo id") == ("sudo id", None)
+
+
+def test_gateway_primes_interactive_sudo_without_exposing_password():
+    class Channel:
+        def __init__(self):
+            self.received = [b"welcome\r\n$ ", b"[frp-agent-sudo]"]
+            self.sent = []
+
+        def sendall(self, data):
+            self.sent.append(data)
+
+        def recv_ready(self):
+            return bool(self.received)
+
+        def recv(self, _size):
+            return self.received.pop(0)
+
+    channel = Channel()
+    assert _prime_interactive_sudo(channel, "sudo-secret")
+    assert channel.sent[1] == b"sudo-secret\n"
+    assert b"sudo-secret" not in channel.sent[0]
+
+    passwordless = Channel()
+    passwordless.received = [b"[frp-agent-sudo-ready]"]
+    assert _prime_interactive_sudo(passwordless, "sudo-secret")
+    assert len(passwordless.sent) == 1
 
 
 def test_gateway_accepts_multiple_channels_on_one_transport(monkeypatch):
