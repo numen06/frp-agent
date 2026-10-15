@@ -68,3 +68,4 @@ frpc_*.toml
 /.cursor/plans
 
 gateway/rdp/*.so
+/.codex-remote-attachments
