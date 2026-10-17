@@ -1,11 +1,11 @@
 <template>
-  <div class="app-select" :class="[sizeClass, { 'is-disabled': disabled }]">
+  <div class="app-select" :class="[$attrs.class, sizeClass, { 'is-disabled': disabled }]">
     <select
       class="app-select-native"
       :value="modelValue"
       :disabled="disabled"
       :required="required"
-      v-bind="$attrs"
+      v-bind="{ ...$attrs, class: undefined }"
       @change="handleChange"
     >
       <slot />
@@ -118,5 +118,14 @@ const handleChange = (event) => {
 
 .is-disabled .app-select-icon {
   color: rgb(156 163 175);
+}
+
+@media (max-width: 767px) {
+  .size-sm .app-select-native,
+  .size-md .app-select-native {
+    min-height: 44px;
+    font-size: 16px;
+    line-height: 1.5;
+  }
 }
 </style>

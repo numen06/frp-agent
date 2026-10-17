@@ -2,17 +2,17 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       @click.self="close"
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="close" />
       <div
-        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
+        <div class="app-dialog-header sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
           <h2 class="min-w-0 truncate text-lg font-semibold text-gray-900">分组客户端升级 — {{ groupName }}</h2>
           <button
             type="button"
@@ -25,7 +25,7 @@
             </svg>
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
           <SshCredentialForm v-model="credentialId" />
 
           <div class="mt-3">
@@ -115,7 +115,7 @@
           </div>
           <p v-else-if="!scanning" class="mt-4 text-gray-500">扫描后将显示分组内 SSH 候选代理及结果。</p>
         </div>
-        <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
+        <div class="app-dialog-footer sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
             class="btn btn-md btn-primary w-full disabled:opacity-50 sm:w-auto"
@@ -142,6 +142,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import SshCredentialForm from '@/components/SshCredentialForm.vue'
+import { useModal } from '@/composables/useModal'
 import { clientUpgradeApi } from '@/api/clientUpgrade'
 
 const props = defineProps({
@@ -204,6 +205,8 @@ const allUpgradeableSelected = computed(
     upgradeableIds.value.every((id) => selectedIds.value.includes(id))
 )
 
+useModal(visible, close)
+
 watch(visible, (v) => {
   if (!v) {
     stopPoll()

@@ -239,16 +239,16 @@
     <Teleport to="body">
       <div
         v-if="showCreateDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeCreateDialog" />
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
             <h2 class="text-lg font-semibold text-gray-900">新增分组</h2>
             <button
               type="button"
@@ -263,7 +263,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <label class="mb-1 block text-sm font-medium text-gray-700">
               分组名称 <span class="text-red-600">*</span>
             </label>
@@ -275,7 +275,7 @@
               required
             />
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
+          <div class="app-dialog-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
             <button
               type="button"
               class="mr-auto inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
@@ -299,16 +299,16 @@
     <Teleport to="body">
       <div
         v-if="showImportDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeImportDialog" />
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
             <h2 class="text-lg font-semibold text-gray-900">导入/整理</h2>
             <button
               type="button"
@@ -323,7 +323,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <!-- 自动分析分组 -->
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
               <p class="text-sm font-medium text-green-900">自动分析分组</p>
@@ -539,7 +539,7 @@
               </button>
             </template>
           </div>
-          <div class="flex shrink-0 items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3.5">
+          <div class="app-dialog-footer flex shrink-0 items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3.5">
             <button
               type="button"
               class="inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
@@ -556,16 +556,16 @@
     <Teleport to="body">
       <div
         v-if="showDeployDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeDeployDialog" />
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
             <h2 class="text-lg font-semibold text-gray-900">一键部署（Linux）</h2>
             <button
               type="button"
@@ -580,7 +580,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+          <div class="app-dialog-body min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
             <p class="text-sm text-gray-600">
               在目标 Linux 服务器上执行下方命令。首次安装会自动下载 frpc、拉取本分组配置并注册 <code class="rounded bg-gray-100 px-1 text-xs">systemd</code>（需 <code class="rounded bg-gray-100 px-1 text-xs">sudo</code>）。部署结束后可轮询 frp-agent 校验本分组代理在线数；不通过时会尝试用备份回退二进制与配置（需目标机可访问 frp-agent 且已安装 <code class="rounded bg-gray-100 px-1 text-xs">python3</code>）。
             </p>
@@ -682,7 +682,7 @@
               端点（行为与旧版一致）。
             </p>
           </div>
-          <div class="flex shrink-0 items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3.5">
+          <div class="app-dialog-footer flex shrink-0 items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-3.5">
             <button
               type="button"
               class="inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"
@@ -699,16 +699,16 @@
     <Teleport to="body">
       <div
         v-if="showRenameDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeRenameDialog" />
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
             <h2 class="text-lg font-semibold text-gray-900">重命名分组</h2>
             <button
               type="button"
@@ -723,7 +723,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <label class="mb-1 block text-sm font-medium text-gray-700">
               新分组名称 <span class="text-red-600">*</span>
             </label>
@@ -734,7 +734,7 @@
               required
             />
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
+          <div class="app-dialog-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
             <button
               type="button"
               class="mr-auto inline-flex items-center justify-center rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300"

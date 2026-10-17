@@ -175,7 +175,7 @@
     <Teleport to="body">
       <div
         v-if="showAddDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -183,10 +183,10 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeAddDialog"></div>
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
             <h2 class="text-lg font-semibold text-gray-900">{{ editingServer ? '编辑服务器' : '添加服务器' }}</h2>
             <button
               type="button"
@@ -199,7 +199,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <div class="mb-4">
               <label class="mb-1 block text-sm font-medium text-gray-700">服务器名称 <span class="text-red-600">*</span></label>
               <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.name" required />
@@ -230,7 +230,7 @@
               <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.auth_token" placeholder="可选，留空表示使用用户名密码认证" />
             </div>
           </div>
-          <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
+          <div class="app-dialog-footer flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:mr-auto sm:w-auto sm:py-2" @click="closeAddDialog">取消</button>
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto sm:py-2" @click="testConnection">测试连接</button>
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-2" @click="handleSubmit">保存</button>
@@ -242,14 +242,14 @@
     <Teleport to="body">
       <div
         v-if="versionDetailServer"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         @click.self="closeVersionDetail"
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionDetail"></div>
-        <div class="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:max-h-[min(90vh,640px)] sm:rounded-xl" @click.stop>
-          <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        <div class="app-dialog-panel relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl sm:max-h-[min(90vh,640px)] sm:rounded-xl" @click.stop>
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <div class="mb-4 flex items-center justify-between">
             <h2 class="text-lg font-semibold text-gray-900">FRP 版本 - {{ versionDetailServer.name }}</h2>
             <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100" aria-label="关闭" @click="closeVersionDetail">
@@ -284,7 +284,7 @@
             </div>
           </div>
           </div>
-          <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 sm:flex-row sm:justify-end sm:p-5">
+          <div class="app-dialog-footer flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 sm:flex-row sm:justify-end sm:p-5">
             <button type="button" class="w-full rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-300 sm:w-auto sm:py-2" @click="closeVersionDetail">关闭</button>
             <button type="button" class="w-full rounded-lg bg-violet-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 sm:w-auto sm:py-2" :disabled="versionRefreshingId === versionDetailServer?.id" @click="refreshFrpVersion(versionDetailServer)">
               刷新版本

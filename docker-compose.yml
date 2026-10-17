@@ -15,6 +15,9 @@ services:
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin}
+      - SSH_CREDENTIAL_SECRET=${SSH_CREDENTIAL_SECRET:-}
       - SSH_GATEWAY_ENABLED=true
       - SSH_GATEWAY_PORT=2222
       - DOCKER_GATEWAY_ENABLED=true

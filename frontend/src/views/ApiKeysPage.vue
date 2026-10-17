@@ -209,7 +209,7 @@
       <!-- 创建/编辑对话框 -->
       <div
         v-if="dialogVisible"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -217,10 +217,10 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
             <h2 class="text-lg font-semibold text-gray-900">{{ editingKey ? '编辑 API Key' : '创建 API Key' }}</h2>
             <button
               type="button"
@@ -233,7 +233,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <div class="mb-4">
               <label class="mb-1 block text-sm font-medium text-gray-700">描述 <span class="text-red-600">*</span></label>
               <input
@@ -294,7 +294,7 @@
               </label>
             </div>
           </div>
-          <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
+          <div class="app-dialog-footer flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5">
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 sm:w-auto sm:py-2" @click="closeDialog">取消</button>
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2" @click="saveKey" :disabled="!formData.description?.trim() || saving">
               {{ saving ? '保存中...' : '保存' }}
@@ -306,7 +306,7 @@
       <!-- 创建成功对话框（显示完整密钥） -->
       <div
         v-if="showKeyDialog"
-        class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -314,10 +314,10 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="showKeyDialog = false"></div>
         <div
-          class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
+          class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:rounded-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3.5 sm:px-5">
             <h2 class="text-lg font-semibold text-gray-900">API Key 创建成功</h2>
             <button
               type="button"
@@ -330,7 +330,7 @@
               </svg>
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
               <strong class="font-semibold">重要提示：</strong>请妥善保管此密钥，创建后将无法再次查看完整密钥！
             </div>
@@ -380,7 +380,7 @@
               </div>
             </div>
           </div>
-          <div class="flex shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:px-5">
+          <div class="app-dialog-footer flex shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:px-5">
             <button type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-2" @click="showKeyDialog = false">我已保存</button>
           </div>
         </div>

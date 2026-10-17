@@ -1,33 +1,15 @@
 <template>
   <div class="space-y-5">
     <!-- 欢迎区域 -->
-    <div class="rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-sm sm:p-6">
+    <div class="dashboard-welcome">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 flex-1">
-          <h2 class="text-xl font-bold sm:text-2xl">欢迎回来，{{ authStore.username || '管理员' }}</h2>
-          <p class="mt-1 text-sm text-gray-600">FRP 节点运行概览与代理状态实时看板</p>
+          <h1 class="page-title">欢迎回来，{{ authStore.username || '管理员' }}</h1>
+          <p class="mt-1 text-sm text-gray-600">集中查看 FRP 节点运行情况，从这里开始代理管理与主机运维。</p>
         </div>
         <div class="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-          在线监控中
-        </div>
-      </div>
-      <div class="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 md:grid-cols-4">
-        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
-          <div class="text-xs text-gray-500">服务器数</div>
-          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ serversStore.servers.length }}</div>
-        </div>
-        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
-          <div class="text-xs text-gray-500">代理总数</div>
-          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.total }}</div>
-        </div>
-        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
-          <div class="text-xs text-gray-500">在线代理</div>
-          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.online }}</div>
-        </div>
-        <div class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-2.5 sm:p-3">
-          <div class="text-xs text-gray-500">唯一端口</div>
-          <div class="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{{ totalStats.portCount }}</div>
+          <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+          已接入 {{ serversStore.servers.length }} 台服务器
         </div>
       </div>
     </div>

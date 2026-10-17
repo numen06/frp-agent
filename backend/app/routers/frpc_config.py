@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.auth import get_current_user, get_auth_from_header, authenticate_user
+from app.auth import get_current_user, get_auth_from_header, authenticate_http_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
 from app.models.temp_config import TempConfig
@@ -386,17 +386,8 @@ def get_my_token(
     
     username, password = auth_info
     
-    # 验证用户
-    user = authenticate_user(db, username, password)
-    if not user:
-        # 如果数据库中没有用户，使用配置中的默认认证
-        if username != settings.auth_username or password != settings.auth_password:
-            raise HTTPException(
-                status_code=401,
-                detail="用户名或密码错误",
-                headers={"WWW-Authenticate": "Basic"},
-            )
-    
+    authenticate_http_user(db, username, password, request)
+
     # 生成 token
     token = base64.b64encode(f"{username}:{password}".encode()).decode()
     
@@ -679,28 +670,11 @@ def get_config_direct(
         
         username, password = auth_info
     
-    # 验证用户
-    user = authenticate_user(db, username, password)
-    if not user:
-        # 如果数据库中没有用户，使用配置中的默认认证
-        if username != settings.auth_username or password != settings.auth_password:
-            # 根据认证方式返回不同的错误响应
-            if use_token:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Token 无效：用户名或密码错误",
-                )
-            else:
-                raise HTTPException(
-                    status_code=401,
-                    detail="用户名或密码错误",
-                    headers={"WWW-Authenticate": "Basic"},
-                )
-    
-    # 查找服务器（先尝试按名称查找，如果失败再尝试按ID）
+    authenticate_http_user(db, username, password, request)
+
+    # 查找服务器（先尝试名称，再尝试 ID）
     server = db.query(FrpsServer).filter(FrpsServer.name == server_name).first()
     if not server:
-        # 尝试将 server_name 作为 ID
         try:
             server_id = int(server_name)
             server = db.query(FrpsServer).filter(FrpsServer.id == server_id).first()

@@ -1,7 +1,8 @@
 <template>
-  <div class="min-h-screen overflow-x-hidden bg-gray-50">
-    <header class="border-b border-gray-200 bg-white">
-      <div class="max-w-7xl mx-auto px-3 sm:px-4">
+  <div class="flex min-h-screen flex-col bg-gray-50">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3">跳至主要内容</a>
+    <header class="app-header border-b border-gray-200 bg-white">
+      <div class="app-container">
         <div class="flex h-14 min-h-14 items-center justify-between gap-2 sm:h-16 sm:gap-3">
           <div class="flex min-w-0 shrink items-center gap-1 sm:gap-2">
             <button
@@ -97,14 +98,12 @@
                 title="用户菜单"
                 @click.prevent="userDropdown.toggle()"
               >
-                <img
-                  class="h-8 w-8 rounded-full"
-                  :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(authStore.username || 'Admin')}&background=206bcb&color=fff`"
-                  alt="avatar"
-                />
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700" aria-hidden="true">
+                  {{ (authStore.username || 'A').slice(0, 1).toUpperCase() }}
+                </span>
                 <div class="hidden min-w-0 text-left xl:block">
                   <div class="text-sm font-medium">{{ authStore.username || '管理员' }}</div>
-                  <div class="text-xs text-gray-500">管理员</div>
+                  <div class="text-xs text-gray-500">{{ currentUserRole === 'admin' ? '管理员' : '普通用户' }}</div>
                 </div>
               </button>
               <div
@@ -123,17 +122,18 @@
       </div>
     </header>
 
+    <button v-if="navCollapse.isOpen.value" class="fixed inset-0 z-30 bg-gray-950/30 md:hidden" aria-label="关闭导航菜单" @click="navCollapse.close()"></button>
     <nav
-      class="border-b border-gray-200 bg-white md:block"
+      class="fixed inset-x-0 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 rounded-t-2xl border-b border-gray-200 bg-white shadow-xl md:static md:block md:rounded-none md:shadow-none"
       :class="{ hidden: !navCollapse.isOpen.value }"
       aria-label="主导航"
     >
-      <div class="max-w-7xl mx-auto px-3 sm:px-4">
-        <ul class="flex flex-col gap-0.5 py-2 md:flex-row md:flex-wrap md:gap-1">
+      <div class="app-container">
+        <ul class="grid grid-cols-2 gap-2 py-4 md:flex md:flex-row md:flex-wrap md:gap-1 md:py-2">
           <li v-for="item in navItems" :key="item.path" class="shrink-0 md:shrink">
             <router-link
               :to="item.path"
-              class="btn btn-sm btn-ghost min-h-10 w-full justify-start gap-2 px-3 py-2.5 text-sm md:min-h-8 md:w-auto md:justify-center md:py-1.5 md:text-xs"
+              class="btn btn-sm btn-ghost min-h-10 w-full justify-start gap-2 px-3 py-2.5 text-sm md:min-h-10 md:w-auto md:justify-center md:py-2 md:text-sm"
               :class="$route.path === item.path ? 'bg-blue-50 text-blue-600 hover:bg-blue-50 hover:text-blue-600' : 'text-gray-600'"
               @click="navCollapse.close()"
             >
@@ -145,17 +145,37 @@
       </div>
     </nav>
 
-    <div class="py-4 sm:py-6">
-      <div class="max-w-7xl mx-auto px-3 sm:px-4">
+    <nav class="app-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-gray-200 bg-white md:hidden" aria-label="快捷导航">
+      <router-link v-for="item in mobileNavItems" :key="item.path" :to="item.path"
+        class="flex flex-col items-center justify-center gap-1 text-[11px] font-medium"
+        :class="route.path === item.path ? 'text-blue-600' : 'text-gray-500'" @click="navCollapse.close()">
+        <AppIcon :name="item.icon" class="h-5 w-5" />
+        <span>{{ item.label }}</span>
+      </router-link>
+      <button type="button" class="flex flex-col items-center justify-center gap-1 text-[11px] font-medium"
+        :class="navCollapse.isOpen.value ? 'text-blue-600' : 'text-gray-500'"
+        :aria-expanded="navCollapse.isOpen.value" @click="navCollapse.toggle()">
+        <AppIcon name="menu" class="h-5 w-5" /><span>全部功能</span>
+      </button>
+    </nav>
+
+    <main id="main-content" tabindex="-1" class="app-main min-w-0 flex-1 py-5 sm:py-8">
+      <div class="app-container">
+        <div v-if="pageIntro" class="page-heading">
+          <div>
+            <h1 class="page-title">{{ pageIntro.title }}</h1>
+            <p class="page-description">{{ pageIntro.description }}</p>
+          </div>
+        </div>
         <router-view />
       </div>
-    </div>
+    </main>
 
-    <footer class="border-t border-gray-200 bg-white py-4">
-      <div class="max-w-7xl mx-auto flex flex-col gap-2 px-3 text-sm text-gray-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-1 sm:px-4">
+    <footer class="hidden border-t border-gray-200 bg-white py-4 md:block">
+      <div class="app-container flex flex-col gap-2 text-xs text-gray-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
         <span>FRP-AGENT v{{ appVersion || '…' }}</span>
         <span class="hidden text-gray-300 sm:inline">|</span>
-        <span>Copyright &copy; 2025</span>
+        <span>Copyright &copy; {{ new Date().getFullYear() }}</span>
         <span class="hidden text-gray-300 sm:inline">|</span>
         <button
           type="button"
@@ -197,7 +217,7 @@
     <Teleport to="body">
       <div
         v-if="showVersionModal"
-        class="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4"
+        class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="version-modal-title"
@@ -206,10 +226,10 @@
       >
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeVersionModal"></div>
         <div
-          class="relative z-10 flex max-h-[min(90dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl rounded-b-none border border-gray-200 bg-white shadow-xl will-change-transform sm:max-h-[min(90vh,640px)] sm:rounded-b-xl"
+          class="app-dialog-panel relative z-10 flex max-h-[min(90dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl rounded-b-none border border-gray-200 bg-white shadow-xl will-change-transform sm:max-h-[min(90vh,640px)] sm:rounded-b-xl"
           @click.stop
         >
-          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
             <h2 id="version-modal-title" class="flex items-center gap-2 text-lg font-semibold text-gray-900">
               <svg class="h-5 w-5 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -225,7 +245,7 @@
               <AppIcon name="close" class="h-5 w-5" />
             </button>
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+          <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <!-- 版本对比卡片 -->
             <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -318,7 +338,7 @@
               </a>
             </div>
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <div class="app-dialog-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
             <button type="button" class="btn btn-md btn-secondary" :disabled="checkLoading" @click="closeVersionModal">
               关闭
             </button>
@@ -362,10 +382,19 @@ import { useModal } from '@/composables/useModal'
 /** 与后端 app/version.py 中 Gitee 仓库一致 */
 const GITEE_REPO_URL = 'https://gitee.com/numen06/frp-agent'
 const GITEE_RELEASES_URL = `${GITEE_REPO_URL}/releases`
-const GITEE_RELEASE_NOTES_URL = `${GITEE_REPO_URL}/tree/master/release-notes`
+const GITEE_RELEASE_NOTES_URL = `${GITEE_REPO_URL}/tree/dev/release-notes`
 
 const router = useRouter()
 const route = useRoute()
+const pageIntros = {
+  '/proxies': { title: '代理列表', description: '查看代理状态、管理端口与分组，按需生成配置或升级客户端。' },
+  '/groups': { title: '分组管理', description: '按业务组织代理，统一交付配置、安装脚本与客户端升级任务。' },
+  '/servers': { title: '服务器管理', description: '集中接入 frps 节点，检查连接状态与服务端版本。' },
+  '/packages': { title: '安装包管理', description: '同步或上传多平台 frpc 安装包，统一维护版本与部署脚本。' },
+  '/api-keys': { title: '密钥管理', description: '管理自动化访问密钥，为配置分发、脚本部署和主机访问提供认证。' },
+  '/converter': { title: '配置转换', description: '将旧版 INI 配置迁移到 TOML，预览转换结果并下载使用。' }
+}
+const pageIntro = computed(() => pageIntros[route.path])
 const authStore = useAuthStore()
 const apiKeysStore = useApiKeysStore()
 
@@ -387,6 +416,7 @@ const baseNavItems = [
 const navItems = computed(() => baseNavItems.filter(
   item => item.path !== '/api-keys' || currentUserRole.value === 'admin'
 ))
+const mobileNavItems = baseNavItems.filter(item => ['/dashboard', '/proxies', '/hosts'].includes(item.path))
 
 // 下拉菜单和折叠功能
 const userDropdown = useDropdown()

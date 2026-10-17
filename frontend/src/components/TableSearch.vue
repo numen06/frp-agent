@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full min-w-0 items-stretch">
+  <div class="table-search flex w-full min-w-0 items-stretch">
     <span class="inline-flex h-10 shrink-0 items-center rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 px-3 text-gray-500 sm:h-9">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path stroke="none" d="M0 0h24v24H0z" fill="none"/>

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="dialogVisible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
     >
@@ -12,11 +12,11 @@
         @click="handleBackdropClick"
       />
       <div
-        class="group-proxies-dialog relative z-10 flex h-[calc(100dvh-0.5rem)] max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(82vh,700px)] sm:rounded-xl"
+        class="app-dialog-panel group-proxies-dialog relative z-10 flex h-[calc(100dvh-0.5rem)] max-h-[min(82vh,700px)] w-full flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(82vh,700px)] sm:rounded-xl"
         role="document"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
           <h2 class="text-lg font-semibold text-gray-900">
             查看代理 - {{ props.groupName || '-' }}
           </h2>
@@ -34,7 +34,7 @@
           </button>
         </div>
 
-        <div class="group-proxies-body min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-4">
+        <div class="app-dialog-body group-proxies-body min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-4">
           <div class="mb-3 flex flex-col gap-3">
             <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <div class="w-full min-w-0 sm:max-w-[250px]">

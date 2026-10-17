@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="dialogVisible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,10 +10,10 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
       <div
-        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,560px)] sm:rounded-xl"
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,560px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
+        <div class="app-dialog-header sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
           <h2 class="text-lg font-semibold text-gray-900">导入 frpc 配置文件</h2>
           <button
             type="button"
@@ -26,7 +26,7 @@
             </svg>
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
           <p class="mb-4 text-sm text-gray-600">
             上传 frpc 配置文件（INI 或 TOML 格式），系统将自动解析并导入代理信息。
           </p>
@@ -62,7 +62,7 @@
             <small class="mt-1 block text-xs text-gray-500">支持 .ini 和 .toml 格式的 frpc 配置文件</small>
           </div>
         </div>
-        <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
+        <div class="app-dialog-footer sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
             class="btn btn-md btn-outline w-full sm:mr-auto sm:w-auto"

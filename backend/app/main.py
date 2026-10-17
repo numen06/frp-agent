@@ -13,6 +13,7 @@ import os
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
 from app.routers import (
+    login,
     frps_server,
     proxy,
     port,
@@ -137,9 +138,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Retry-After"],
 )
 
 # 注册路由
+app.include_router(login.router)
 app.include_router(frps_server.router)
 app.include_router(proxy.router)
 app.include_router(port.router)

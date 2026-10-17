@@ -3,8 +3,8 @@
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 class="text-lg font-semibold text-gray-900">主机资源</h1>
-          <p class="mt-1 text-sm text-gray-500">
+          <h1 class="page-title">主机资源</h1>
+          <p class="page-description">
             SSH、RDP 远程桌面与 Portainer Docker 环境独立纳管，共用用户/API Key 授权与访问审计。
           </p>
         </div>
@@ -41,7 +41,7 @@
                 <h2 class="truncate font-semibold text-gray-900">{{ host.name }}</h2>
                 <span
                   class="rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="host.host_type === 'ssh' ? 'bg-blue-50 text-blue-700' : 'bg-violet-50 text-violet-700'"
+                  :class="{ ssh: 'bg-blue-50 text-blue-700', docker: 'bg-violet-50 text-violet-700', rdp: 'bg-amber-50 text-amber-700' }[host.host_type]"
                 >{{ { ssh: 'SSH', docker: 'Docker / Portainer', rdp: 'RDP 远程桌面' }[host.host_type] }}</span>
               </div>
               <p class="mt-1 break-all font-mono text-xs text-gray-500">
@@ -248,17 +248,17 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
   </div>
 
   <Teleport to="body">
-    <div v-if="aiPromptOpen" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
+    <div role="dialog" aria-modal="true" v-if="aiPromptOpen" class="app-dialog fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
       <div class="absolute inset-0 bg-black/50" @click="aiPromptOpen = false"></div>
-      <div class="relative z-10 flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl">
-        <div class="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
+      <div class="app-dialog-panel relative z-10 flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
           <div>
             <h2 class="font-semibold">AI curl 添加主机提示词</h2>
             <p class="mt-0.5 text-xs text-gray-500">填写公开连接信息，生成通过 API 添加主机的安全提示词。</p>
           </div>
           <button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="aiPromptOpen = false">✕</button>
         </div>
-        <div class="min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+        <div class="app-dialog-body min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
           <div class="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-1">
             <button type="button" class="min-h-10 rounded-md px-3 py-2 text-sm" :class="aiPromptForm.host_type === 'ssh' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setAiPromptType('ssh')">SSH 主机</button>
             <button type="button" class="min-h-10 rounded-md px-3 py-2 text-sm" :class="aiPromptForm.host_type === 'docker' ? 'bg-white font-medium text-violet-700 shadow-sm' : 'text-gray-500'" @click="setAiPromptType('docker')">Docker 主机</button>
@@ -276,25 +276,25 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             <div class="mb-1.5 text-sm font-medium text-gray-700">生成的提示词</div>
             <textarea :value="aiHostPrompt" readonly rows="15" class="w-full resize-none rounded-lg border border-gray-300 bg-gray-50 p-3 font-mono text-xs leading-5 text-gray-700"></textarea>
           </div>
-          <div class="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+        </div>
+        <div class="app-dialog-footer flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 bg-white p-4">
             <button class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="aiPromptOpen = false">关闭</button>
             <button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" @click="copyAiHostPrompt($event.currentTarget)">复制提示词</button>
           </div>
-        </div>
       </div>
     </div>
 
-    <div v-if="connectionHost" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
+    <div role="dialog" aria-modal="true" v-if="connectionHost" class="app-dialog fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
       <div class="absolute inset-0 bg-black/50" @click="connectionHost = null"></div>
-      <div class="relative z-10 w-full max-w-2xl rounded-t-2xl bg-white shadow-xl sm:rounded-xl">
-        <div class="flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
+      <div class="app-dialog-panel relative z-10 w-full max-w-2xl rounded-t-2xl bg-white shadow-xl sm:rounded-xl">
+        <div class="app-dialog-header flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
           <div class="min-w-0">
             <h2 class="truncate font-semibold">{{ connectionHost.name }} · 连接凭证</h2>
             <p class="mt-0.5 text-xs text-gray-500">{{ { ssh: 'SSH 跳板连接', docker: 'Docker HTTPS 网关', rdp: 'RDP 平台账号代登录' }[connectionHost.host_type] }}</p>
           </div>
           <button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="connectionHost = null">✕</button>
         </div>
-        <div class="space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+        <div class="app-dialog-body space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
           <dl class="grid gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm sm:grid-cols-[7rem_1fr]">
             <dt class="text-gray-500">网关地址</dt>
             <dd class="flex min-w-0 items-center gap-2">
@@ -338,20 +338,20 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           <p v-if="connectionHost.host_type === 'docker'" class="text-xs leading-5 text-gray-500">
             Docker 网关命令需要先下载 CA 证书，并将证书保存为 <code>frp-agent-docker-gateway-ca.pem</code>。
           </p>
-          <div class="grid gap-2 sm:flex sm:justify-end">
+        </div>
+        <div class="app-dialog-footer flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 bg-white p-4">
             <button v-if="connectionHost.host_type === 'docker'" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="downloadDockerCa">下载 CA 证书</button>
             <button v-if="connectionHost.host_type === 'docker' && gatewayInfo.docker_gateway?.client_certificate_available" class="btn btn-md btn-outline-primary min-h-11 touch-manipulation sm:min-h-9" @click="downloadDockerClientCert">下载客户端证书</button>
             <button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" @click="copyConnectionCommand(connectionHost, $event.currentTarget)">复制命令</button>
           </div>
-        </div>
       </div>
     </div>
 
-    <div v-if="hostEditor" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    <div role="dialog" aria-modal="true" v-if="hostEditor" class="app-dialog fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div class="absolute inset-0 bg-black/40" @click="hostEditor = false"></div>
-      <div class="relative z-10 flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[92vh] sm:rounded-xl">
-        <div class="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="font-semibold">{{ editingHostId ? '编辑主机' : cloningHostId ? '克隆主机' : '添加主机' }}</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="hostEditor = false">✕</button></div>
-        <form class="min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="saveHost">
+      <div class="app-dialog-panel relative z-10 flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[92vh] sm:rounded-xl">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="font-semibold">{{ editingHostId ? '编辑主机' : cloningHostId ? '克隆主机' : '添加主机' }}</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="hostEditor = false">✕</button></div>
+        <form id="host-editor-form" class="app-dialog-body min-h-0 space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="saveHost">
           <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
             <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'ssh' ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500'" @click="setHostType('ssh')">SSH 主机</button>
             <button type="button" class="rounded-md px-3 py-2 text-sm" :class="hostForm.host_type === 'docker' ? 'bg-white font-medium text-violet-700 shadow-sm' : 'text-gray-500'" @click="setHostType('docker')">Docker 主机</button>
@@ -403,16 +403,16 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           </template>
           <label class="block text-sm">标签<input v-model.trim="hostForm.tags" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="生产, 华东"></label>
           <label class="block text-sm">描述<textarea v-model.trim="hostForm.description" rows="2" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"></textarea></label>
-          <div class="grid grid-cols-2 gap-2 border-t pt-4 sm:flex sm:justify-end"><button type="button" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="hostEditor = false">取消</button><button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="savingHost || fetchingRdpFingerprint">{{ savingHost ? '保存中…' : '保存' }}</button></div>
         </form>
+          <div class="app-dialog-footer grid grid-cols-2 gap-2 border-t p-4 sm:flex sm:justify-end"><button type="button" class="btn btn-md btn-outline min-h-11 touch-manipulation sm:min-h-9" @click="hostEditor = false">取消</button><button type="submit" form="host-editor-form" class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="savingHost || fetchingRdpFingerprint">{{ savingHost ? '保存中…' : '保存' }}</button></div>
       </div>
     </div>
 
-    <div v-if="consoleHost" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
+    <div role="dialog" aria-modal="true" v-if="consoleHost" class="app-dialog fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
       <div class="absolute inset-0 bg-black/50" @click="consoleHost = null"></div>
-      <div class="relative z-10 w-full max-w-3xl rounded-t-2xl bg-white shadow-xl sm:rounded-xl">
-        <div class="flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="min-w-0 truncate font-semibold">{{ consoleHost.name }} · 命令终端</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="consoleHost = null">✕</button></div>
-        <form class="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="runCommand(false)">
+      <div class="app-dialog-panel relative z-10 w-full max-w-3xl rounded-t-2xl bg-white shadow-xl sm:rounded-xl">
+        <div class="app-dialog-header flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="min-w-0 truncate font-semibold">{{ consoleHost.name }} · 命令终端</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="consoleHost = null">✕</button></div>
+        <form class="app-dialog-body p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5" @submit.prevent="runCommand(false)">
           <div class="grid gap-2 sm:flex">
             <input v-model="command" class="min-h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm sm:min-h-9" placeholder="uptime" required>
             <button class="btn btn-md btn-primary min-h-11 touch-manipulation sm:min-h-9" :disabled="operating">执行</button>
@@ -424,11 +424,11 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
       </div>
     </div>
 
-    <div v-if="dockerHost" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
+    <div role="dialog" aria-modal="true" v-if="dockerHost" class="app-dialog fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-3">
       <div class="absolute inset-0 bg-black/50" @click="dockerHost = null"></div>
-      <div class="relative z-10 flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl">
-        <div class="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="min-w-0 truncate font-semibold">{{ dockerHost.name }} · 容器</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="dockerHost = null">✕</button></div>
-        <div class="min-h-0 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4">
+      <div class="app-dialog-panel relative z-10 flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4"><h2 class="min-w-0 truncate font-semibold">{{ dockerHost.name }} · 容器</h2><button class="btn btn-icon btn-ghost min-h-11 min-w-11 shrink-0 touch-manipulation sm:min-h-9 sm:min-w-9" aria-label="关闭" @click="dockerHost = null">✕</button></div>
+        <div class="app-dialog-body min-h-0 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4">
           <div v-if="operating" class="py-8 text-center text-sm text-gray-500">正在通过 Portainer API 读取容器...</div>
           <div v-else class="space-y-2">
             <div v-for="container in containers" :key="container.Id" class="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center">
@@ -449,6 +449,7 @@ import SshCredentialForm from '@/components/SshCredentialForm.vue'
 import { sshCredentialsApi } from '@/api/sshCredentials'
 import { dockerCredentialsApi, managedHostsApi } from '@/api/managedHosts'
 import { copyWithTooltip } from '@/composables/useCopyTooltip'
+import { useModal } from '@/composables/useModal'
 
 const hosts = ref([])
 const context = reactive({ is_admin: false, actor_type: 'user', actor_name: '' })
@@ -725,6 +726,14 @@ async function downloadDockerClientCert() {
     URL.revokeObjectURL(url)
   } catch (e) { alert(e.message) }
 }
+
+for (const [visible, close] of [
+  [aiPromptOpen, () => { aiPromptOpen.value = false }],
+  [connectionHost, () => { connectionHost.value = null }],
+  [hostEditor, () => { hostEditor.value = false }],
+  [consoleHost, () => { consoleHost.value = null }],
+  [dockerHost, () => { dockerHost.value = null }]
+]) useModal(visible, close)
 
 watch(tab, value => { if (value === 'audit') loadAudit() })
 onMounted(load)

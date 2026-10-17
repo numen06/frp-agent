@@ -10,7 +10,7 @@
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div class="flex flex-col gap-3 border-b border-gray-200 px-3 py-3 md:flex-row md:items-center md:justify-between md:px-5 md:py-3.5">
         <h3 class="text-base font-semibold text-gray-900">代理列表</h3>
-        <div class="flex w-full flex-wrap items-center gap-2 md:w-auto">
+        <div class="mobile-actions flex w-full flex-wrap items-center gap-2 md:w-auto">
             <div class="relative" v-if="proxiesStore.selectedCount > 0">
               <button 
                 ref="batchActionsDropdown.triggerRef"

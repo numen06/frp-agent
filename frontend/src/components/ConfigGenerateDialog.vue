@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="dialogVisible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="config-gen-title"
@@ -13,10 +13,10 @@
         @click="closeDialog"
       />
       <div
-        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,900px)] sm:rounded-xl"
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,900px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3.5 sm:px-6 sm:py-4">
+        <div class="app-dialog-header sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3.5 sm:px-6 sm:py-4">
           <h2 id="config-gen-title" class="text-lg font-semibold text-gray-900">
             {{ title }}
           </h2>
@@ -34,7 +34,7 @@
           </button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           <div v-if="showClientName" class="mb-4">
             <label class="mb-1 block text-sm font-medium text-gray-700">配置名称</label>
             <input
@@ -149,7 +149,7 @@
           </div>
         </div>
 
-        <div class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-6 sm:py-4">
+        <div class="app-dialog-footer sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-6 sm:py-4">
           <button
             type="button"
             class="btn btn-md btn-ghost w-full sm:mr-auto sm:w-auto"

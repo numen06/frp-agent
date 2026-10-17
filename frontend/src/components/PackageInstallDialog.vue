@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,10 +10,10 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
       <div
-        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
           <h2 class="text-lg font-semibold text-gray-900">一键脚本生成</h2>
           <button
             type="button"
@@ -26,7 +26,7 @@
             </svg>
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
             <div class="grid gap-4">
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">安装包</label>
@@ -92,26 +92,6 @@
                   升级脚本
                 </button>
               </div>
-              <div>
-                <button
-                  v-if="activeTab === 'install'"
-                  type="button"
-                  class="btn btn-md btn-primary"
-                  :disabled="loading"
-                  @click="submit"
-                >
-                  {{ loading ? '生成中...' : '生成安装脚本' }}
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="btn btn-md btn-success"
-                  :disabled="loading"
-                  @click="submitUpgrade"
-                >
-                  {{ loading ? '生成中...' : '生成升级脚本' }}
-                </button>
-              </div>
               <div v-if="activeTab === 'install' && script">
                 <label class="mb-1 block text-sm font-medium text-gray-700">安装脚本预览</label>
                 <CodeEditor :model-value="script" language="shell" :height="'320px'" :readonly="true" />
@@ -138,6 +118,26 @@
               </div>
             </div>
         </div>
+              <div class="app-dialog-footer flex shrink-0 justify-end gap-2 border-t border-gray-200 bg-white p-4">
+                <button
+                  v-if="activeTab === 'install'"
+                  type="button"
+                  class="btn btn-md btn-primary"
+                  :disabled="loading"
+                  @click="submit"
+                >
+                  {{ loading ? '生成中...' : '生成安装脚本' }}
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="btn btn-md btn-success"
+                  :disabled="loading"
+                  @click="submitUpgrade"
+                >
+                  {{ loading ? '生成中...' : '生成升级脚本' }}
+                </button>
+              </div>
       </div>
     </div>
   </Teleport>

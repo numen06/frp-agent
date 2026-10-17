@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -10,10 +10,10 @@
     >
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
       <div
-        class="relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,720px)] sm:rounded-xl"
         @click.stop
       >
-        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+        <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
           <h2 class="text-lg font-semibold text-gray-900">上传安装包</h2>
           <button
             type="button"
@@ -26,7 +26,7 @@
             </svg>
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
               <div class="mb-4">
                 <label class="mb-1 block text-sm font-medium text-gray-700">选择文件（支持多选）</label>
                 <div
@@ -136,7 +136,7 @@
                 </template>
               </div>
         </div>
-        <div class="flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5 sm:py-3.5">
+        <div class="app-dialog-footer flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-5 sm:py-3.5">
               <button type="button" class="btn btn-md btn-outline w-full sm:mr-auto sm:w-auto" @click="closeDialog">取消</button>
               <button
                 v-if="fileList.length === 1"
