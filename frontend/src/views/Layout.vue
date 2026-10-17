@@ -14,11 +14,10 @@
             >
               <AppIcon name="menu" class="h-5 w-5" />
             </button>
-            <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2">
+            <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2" aria-label="FRP-AGENT 首页">
               <span class="shrink-0 sm:hidden"><FrpLogo :size="32" color="currentColor" /></span>
               <span class="hidden shrink-0 sm:inline"><FrpLogo :size="40" color="currentColor" /></span>
-              <span class="truncate font-extrabold text-blue-600 max-[360px]:hidden min-[361px]:inline sm:inline">FRP</span>
-              <span class="hidden font-semibold text-gray-500 sm:inline">-AGENT</span>
+              <span class="hidden whitespace-nowrap min-[361px]:inline"><span class="font-extrabold text-blue-600">FRP</span><span class="hidden font-semibold text-gray-500 sm:inline">-AGENT</span></span>
             </router-link>
           </div>
           <div class="flex shrink-0 items-center gap-1 sm:gap-3">

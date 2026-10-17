@@ -6,9 +6,9 @@
           <div class="mb-3 animate-float text-blue-600">
             <FrpLogo :size="72" color="currentColor" :animated="true" />
           </div>
-          <div class="flex items-baseline text-3xl font-bold tracking-tight">
+          <div class="flex items-baseline whitespace-nowrap text-3xl font-bold tracking-tight">
             <span class="text-blue-600 font-extrabold">FRP</span>
-            <span class="text-gray-500 font-semibold ml-0.5">-AGENT</span>
+            <span class="text-gray-500 font-semibold">-AGENT</span>
           </div>
           <div class="mt-1 text-sm font-medium tracking-wide text-gray-500">代理配置 · 主机访问 · 统一运维</div>
         </a>
