@@ -4,7 +4,7 @@
 
 FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机资源放进同一个 Web 控制台。既可以完成内网穿透配置的日常维护，也可以按用户或 API Key 分配主机访问权限、执行远程操作并查看审计记录。
 
-当前版本：**v1.2.2** · [发行说明](release-notes/1.2.2.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
+当前版本：**v1.2.3** · [发行说明](release-notes/1.2.3.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
 
 ![运行概览：多节点统计与代理在线率](docs/screenshots/dashboard.png)
 
@@ -74,8 +74,11 @@ FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机
 - RDP 平台账号入口支持 NLA/CredSSP；客户端使用“平台账号#主机名”和平台密码。首次使用或修改密码后，先登录一次网页。
 - RDP 的 `.rdp` 文件不包含 Windows 密码；API Key 使用 TLS 连接文件，不能作为 Windows App 的 NLA 账号登录。
 - 凭据加密保存在服务端；获授权用户无需拿到目标主机的真实密码或私钥。
+- 管理员在“主机资源 → 凭证管理”集中维护 SSH / RDP 与 Docker / Portainer 凭证，支持分页搜索、新增、编辑、替换敏感内容与删除；编辑时留空保留原值，正在使用的凭证禁止删除。
 
 ![主机资源：SSH、Docker 与 RDP 统一入口](docs/screenshots/hosts.png)
+
+![凭证管理：统一维护 SSH / RDP 与 Docker 凭证](docs/screenshots/host-credentials.png)
 
 ### 授权与审计
 

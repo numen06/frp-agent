@@ -22,6 +22,7 @@ from app.models.client_upgrade_job import ClientUpgradeJob
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
 from app.services.port_service import PortService
+from app.services.credential_encryption import decrypt_secret
 
 
 @pytest.fixture
@@ -196,3 +197,67 @@ def test_group_delete_rejects_active_job(api):
     result = client.delete("/api/groups/group-000", params={"frps_server_id": 1, "delete_proxies": True, "expected_proxy_count": 1})
     assert result.status_code == 409
     assert db.query(Proxy).filter_by(group_name="group-000").count() == 1
+
+
+@pytest.mark.parametrize("kind", ["ssh", "docker"])
+def test_credential_management_preserves_secrets_and_rejects_in_use_delete(api, kind):
+    client, db, identity, admin, member, _ = api
+    path = f"/api/{kind}-credentials"
+    body = {"name": "rotation-demo", "auth_type": "password", "username": "operator", "password": "demo-secret"}
+    body.update({"sudo_password": "demo-sudo"} if kind == "ssh" else {"ca_cert": "demo-ca"})
+    created = client.post(path, json=body)
+    assert created.status_code == 201, created.text
+    metadata = created.json(); cid = metadata["id"]
+    assert not ({"password", "private_key", "passphrase", "sudo_password", "api_key", "ca_cert"} & metadata.keys())
+    model = SshCredential if kind == "ssh" else DockerCredential
+    row = db.get(model, cid)
+    encrypted = row.password_encrypted
+    updated = client.put(f"{path}/{cid}", json={"name": "renamed-demo"})
+    assert updated.status_code == 200 and updated.json()["has_password"]
+    db.refresh(row); assert row.password_encrypted == encrypted
+    optional = "sudo_password" if kind == "ssh" else "ca_cert"
+    assert client.put(f"{path}/{cid}", json={"password": "rotated-secret", optional: ""}).status_code == 200
+    db.refresh(row); assert decrypt_secret(row.password_encrypted) == "rotated-secret"
+    assert not getattr(row, optional + "_encrypted")
+    host = ManagedHost(name="bound-demo", host_type=kind, address="host.example.com", **{("credential_id" if kind == "ssh" else "docker_credential_id"): cid})
+    db.add(host); db.commit()
+    assert client.delete(f"{path}/{cid}").status_code == 409
+    for actor in [member, User(id=-1, username="api-key", role="admin")]:
+        identity[0] = actor
+        assert client.get(path, params={"page": 1}).status_code == 403
+        assert client.get(f"{path}/{cid}").status_code == 403
+        assert client.post(path, json=body).status_code == 403
+        assert client.put(f"{path}/{cid}", json={"name": "denied"}).status_code == 403
+        assert client.delete(f"{path}/{cid}").status_code == 403
+    identity[0] = admin; db.delete(host); db.commit()
+    assert client.delete(f"{path}/{cid}").status_code == 204
+    assert client.get(f"{path}/{cid}").status_code == 404
+
+
+def test_ssh_credential_rotation_cannot_break_authentication_or_rdp(api):
+    client, db, *_ = api
+    created = client.post("/api/ssh-credentials", json={"name": "windows", "username": "administrator", "auth_type": "password", "password": "demo-password"}).json()
+    path = f"/api/ssh-credentials/{created['id']}"
+    for payload in [{"password": ""}, {"auth_type": "private_key"}]:
+        assert client.put(path, json=payload).status_code == 400
+    host = ManagedHost(name="rdp-demo", host_type="rdp", address="host.example.com", credential_id=created["id"])
+    db.add(host); db.commit()
+    assert client.put(path, json={"auth_type": "private_key", "private_key": "demo-key"}).status_code == 409
+    assert client.get(path).json()["auth_type"] == "password"
+    assert client.put(path, json={"password": "new-demo-password"}).status_code == 200
+
+
+def test_ssh_credential_delete_protects_clients_and_preserves_completed_jobs(api):
+    client, db, *_ = api
+    created = client.post("/api/ssh-credentials", json={"name": "client-demo", "username": "operator", "auth_type": "password", "password": "demo-password"}).json()
+    cid = created["id"]; path = f"/api/ssh-credentials/{cid}"
+    state = ProxySshState(proxy_id=1, credential_id=cid)
+    job = ClientUpgradeJob(credential_id=cid, job_type="scan", scope_type="proxy", status="running")
+    db.add_all([state, job]); db.commit()
+    assert client.delete(path).status_code == 409
+    state.credential_id = None; db.commit()
+    assert client.delete(path).status_code == 409
+    job.status = "completed"; db.commit()
+    assert client.delete(path).status_code == 204
+    db.refresh(job)
+    assert job.credential_id is None and job.status == "completed"

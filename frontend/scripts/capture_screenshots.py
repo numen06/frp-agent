@@ -57,6 +57,14 @@ KEYS = [dict(id=1, description='演示部署密钥', key='demo-key-not-a-real-cr
 SUBJECTS = [dict(id=i, name=name, subject_type='user', role=role, is_active=True,
                 has_ssh_public_key=True) for i, name, role in
             [(1, 'demo-admin', 'admin'), (2, 'operator', 'user')]]
+SSH_CREDENTIALS = [dict(id=i, name=name, username=username, auth_type=auth,
+    has_password=auth == 'password', has_private_key=auth == 'private_key',
+    has_passphrase=False, has_sudo_password=i == 1, created_at=DATE, updated_at=DATE)
+    for i, (name, username, auth) in enumerate([
+        ('演示部署凭证', 'deploy', 'private_key'), ('演示 Windows 凭证', 'administrator', 'password'),
+        ('演示运维凭证', 'operator', 'password')], 1)]
+DOCKER_CREDENTIALS = [dict(id=1, name='演示 Portainer 凭证', username=None, auth_type='api_key',
+    has_password=False, has_api_key=True, has_ca_cert=False, created_at=DATE, updated_at=DATE)]
 GRANTS = [dict(id=h['id'], host_id=h['id'], host_name=h['name'], subject_type='user',
                subject_id=2, subject_name='operator', can_connect=True,
                can_execute=h['host_type']=='ssh', can_manage_docker=h['host_type']=='docker',
@@ -103,8 +111,8 @@ RESPONSES = {
     '/api/managed-hosts/access/grants': GRANTS,
     '/api/managed-hosts/audit/logs': AUDIT,
     '/api/managed-hosts/2/docker/containers': dict(containers=[]),
-    '/api/docker-credentials': [],
-    '/api/ssh-credentials': [],
+    '/api/docker-credentials': DOCKER_CREDENTIALS,
+    '/api/ssh-credentials': SSH_CREDENTIALS,
     '/api/packages': paginated(PACKAGES),
     '/api/packages/versions': dict(versions=['0.61.1'], latest_version='0.61.1', recent_versions=['0.61.1'], synced_at=DATE),
     '/api/packages/releases': [dict(tag_name='v0.61.1', version='0.61.1', name='v0.61.1', platforms=[p['platform'] for p in PACKAGES])],
@@ -124,6 +132,9 @@ def demo_response(url):
         data = next((row for row in KEYS if row['id'] == int(path.rsplit('/', 1)[-1])), None)
     if path.startswith('/api/api-keys/') and path.endswith('/full-key'):
         data = dict(key='demo-key-not-a-real-credential')
+    for prefix, rows in [('/api/ssh-credentials/', SSH_CREDENTIALS), ('/api/docker-credentials/', DOCKER_CREDENTIALS)]:
+        if path.startswith(prefix) and path.rsplit('/', 1)[-1].isdigit():
+            data = next((row for row in rows if row['id'] == int(path.rsplit('/', 1)[-1])), None)
     if path.startswith('/api/managed-hosts/audit/logs/'):
         data = next((row for row in AUDIT if row['id'] == int(path.rsplit('/', 1)[-1])), None)
     if path.endswith('/delete-preview') and path.startswith('/api/groups/'):
@@ -216,7 +227,7 @@ def main():
             page.screenshot(path=str(OUTPUT / f'{route}.png'), animations='disabled')
             print(f'Captured {route}: 1920x1080')
             if route == 'hosts':
-                for label, filename in [('访问授权', 'host-access'), ('访问审计', 'host-audit')]:
+                for label, filename in [('凭证管理', 'host-credentials'), ('访问授权', 'host-access'), ('访问审计', 'host-audit')]:
                     page.get_by_role('button', name=label, exact=True).click()
                     settle()
                     page.screenshot(path=str(OUTPUT / f'{filename}.png'), animations='disabled')

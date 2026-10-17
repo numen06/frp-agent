@@ -89,6 +89,17 @@ def update_credential(
     if not cred:
         raise HTTPException(status_code=404, detail="凭据不存在")
 
+    next_type = body.auth_type or cred.auth_type
+    secret_field = "password" if next_type == "password" else "private_key"
+    replacement = getattr(body, secret_field)
+    if replacement == "" or (replacement is None and not getattr(cred, secret_field + "_encrypted")):
+        raise HTTPException(status_code=400, detail="密码认证需要提供 password" if next_type == "password" else "私钥认证需要提供 private_key")
+    if next_type == "private_key":
+        from app.models.managed_host import ManagedHost
+
+        if db.query(ManagedHost.id).filter(ManagedHost.credential_id == credential_id, ManagedHost.host_type == "rdp").first():
+            raise HTTPException(status_code=409, detail="该凭据正被 RDP 主机使用，不能切换为私钥认证，请先更换主机凭据")
+
     if body.name is not None:
         cred.name = body.name
     if body.username is not None:
@@ -132,6 +143,15 @@ def delete_credential(
             status_code=409,
             detail=f"该凭据正被 {used_count} 台主机使用，请先调整主机配置",
         )
+    from app.models.proxy_ssh_state import ProxySshState
+    from app.models.client_upgrade_job import ClientUpgradeJob
+
+    if db.query(ProxySshState.id).filter(ProxySshState.credential_id == credential_id).first():
+        raise HTTPException(status_code=409, detail="该凭据正被代理客户端使用，请先使用其他凭据重新扫描客户端")
+    jobs = db.query(ClientUpgradeJob).filter(ClientUpgradeJob.credential_id == credential_id)
+    if jobs.filter(ClientUpgradeJob.status.in_(["queued", "running"])).first():
+        raise HTTPException(status_code=409, detail="该凭据正在用于扫描或升级任务，请等待任务结束")
+    jobs.update({ClientUpgradeJob.credential_id: None}, synchronize_session=False)
     db.delete(cred)
     db.commit()
 

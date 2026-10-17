@@ -6,7 +6,15 @@
 - **Docker 主机**：通过 Portainer HTTP API 访问，可查询、启动、停止和重启容器。
 - **RDP 主机**：通过本项目内置的 RDP/TLS 网关，使用 mstsc 或 Windows App 访问。
 
-三类资源共用系统用户、API Key 授权和访问审计，但不会共用连接方式或凭据。
+三类资源共用系统用户、API Key 授权和访问审计，分别配置连接方式。SSH 与 RDP 共用密码凭证库，Docker / Portainer 凭证独立管理。
+
+## 凭证管理
+
+管理员进入“主机资源 → 凭证管理”，按 SSH / RDP 或 Docker / Portainer 查看、搜索、新增、编辑和删除凭证。列表默认每页 20 条，支持手机卡片与全屏编辑弹窗。
+
+敏感内容加密保存，不回显原文；编辑留空保留已有值，填写新值即替换。私钥口令、sudo 密码与 CA 证书可勾选清除。共享凭证的修改会影响所有使用它的主机。
+
+被主机或代理客户端使用的凭证禁止删除；扫描 / 升级任务运行时也不能删除。已完成任务的历史会保留。RDP 绑定的凭证只能使用密码认证，不能切换为 SSH 私钥。
 
 ## SSH 主机
 
@@ -49,13 +57,13 @@ POST /api/endpoints/{endpointId}/docker/containers/{container}/restart
 
 ```bash
 curl -H "Authorization: Bearer <API_KEY>" \
-  https://frp-agent.example/api/managed-hosts
+  https://frp.example.com/api/managed-hosts
 
 curl -X POST \
   -H "Authorization: Bearer <API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"command":"uptime","timeout":30}' \
-  https://frp-agent.example/api/managed-hosts/<HOST_ID>/commands
+  https://frp.example.com/api/managed-hosts/<HOST_ID>/commands
 ```
 
 ## 原生 SSH 跳板端口
@@ -65,17 +73,17 @@ curl -X POST \
 使用系统用户和该用户自己的系统密码：
 
 ```bash
-ssh -p 2222 '系统用户#SSH主机名'@frp-agent.example
+ssh -p 2222 '系统用户#SSH主机名'@frp.example.com
 ```
 
 使用 API Key：
 
 ```bash
 # SSH 用户名直接填写主机名，认证密码填写已授权的 API Key
-ssh -p 2222 'SSH主机名'@frp-agent.example
+ssh -p 2222 'SSH主机名'@frp.example.com
 
 # 也支持显式形式
-ssh -p 2222 'apikey#SSH主机名'@frp-agent.example
+ssh -p 2222 'apikey#SSH主机名'@frp.example.com
 ```
 
 认证成功后，平台使用后台保存的 SSH 凭据连接目标主机并桥接交互终端。登录者不会得到目标主机密码或私钥。会话的登录者、来源 IP、目标主机、结果和持续时间会进入访问审计。
@@ -90,7 +98,7 @@ ssh -p 2222 'apikey#SSH主机名'@frp-agent.example
 curl \
   -u '系统用户#Docker主机名:系统用户密码' \
   --cacert frp-agent-docker-gateway-ca.pem \
-  'https://frp-agent.example:23750/containers/json?all=true'
+  'https://frp.example.com:23750/containers/json?all=true'
 ```
 
 API Key 认证：
@@ -99,7 +107,7 @@ API Key 认证：
 curl \
   -u 'Docker主机名:API_KEY' \
   --cacert frp-agent-docker-gateway-ca.pem \
-  'https://frp-agent.example:23750/containers/json?all=true'
+  'https://frp.example.com:23750/containers/json?all=true'
 ```
 
 也可以使用 Bearer 形式：
@@ -109,7 +117,7 @@ curl \
   -H 'Authorization: Bearer API_KEY' \
   -H 'X-Host: Docker主机名' \
   --cacert frp-agent-docker-gateway-ca.pem \
-  'https://frp-agent.example:23750/containers/json?all=true'
+  'https://frp.example.com:23750/containers/json?all=true'
 ```
 
 Docker 网关只提供 HTTPS。首次启动时会在数据目录生成自签名 CA/服务端证书，可从主机资源页面下载。部署前应将 `DOCKER_GATEWAY_TLS_COMMON_NAME` 设置为客户端实际访问的域名或 IP。
@@ -124,9 +132,9 @@ Windows 自带 `mstsc`、Windows App / Microsoft Remote Desktop 的连接信息�
 
 | 字段 | 内容 |
 | --- | --- |
-| 计算机 | `frpagent.51jbm.cn:13389` |
-| 用户名 | `admin#haishi_win_rdp`（平台用户#资源名称） |
-| 密码 | `admin` 的平台密码 |
+| 计算机 | `frp.example.com:13389` |
+| 用户名 | `operator#windows-demo`（平台用户#资源名称） |
+| 密码 | `operator` 的平台密码 |
 
 首次使用 NLA 前，先用平台密码登录官网或刷新已登录页面一次；升级和修改平台密码后也如此。网页认证会生成与当前平台密码绑定的 AES-GCM 加密 NLA 验证材料，旧验证材料在密码变更后立即失效，数据库不保存明文平台密码。Windows App 直接添加电脑，网关设置留空，使用上表账号。
 
@@ -140,10 +148,10 @@ Windows 自带 `mstsc`、Windows App / Microsoft Remote Desktop 的连接信息�
 environment:
   - RDP_GATEWAY_ENABLED=true
   - RDP_GATEWAY_PORT=13389
-  - RDP_GATEWAY_PUBLIC_ADDRESS=frpagent.51jbm.cn:13389
+  - RDP_GATEWAY_PUBLIC_ADDRESS=frp.example.com:13389
   - RDP_GATEWAY_TLS_CERT_PATH=/app/rdp-tls/cert.pem
   - RDP_GATEWAY_TLS_KEY_PATH=/app/rdp-tls/key.pem
-  - RDP_GATEWAY_TRUSTED_PROXIES=172.25.0.2/32
+  - RDP_GATEWAY_TRUSTED_PROXIES=192.0.2.10/32  # 示例，请替换为实际可信反代地址
 ports:
   - "13389:13389"
 ```
@@ -161,27 +169,13 @@ ports:
 - 审计区分平台授权、上游桌面连接完成和断开，不把平台授权成功当成 Windows 登录成功。审计不含密码、按键或桌面内容。
 - 官网沿用现有认证，本次未新增 MFA。保留现有 SSH、Docker 网关；RDP 状态和限流保存在单进程内，不支持多个应用 worker 共享连接。
 
-线上 Windows 试运行链路为公网网关 → 宿主机内网 `172.16.97.250:6094` → FRP → `10.81.73.29:3389`，资源名称 `haishi_win_rdp`（ID 8）。旧 `6094` 直连入口仍保留，正式收口需结合现有客户端迁移。
-
-反代与应用共用外部 Docker 网络 `nginx-webui_default`，官网上游为 `tools-frp-agent-1:8005`，可信反代为 `172.25.0.2/32`。Portainer Stack 9 的持久化定义需要与部署配置同步。
-
 无凭据 TLS 检查命令：
 
 ```powershell
-.\.venv\Scripts\python.exe backend/scripts/verify_rdp_gateway.py frpagent.51jbm.cn 13389
+.\.venv\Scripts\python.exe backend/scripts/verify_rdp_gateway.py frp.example.com 13389
 ```
 
 此检查只确认 RDP/TLS 和域名证书，不宣称 Windows 登录成功；实际桌面验收必须使用获授权的平台账号连接并确认桌面。
-
-2026-10-15 验收：已通过公网 `13389` 使用临时普通平台账号及平台密码完整进入目标 Windows 桌面，客户端未提供 Windows 密码；线上记录平台授权、上游桌面连接完成及约 23 秒后的断开审计，临时账号和授权已删除。正式域名证书校验通过（TLS 1.3），实际运行镜像内 46 项相关测试通过，SSH `2222` 横向检查正常。Windows 凭据已绑定资源并使用现有加密密钥保存。
-
-该次人工验收镜像为 `frp-agent:rdp-platform-20261015-v2`，配置和数据库备份位于 `/data/compose/9/rdp-platform-20261015-v2/` 及应用数据目录中的 `rdp-platform-v2-database.before.sqlite`。后续代码更新提交 `dev` 后沿用项目自动发布流程。
-
-2026-10-15 NLA 修复验收：入口增加 NLA/CredSSP，修复 TLS 控制帧触发阻塞读取、约 3 秒后误断开的问题。使用 FreeRDP 的 NLA 模式，经公网 `13389` 和正式证书校验，临时普通平台用户实际进入 `10.81.73.29` 的 Windows 桌面，连接保持约 26 秒后由测试程序主动断开；授权、桌面已连接及断开审计齐全，临时用户与授权已删除。错误平台密码的 NLA 认证被拒绝，53 项相关回归测试通过。此为 FreeRDP NLA 实测，Windows App 客户端仍需用户重试确认。
-
-本轮按用户要求手动部署镜像 `frp-agent:rdp-nla-20261015-v3`，配置及容器快照备份在 `/data/compose/9/rdp-nla-20261015-v3/`，数据库备份为应用数据目录的 `rdp-nla-v3-database.before.sqlite`。代码已推送 `dev`；app2docker 自动发布尚未确认，该轮使用手动镜像。
-
-2026-10-15 指纹自动获取版本已手动部署为 `frp-agent:rdp-fingerprint-20261015-v4`（代码提交 `f137ee6`）。新增时留空自动获取和保存、管理员获取接口、已有指纹保持及变更拒绝均已验证，59 项相关测试和前端构建通过。线上官网、新前端资源、探测接口认证保护、RDP TLS 及 SSH 网关检查通过。配置和容器备份位于 `/data/compose/9/rdp-fingerprint-20261015-v4/`，数据库备份为应用数据目录中的 `rdp-fingerprint-v4-database.before.sqlite`。
 
 ## 安全配置
 

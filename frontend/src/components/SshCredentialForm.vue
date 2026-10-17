@@ -162,9 +162,12 @@ async function loadPrivateKeyFile(event) {
 }
 
 async function loadCredentials() {
+  const id = selectedId.value
   try {
-    credentials.value = selectedId.value ? [await sshCredentialsApi.get(selectedId.value)] : []
-    if (selectedId.value) onSelect()
+    const rows = id ? [await sshCredentialsApi.get(id)] : []
+    if (selectedId.value !== id) return
+    credentials.value = rows
+    if (id) onSelect()
   } catch (e) {
     console.error(e)
   }
@@ -198,6 +201,7 @@ function onSelect() {
 }
 
 async function saveCredential() {
+  if (saving.value) return
   saving.value = true
   try {
     const payload = {
@@ -234,7 +238,6 @@ async function saveCredential() {
     }
     await loadCredentials()
     showEditor.value = false
-    resetForm()
   } catch (e) {
     alert(e.message || '保存失败')
   } finally {

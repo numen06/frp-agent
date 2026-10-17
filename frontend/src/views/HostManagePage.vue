@@ -93,6 +93,7 @@
       <div class="border-t border-gray-200 p-4"><TablePagination :total="hostList.pagination.total" :page="hostList.pagination.page" :page-size="hostList.pagination.page_size" @page-change="hostList.load" @page-size-change="hostList.resize" /></div>
     </section>
 
+    <HostCredentialPanel v-else-if="tab === 'credentials' && context.is_admin" @changed="loadHosts" />
     <section v-else-if="tab === 'access' && context.is_admin" class="space-y-4">
       <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 class="font-semibold text-gray-900">添加访问授权</h2>
@@ -405,6 +406,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
 
 <script setup>
 import HostAuditPanel from '@/components/HostAuditPanel.vue'
+import HostCredentialPanel from '@/components/HostCredentialPanel.vue'
 import RemoteSelect from '@/components/RemoteSelect.vue'
 import TablePagination from '@/components/TablePagination.vue'
 import { usePagedList } from '@/composables/usePagedList'
@@ -442,7 +444,7 @@ const origin = window.location.origin
 
 const tabs = computed(() => [
   { key: 'hosts', label: '主机列表' },
-  ...(context.is_admin ? [{ key: 'access', label: '访问授权' }, { key: 'users', label: '系统用户' }] : []),
+  ...(context.is_admin ? [{ key: 'credentials', label: '凭证管理' }, { key: 'access', label: '访问授权' }, { key: 'users', label: '系统用户' }] : []),
   { key: 'audit', label: '访问审计' },
   { key: 'guide', label: 'API 访问' }
 ])
