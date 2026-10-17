@@ -4,7 +4,7 @@
 
 FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机资源放进同一个 Web 控制台。既可以完成内网穿透配置的日常维护，也可以按用户或 API Key 分配主机访问权限、执行远程操作并查看审计记录。
 
-当前版本：**v1.2.0** · [发行说明](release-notes/1.2.0.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
+当前版本：**v1.2.1** · [发行说明](release-notes/1.2.1.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
 
 ![运行概览：多节点统计与代理在线率](docs/screenshots/dashboard.png)
 
@@ -104,7 +104,7 @@ FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机
 ### Docker Compose：从版本标签构建
 
 ```bash
-git clone --branch v1.2.0 https://gitee.com/numen06/frp-agent.git
+git clone --branch v1.2.1 https://gitee.com/numen06/frp-agent.git
 cd frp-agent
 mkdir -p data
 # 首次部署生成凭据加密密钥；已有部署请保留原值，不要重新生成。
