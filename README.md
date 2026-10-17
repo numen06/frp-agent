@@ -101,20 +101,57 @@ FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机
 
 ## 快速部署
 
-### Docker Compose：从版本标签构建
+### 直接使用项目镜像（推荐）
+
+项目镜像：`registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest`。常规部署直接拉取镜像，无需在本地安装 Node.js、Python 或编译依赖。
+
+以下为 Linux / macOS Shell 示例。首次部署创建独立目录并保存凭据加密密钥：
 
 ```bash
-git clone --branch v1.2.1 https://gitee.com/numen06/frp-agent.git
+mkdir -p frp-agent/data
 cd frp-agent
-mkdir -p data
-# 首次部署生成凭据加密密钥；已有部署请保留原值，不要重新生成。
+# 已有部署请保留原 .env 和 SSH_CREDENTIAL_SECRET，不要重新生成。
 printf 'SSH_CREDENTIAL_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
-docker compose up -d --build
+docker pull registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+docker run -d \
+  --name frp-agent \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 8000:8000 \
+  -p 2222:2222 \
+  -p 23750:23750 \
+  -p 13389:13389 \
+  -v "$(pwd)/data:/app/data" \
+  registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
 ```
 
 启动后访问 `http://localhost:8000`。默认用户名 / 密码为 `admin` / `admin`，首次登录后修改密码。也可在 `.env` 中设置 `AUTH_USERNAME`、`AUTH_PASSWORD`，用于初始化默认用户。
 
-本步骤从标签构建镜像，不依赖镜像仓库是否已发布同名版本。
+### Docker Compose：使用项目镜像
+
+仓库默认 Compose 同样直接使用项目镜像，适合集中维护配置和后续升级：
+
+```bash
+git clone --branch dev --depth 1 https://gitee.com/numen06/frp-agent.git
+cd frp-agent
+mkdir -p data
+# 首次部署生成凭据加密密钥；已有部署请保留原值，不要重新生成。
+printf 'SSH_CREDENTIAL_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
+docker compose pull
+docker compose up -d --no-build
+```
+
+镜像版本以已发布的镜像标签及启动后的页面版本为准；Git 标签与镜像发布分别进行，不代表仓库中已有同名镜像。需要固定版本时，将 `image` 改为镜像仓库中已发布的版本标签或摘要。
+
+### 自行编译（可选）
+
+需要修改源码或构建尚未发布镜像的提交时，在仓库根目录执行：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+该配置构建本地 `frp-agent:local` 镜像，端口、环境变量及数据挂载沿用默认 Compose。后续自行编译升级继续使用这条命令。
 
 ### 按需开放服务
 
@@ -149,8 +186,10 @@ Compose 已声明这四个端口映射。RDP 需要在 `data` 中放置配置指
 
 ### 升级
 
+如果旧版 `docker-compose.yml` 只有 `build` 配置，先将 `frp-agent` 服务的 `build` 配置块替换为 `image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest`，保留现有环境变量、端口和数据挂载，再按以下步骤升级。
+
 1. 备份 `data` 目录、部署配置和现有加密密钥。
-2. 更新源码到目标标签，重新构建并启动容器：`docker compose up -d --build`。
+2. 使用项目镜像的 Compose 部署执行 `docker compose pull`，再执行 `docker compose up -d --no-build`。使用 `docker run` 部署时，先拉取镜像，再停止并删除原容器，使用原 `.env`、数据目录及端口参数重新创建容器。
 3. 检查页面版本、主机资源和已启用网关。升级 RDP 后先用平台密码登录网页，再连接远程桌面。
 
 应用的“检查更新”读取 **Gitee Release**，单独推送 Git tag 不会自动产生 Release。版本变化和升级细节见 [发行说明目录](release-notes/README.md)。

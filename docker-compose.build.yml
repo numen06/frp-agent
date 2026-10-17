@@ -1,0 +1,6 @@
+services:
+  frp-agent:
+    image: frp-agent:local
+    build:
+      context: .
+      dockerfile: Dockerfile
