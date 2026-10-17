@@ -368,6 +368,8 @@ class RDPGatewayService:
                 self._sessions[port] = relay
             for sock in relay.sockets:
                 sock.settimeout(3)
+                # RDP input and frame acknowledgements must not wait for Nagle.
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             # FreeRDP 3.15 sends only the leaf certificate. Terminate public TLS
             # here with the complete configured chain; authenticate the private
             # loopback TLS hop against that exact configured certificate.
@@ -395,9 +397,10 @@ class RDPGatewayService:
                     with SessionLocal() as db:
                         self._validate(db, relay)
                     check_at = now + 15
-                ready = [sock for sock in relay.sockets if sock.pending()]
-                if not ready:
-                    ready, _, _ = select.select(relay.sockets, [], [], 0.5)
+                pending = [sock for sock in relay.sockets if sock.pending()]
+                readable, _, _ = select.select(relay.sockets, [], [], 0 if pending else 0.5)
+                # Buffered graphics must not starve input or frame acknowledgements.
+                ready = [sock for sock in relay.sockets if sock in pending or sock in readable]
                 for source in ready:
                     # TLS control records can make select readable without any RDP
                     # bytes. Never block the opposite direction waiting for them.

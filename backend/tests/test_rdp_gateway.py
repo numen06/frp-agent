@@ -184,14 +184,15 @@ def test_rdp_negotiation_is_length_bounded_and_preserved():
         with pytest.raises(OSError):RDPGatewayService._tpkt(Socket(data))
 
 
-def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monkeypatch):
+@pytest.mark.parametrize('buffered_graphics',[False,True])
+def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monkeypatch,buffered_graphics):
     import ssl
     from types import SimpleNamespace
     request=bytes.fromhex('030000130ee000000000000100080003000000')
     response=bytes.fromhex('030000130ed000001234000200080002000000')
     class Socket:
         def __init__(self,negotiation,events):
-            self.negotiation=negotiation;self.events=iter(events);self.sent=[]
+            self.negotiation=negotiation;self.events=iter(events);self.sent=[];self.options=[]
         def recv(self,size):
             if self.negotiation:
                 data,self.negotiation=self.negotiation[:size],self.negotiation[size:]
@@ -201,11 +202,14 @@ def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monke
             return data
         def sendall(self,data):self.sent.append(data)
         def settimeout(self,value):pass
+        def setsockopt(self,*args):self.options.append(args)
         def pending(self):return 0
         def getsockname(self):return ('127.0.0.1',23456)
         def close(self):pass
-    client=Socket(request,[ssl.SSLWantReadError(),'client-rdp'.encode()])
+    events=[ssl.SSLWantReadError(),b'client-rdp']
+    client=Socket(request,list(reversed(events)) if buffered_graphics else events)
     upstream=Socket(response,[b'server-rdp',b''])
+    if buffered_graphics:upstream.pending=lambda:1
     db,user,host,grant,service=setup
     service._sessions.clear()
     service._tls_server=service._tls_proxy=SimpleNamespace(wrap_socket=lambda sock,**kw:sock)
@@ -215,6 +219,8 @@ def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monke
     service._relay(client,'198.51.100.10',50000)
     assert client.sent==[response,b'server-rdp']
     assert upstream.sent==[request,b'client-rdp']
+    for sock in (client,upstream):
+        assert (module.socket.IPPROTO_TCP,module.socket.TCP_NODELAY,1) in sock.options
     assert service._active==0 and not service._sessions
 
 def test_internal_callback_cannot_be_called_from_public_api(setup):
