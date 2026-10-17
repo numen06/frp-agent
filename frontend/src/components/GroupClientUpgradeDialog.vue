@@ -115,6 +115,7 @@
           </div>
           <p v-else-if="!scanning" class="mt-4 text-gray-500">扫描后将显示分组内 SSH 候选代理及结果。</p>
         </div>
+        <div v-if="resultPagination.total" class="px-4 py-3"><TablePagination :total="resultPagination.total" :page="resultPagination.page" :page-size="resultPagination.page_size" @page-change="loadResultPage" @page-size-change="resizeResults" /></div>
         <div class="app-dialog-footer sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
           <button
             type="button"
@@ -141,6 +142,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import TablePagination from '@/components/TablePagination.vue'
 import SshCredentialForm from '@/components/SshCredentialForm.vue'
 import { useModal } from '@/composables/useModal'
 import { clientUpgradeApi } from '@/api/clientUpgrade'
@@ -164,6 +166,18 @@ const verifyMode = ref('agent_callback')
 const scanning = ref(false)
 const upgrading = ref(false)
 const results = ref([])
+const resultJobId = ref(null)
+const resultPagination = ref({ page: 1, page_size: 20, total: 0 })
+async function loadResultPage(page = resultPagination.value.page) {
+  if (!resultJobId.value) return
+  try {
+    const data = await clientUpgradeApi.getJobResults(resultJobId.value, { page, page_size: resultPagination.value.page_size })
+    results.value = data.results || []
+    Object.assign(resultPagination.value, { page: data.page, page_size: data.page_size, total: data.total })
+  } catch (e) { alert('加载升级结果失败：' + e.message) }
+}
+async function resizeResults(size) { resultPagination.value.page_size = size; await loadResultPage(1) }
+
 const selectedIds = ref([])
 const jobSummary = ref('')
 let pollTimer = null
@@ -210,6 +224,8 @@ useModal(visible, close)
 watch(visible, (v) => {
   if (!v) {
     stopPoll()
+    resultJobId.value = null
+    resultPagination.value = { page: 1, page_size: 20, total: 0 }
     results.value = []
     selectedIds.value = []
     jobSummary.value = ''
@@ -246,10 +262,12 @@ async function pollJob(jobId) {
   return new Promise((resolve) => {
     const tick = async () => {
       try {
-        const data = await clientUpgradeApi.getJobResults(jobId)
+        const data = await clientUpgradeApi.getJobResults(jobId, { page: 1, page_size: resultPagination.value.page_size })
         const job = data.job
         if (job.status !== 'running' && job.status !== 'queued') {
           stopPoll()
+          resultJobId.value = jobId
+          Object.assign(resultPagination.value, { page: data.page, page_size: data.page_size, total: data.total })
           results.value = data.results || []
           jobSummary.value = job.summary || ''
           selectedIds.value = results.value.filter((r) => r.upgradeable && r.rollback_capable).map((r) => r.proxy_id)

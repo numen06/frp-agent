@@ -1,5 +1,5 @@
 """主机管理、授权、远程操作与审计 API。"""
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import hmac
 from typing import List, Optional
 
@@ -9,10 +9,12 @@ import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy import literal, func, insert, select, cast, String
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user, get_password_hash
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.models.api_key import ApiKey
 from app.models.docker_credential import DockerCredential
 from app.models.managed_host import HostAccessGrant, HostAuditLog, ManagedHost
@@ -22,6 +24,8 @@ from app.schemas.managed_host import (
     AccessSubjectResponse,
     DockerActionRequest,
     HostAuditResponse,
+    HostAuditDeleteRequest,
+    HostAuditCleanupRequest,
     HostCommandRequest,
     HostContextResponse,
     HostGrantCreate,
@@ -341,18 +345,27 @@ def get_docker_client_certificate(
     )
 
 
-@router.get("", response_model=List[ManagedHostResponse])
+@router.get("", response_model=List[ManagedHostResponse] | Page[ManagedHostResponse])
 def list_hosts(
+    paging: PageParams = Depends(),
+    host_id: Optional[int] = Query(None, gt=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(ManagedHost).order_by(ManagedHost.id.desc())
-    allowed_ids = accessible_host_ids(db, current_user)
-    if allowed_ids is not None:
-        if not allowed_ids:
-            return []
-        query = query.filter(ManagedHost.id.in_(allowed_ids), ManagedHost.is_active.is_(True))
-    return [_host_response(db, row, current_user) for row in query.all()]
+    query = db.query(ManagedHost).options(joinedload(ManagedHost.credential), joinedload(ManagedHost.docker_credential)).order_by(ManagedHost.id.desc())
+    if not is_admin(current_user):
+        actor_type, actor_id, _ = actor_identity(current_user)
+        allowed = db.query(HostAccessGrant.host_id).filter(
+            HostAccessGrant.subject_type == actor_type,
+            HostAccessGrant.subject_id == actor_id,
+            HostAccessGrant.is_active.is_(True),
+            HostAccessGrant.expires_at.is_(None) | (HostAccessGrant.expires_at > datetime.utcnow()),
+        )
+        query = query.filter(ManagedHost.id.in_(allowed), ManagedHost.is_active.is_(True))
+    if host_id:
+        query = query.filter(ManagedHost.id == host_id)
+    query = search_query(query, paging.search, ManagedHost.name, ManagedHost.address, ManagedHost.tags)
+    return paginate(query, paging, lambda row: _host_response(db, row, current_user))
 
 
 @router.post("", response_model=ManagedHostResponse, status_code=status.HTTP_201_CREATED)
@@ -599,6 +612,7 @@ def execute_command(
 def get_docker_containers(
     host_id: int,
     request: Request,
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -619,9 +633,16 @@ def get_docker_containers(
         )
         if result.exit_code != 0:
             raise HTTPException(status_code=502, detail=result.stderr or "Docker 查询失败")
+        if paging.search:
+            containers = [row for row in containers if paging.search.lower() in (" ".join(row.get("Names", [])) + row.get("Image", "")).lower()]
+        containers.sort(key=lambda row: row.get("Id", ""))
+        total = len(containers)
+        start = ((paging.page or 1) - 1) * paging.page_size
+        items = containers[start:start + paging.page_size]
         return {
+            "items": items, "total": total, "page": paging.page or 1, "page_size": paging.page_size,
             "success": True,
-            "containers": containers,
+            "containers": items,
             "duration_ms": duration_ms,
             "fingerprint": None,
         }
@@ -684,35 +705,41 @@ def docker_action(
         raise HTTPException(status_code=502, detail=f"Docker 操作失败: {exc}")
 
 
-@router.get("/access/subjects", response_model=List[AccessSubjectResponse])
+@router.get("/access/subjects", response_model=List[AccessSubjectResponse] | Page[AccessSubjectResponse])
 def list_access_subjects(
+    paging: PageParams = Depends(),
+    subject_type: Optional[str] = Query(None, pattern="^(user|api_key)$"),
+    selected: Optional[str] = Query(None, pattern=r"^(user|api_key):[1-9][0-9]*$"),
+    active_only: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
-    users = [
-        AccessSubjectResponse(
-            subject_type="user",
-            id=row.id,
-            name=row.username,
-            description="系统用户",
-            is_active=row.is_active,
-            role=row.role,
-            has_ssh_public_key=bool(row.ssh_public_key),
-        )
-        for row in db.query(User).order_by(User.username).all()
-    ]
-    keys = [
-        AccessSubjectResponse(
-            subject_type="api_key",
-            id=row.id,
-            name=row.description,
-            description=f"API Key #{row.id}",
-            is_active=row.is_active and not row.is_expired(),
-        )
-        for row in db.query(ApiKey).order_by(ApiKey.description).all()
-    ]
-    return users + keys
+    users = db.query(
+        User.id.label("id"), literal("user").label("subject_type"), User.username.label("name"),
+        User.is_active.label("is_active"), User.role.label("role"),
+        (User.ssh_public_key.isnot(None) & (User.ssh_public_key != "")).label("has_ssh_public_key"),
+    )
+    keys = db.query(
+        ApiKey.id, literal("api_key"), ApiKey.description,
+        ApiKey.is_active & (ApiKey.expires_at.is_(None) | (ApiKey.expires_at > datetime.utcnow())),
+        literal(None), literal(False),
+    )
+    subjects = users.union_all(keys).subquery()
+    query = db.query(subjects)
+    if subject_type:
+        query = query.filter(subjects.c.subject_type == subject_type)
+    if selected:
+        kind, identifier = selected.split(":")
+        query = query.filter(subjects.c.subject_type == kind, subjects.c.id == int(identifier))
+    if active_only:
+        query = query.filter(subjects.c.is_active.is_(True))
+    query = search_query(query, paging.search, subjects.c.name)
+    def response(row):
+        return AccessSubjectResponse(id=row.id, subject_type=row.subject_type, name=row.name,
+            description="系统用户" if row.subject_type == "user" else f"API Key #{row.id}",
+            is_active=bool(row.is_active), role=row.role, has_ssh_public_key=bool(row.has_ssh_public_key))
+    return paginate(query.order_by(subjects.c.name, subjects.c.subject_type, subjects.c.id), paging, response)
 
 
 @router.post("/access/users", response_model=AccessSubjectResponse, status_code=201)
@@ -788,14 +815,16 @@ def update_managed_user(
     )
 
 
-@router.get("/access/grants", response_model=List[HostGrantResponse])
+@router.get("/access/grants", response_model=List[HostGrantResponse] | Page[HostGrantResponse])
 def list_grants(
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
-    rows = db.query(HostAccessGrant).order_by(HostAccessGrant.id.desc()).all()
-    return [_grant_response(db, row) for row in rows]
+    query = db.query(HostAccessGrant).join(ManagedHost).order_by(HostAccessGrant.id.desc())
+    query = search_query(query, paging.search, ManagedHost.name)
+    return paginate(query, paging, lambda row: _grant_response(db, row))
 
 
 @router.post("/access/grants", response_model=HostGrantResponse, status_code=201)
@@ -855,40 +884,99 @@ def delete_grant(
     db.commit()
 
 
-@router.get("/audit/logs", response_model=List[HostAuditResponse])
+def _audit_query(db, user, host_id=None, search="", action=None, status_filter=None, start_time=None, end_time=None):
+    query = db.query(HostAuditLog).options(joinedload(HostAuditLog.host))
+    if not is_admin(user):
+        actor_type, actor_id, _ = actor_identity(user)
+        query = query.filter(HostAuditLog.actor_type == actor_type, HostAuditLog.actor_id == actor_id)
+    if host_id:
+        query = query.filter(HostAuditLog.host_id == host_id)
+    if action:
+        query = query.filter(HostAuditLog.action == action)
+    if status_filter:
+        query = query.filter(HostAuditLog.status == status_filter)
+    def utc(value):
+        return value.astimezone(timezone.utc).replace(tzinfo=None) if value and value.tzinfo else value
+    start_time, end_time = utc(start_time), utc(end_time)
+    if start_time and end_time and start_time > end_time:
+        raise HTTPException(status_code=422, detail="开始时间不能晚于结束时间")
+    if start_time:
+        query = query.filter(HostAuditLog.created_at >= start_time)
+    if end_time:
+        query = query.filter(HostAuditLog.created_at <= end_time)
+    if search:
+        query = query.join(ManagedHost)
+        query = search_query(query, search, ManagedHost.name, HostAuditLog.actor_name, HostAuditLog.client_ip, HostAuditLog.command, HostAuditLog.target)
+    return query
+
+
+def _audit_response(row):
+    return HostAuditResponse(
+        id=row.id, host_id=row.host_id, host_name=row.host.name if row.host else f"主机 #{row.host_id}",
+        actor_type=row.actor_type, actor_id=row.actor_id, actor_name=row.actor_name,
+        action=row.action, target=row.target, command=row.command, status=row.status,
+        exit_code=row.exit_code, stdout=row.stdout, stderr=row.stderr, client_ip=row.client_ip,
+        duration_ms=row.duration_ms, created_at=row.created_at,
+    )
+
+
+@router.get("/audit/logs", response_model=List[HostAuditResponse] | Page[HostAuditResponse])
 def list_audit_logs(
+    paging: PageParams = Depends(),
     host_id: Optional[int] = Query(None, gt=0),
-    limit: int = Query(100, ge=1, le=500),
+    action: Optional[str] = Query(None, max_length=50),
+    status_filter: Optional[str] = Query(None, alias="status", max_length=20),
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(HostAuditLog).order_by(HostAuditLog.id.desc())
-    if host_id:
-        query = query.filter(HostAuditLog.host_id == host_id)
-    if not is_admin(current_user):
-        actor_type, actor_id, _ = actor_identity(current_user)
-        query = query.filter(
-            HostAuditLog.actor_type == actor_type, HostAuditLog.actor_id == actor_id
-        )
-    rows = query.limit(limit).all()
-    return [
-        HostAuditResponse(
-            id=row.id,
-            host_id=row.host_id,
-            host_name=row.host.name if row.host else f"主机 #{row.host_id}",
-            actor_type=row.actor_type,
-            actor_id=row.actor_id,
-            actor_name=row.actor_name,
-            action=row.action,
-            target=row.target,
-            command=row.command,
-            status=row.status,
-            exit_code=row.exit_code,
-            stdout=row.stdout,
-            stderr=row.stderr,
-            client_ip=row.client_ip,
-            duration_ms=row.duration_ms,
-            created_at=row.created_at,
-        )
-        for row in rows
-    ]
+    query = _audit_query(db, current_user, host_id, paging.search, action, status_filter, start_time, end_time)
+    if paging.page is None:
+        paging.page_size = limit
+    return paginate(query.order_by(HostAuditLog.id.desc()), paging, _audit_response)
+
+
+@router.get("/audit/logs/{log_id}", response_model=HostAuditResponse)
+def get_audit_log(log_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    row = _audit_query(db, current_user).filter(HostAuditLog.id == log_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="日志不存在或无权查看")
+    return _audit_response(row)
+
+
+def _delete_audit_query(db, user, query):
+    # Keep a fresh maintenance event for every affected host in the same transaction.
+    counts = query.with_entities(HostAuditLog.host_id.label("host_id"), func.count(HostAuditLog.id).label("count")).group_by(HostAuditLog.host_id).subquery()
+    actor_type, actor_id, actor_name = actor_identity(user)
+    db.execute(insert(HostAuditLog).from_select(
+        ["host_id", "actor_type", "actor_id", "actor_name", "action", "target", "status", "created_at"],
+        select(counts.c.host_id, literal(actor_type), literal(actor_id), literal(actor_name),
+               literal("audit_logs_deleted"), literal("删除 ") + cast(counts.c.count, String) + literal(" 条审计记录"),
+               literal("success"), literal(datetime.utcnow())),
+    ))
+    deleted = query.delete(synchronize_session=False)
+    db.commit()
+    return deleted
+
+
+@router.post("/audit/delete")
+def delete_audit_logs(body: HostAuditDeleteRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_admin(current_user)
+    query = db.query(HostAuditLog).filter(HostAuditLog.id.in_(body.ids))
+    return {"deleted": _delete_audit_query(db, current_user, query)}
+
+
+@router.post("/audit/cleanup")
+def cleanup_audit_logs(body: HostAuditCleanupRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_admin(current_user)
+    cutoff = datetime.utcnow() - timedelta(days=body.keep_days)
+    query = db.query(HostAuditLog).filter(HostAuditLog.created_at < cutoff)
+    if body.host_id:
+        query = query.filter(HostAuditLog.host_id == body.host_id)
+    count = query.count()
+    if body.dry_run:
+        return {"count": count, "before": cutoff, "deleted": 0}
+    deleted = _delete_audit_query(db, current_user, query)
+    return {"count": count, "before": cutoff, "deleted": deleted}

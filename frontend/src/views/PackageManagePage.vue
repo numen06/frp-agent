@@ -35,7 +35,7 @@
           </button>
           <div class="relative w-full sm:w-auto">
             <button
-              ref="moreActionsDropdown.triggerRef"
+              :ref="moreActionsDropdown.triggerRef"
               type="button"
               class="btn btn-sm btn-outline min-h-10 w-full gap-1 sm:min-h-8 sm:w-auto"
               @click.prevent="toggleMoreActionsMenu"
@@ -49,9 +49,9 @@
             <Teleport to="body">
             <div
               v-if="moreActionsDropdown.isOpen.value"
-              ref="moreActionsDropdown.dropdownRef"
+              :ref="moreActionsDropdown.dropdownRef"
               class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-              :style="moreActionsMenuStyle"
+              :style="moreActionsDropdown.floatingStyle.value"
               @click.stop
             >
               <a
@@ -241,7 +241,7 @@
       <div
         v-if="openMorePackageId"
         class="fixed z-50 min-w-[168px] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="packageMoreMenuStyle"
+        :ref="packageDropdown.dropdownRef" :style="packageDropdown.floatingStyle.value"
         @click.stop
       >
         <a
@@ -311,7 +311,7 @@
     <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
     <PackageInstallDialog
       v-model="showInstallDialog"
-      :packages="installPickerPackages"
+      :packages="packages"
       :latest-version="versionsMeta.latest_version"
       :loading="scriptLoading"
       :script="installScript"
@@ -355,50 +355,15 @@ const checkUpdateLoading = ref(false)
 const syncPlatformsLoading = ref(false)
 const savingTemplate = ref(false)
 const refreshLoading = ref(false)
-const moreActionsDropdown = useDropdown()
+const moreActionsDropdown = useDropdown({ floating: true })
+const packageDropdown = useDropdown({ floating: true })
 const openMorePackageId = ref(null)
-const packageMoreMenuPosition = ref({ top: 0, left: 0, right: 0 })
-const moreActionsMenuPosition = ref({ top: 0, left: 0 })
-const MENU_WIDTH = 176
-
-const clampFloatingMenu = (rect, menuWidth = MENU_WIDTH) => {
-  const margin = 8
-  const vw = window.innerWidth
-  let left = rect.left
-  if (left + menuWidth > vw - margin) {
-    left = Math.max(margin, vw - menuWidth - margin)
-  }
-  left = Math.max(margin, left)
-  const top = Math.max(margin, rect.top)
-  return { top, left }
-}
-
-const packageMoreMenuStyle = computed(() => {
-  const { top, left, right } = packageMoreMenuPosition.value
-  if (left > 0) {
-    return {
-      top: `${top}px`,
-      left: `${left}px`,
-      transform: 'translateY(-100%)'
-    }
-  }
-  return {
-    top: `${top}px`,
-    right: `${right}px`,
-    transform: 'translateY(-100%)'
-  }
-})
-
-const moreActionsMenuStyle = computed(() => ({
-  top: `${moreActionsMenuPosition.value.top}px`,
-  left: `${moreActionsMenuPosition.value.left}px`,
-  transform: 'translateY(-100%)'
-}))
+watch(packageDropdown.isOpen, value => { if (!value) openMorePackageId.value = null })
+watch(openMorePackageId, value => { if (!value) packageDropdown.close() })
 /** 从服务端恢复/修正筛选条件时避免 watch 重复请求 */
 const filterSyncing = ref(false)
 
 const packages = ref([])
-const installPickerPackages = ref([])
 const releases = ref([])
 const installScript = ref('')
 const upgradeScript = ref('')
@@ -411,12 +376,12 @@ const PKG_PAGE_SIZE_KEY = 'fm_package_list_page_size_v1'
 function readSavedPageSize() {
   try {
     const raw = localStorage.getItem(PKG_PAGE_SIZE_KEY)
-    const n = raw ? parseInt(raw, 10) : 10
+    const n = raw ? parseInt(raw, 10) : 20
     if ([10, 20, 50, 100].includes(n)) return n
   } catch {
     /* ignore */
   }
-  return 10
+  return 20
 }
 
 function readSavedFilters() {
@@ -617,34 +582,6 @@ const onPackagePageSizeChange = (ps) => {
   loadPackages()
 }
 
-/** 弹窗打开时加载完整候选列表（多页合并） */
-const loadInstallDialogPackages = async () => {
-  try {
-    const base = {
-      version: resolveVersionForApi(),
-      platform: filters.platform || undefined,
-      source: filters.source || undefined
-    }
-    const cleanBase = Object.fromEntries(Object.entries(base).filter(([, val]) => val !== undefined && val !== ''))
-    const merged = []
-    let page = 1
-    const page_size = 200
-    let total = 0
-    for (let guard = 0; guard < 50; guard += 1) {
-      const res = await packagesApi.list({ ...cleanBase, page, page_size })
-      total = res.total ?? 0
-      const chunk = res.items || []
-      merged.push(...chunk)
-      if (merged.length >= total || chunk.length === 0) break
-      page += 1
-    }
-    installPickerPackages.value = merged
-  } catch (e) {
-    console.warn('加载安装包候选列表失败', e)
-    installPickerPackages.value = []
-  }
-}
-
 const handleRefresh = async () => {
   refreshLoading.value = true
   try {
@@ -670,39 +607,12 @@ const handleMoreSyncPlatforms = () => {
   handleSyncPlatforms()
 }
 
-const toggleMoreActionsMenu = () => {
-  const willOpen = !moreActionsDropdown.isOpen.value
-  moreActionsDropdown.toggle()
-  if (!willOpen) return
-  nextTick(() => {
-    const button = moreActionsDropdown.triggerRef.value
-    if (!button) return
-    const rect = button.getBoundingClientRect()
-    const pos = clampFloatingMenu(rect)
-    moreActionsMenuPosition.value = { top: pos.top, left: pos.left }
-  })
-}
-
+const toggleMoreActionsMenu = () => moreActionsDropdown.toggle()
 const togglePackageMore = (packageId, event) => {
-  if (openMorePackageId.value === packageId) {
-    openMorePackageId.value = null
-    return
-  }
+  if (openMorePackageId.value === packageId) { packageDropdown.close(); return }
+  packageDropdown.triggerRef.value = event.currentTarget
   openMorePackageId.value = packageId
-  nextTick(() => {
-    const button = event.currentTarget
-    const rect = button.getBoundingClientRect()
-    if (window.innerWidth < 768) {
-      const pos = clampFloatingMenu(rect)
-      packageMoreMenuPosition.value = { top: pos.top, left: pos.left, right: 0 }
-    } else {
-      packageMoreMenuPosition.value = {
-        top: rect.top,
-        left: 0,
-        right: window.innerWidth - rect.right
-      }
-    }
-  })
+  packageDropdown.open()
 }
 
 const closePackageMoreOnOutsideClick = (event) => {
@@ -1060,12 +970,6 @@ watch(
   },
   { deep: true }
 )
-
-watch(showInstallDialog, (open) => {
-  if (open) {
-    loadInstallDialogPackages()
-  }
-})
 
 onMounted(async () => {
   document.addEventListener('click', closePackageMoreOnOutsideClick)

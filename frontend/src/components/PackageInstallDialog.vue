@@ -30,29 +30,13 @@
             <div class="grid gap-4">
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">安装包</label>
-                <select
-                  v-model.number="packageId"
-                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                >
-                  <option :value="0">请选择安装包</option>
-                  <option v-for="p in packages" :key="p.id" :value="p.id">
-                    {{ p.version }} / {{ p.platform }} / {{ p.filename }}
-                  </option>
-                </select>
+                <RemoteSelect v-model="packageId" label="选择安装包" :fetch-options="packagesApi.list" :get-label="item => `${item.version} / ${item.platform} / ${item.filename}`" :resolve-option="id => props.packages.find(item => item.id === id)" />
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">API Key</label>
-                <select
-                  v-if="availableKeys.length > 0"
-                  v-model.number="selectedKeyId"
-                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                >
-                  <option v-for="k in availableKeys" :key="k.id" :value="k.id">
-                    #{{ k.id }} {{ k.description }}
-                  </option>
-                </select>
+                <RemoteSelect v-model="selectedKeyId" label="选择 API Key" :fetch-options="params => apiKeysApi.list({ ...params, available_only: true })" :resolve-option="apiKeysApi.get" />
                 <input
-                  v-else
+                  v-if="!selectedKeyId"
                   v-model="manualApiKey"
                   class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   type="text"
@@ -144,6 +128,8 @@
 </template>
 
 <script setup>
+import { apiKeysApi } from '@/api/apiKeys'
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, watch, computed } from 'vue'
 import { useModal } from '@/composables/useModal'
 import { useApiKeysStore } from '@/stores/apiKeys'

@@ -1,10 +1,11 @@
 """SSH 凭据管理路由"""
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.models.user import User
 from app.models.ssh_credential import SshCredential
 from app.schemas.ssh_credential import (
@@ -33,14 +34,18 @@ def _to_response(cred: SshCredential) -> SshCredentialResponse:
     )
 
 
-@router.get("", response_model=List[SshCredentialResponse])
+@router.get("", response_model=List[SshCredentialResponse] | Page[SshCredentialResponse])
 def list_credentials(
+    auth_type: Optional[str] = Query(None, max_length=20),
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
-    rows = db.query(SshCredential).order_by(SshCredential.id.desc()).all()
-    return [_to_response(c) for c in rows]
+    query = search_query(db.query(SshCredential), paging.search, SshCredential.name, SshCredential.username)
+    if auth_type:
+        query = query.filter(SshCredential.auth_type == auth_type)
+    return paginate(query.order_by(SshCredential.id.desc()), paging, _to_response)
 
 
 @router.post("", response_model=SshCredentialResponse, status_code=status.HTTP_201_CREATED)
@@ -129,3 +134,12 @@ def delete_credential(
         )
     db.delete(cred)
     db.commit()
+
+
+@router.get("/{credential_id}", response_model=SshCredentialResponse)
+def get_credential(credential_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_admin(current_user)
+    row = db.query(SshCredential).filter(SshCredential.id == credential_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="凭据不存在")
+    return _to_response(row)

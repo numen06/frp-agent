@@ -22,8 +22,12 @@ wheels/
 
 # Virtual Environment
 venv/
+.venv/
 ENV/
 env/
+**/node_modules/
+.codegraph/
+.cursor/
 
 # IDE
 .vscode/
@@ -45,6 +49,8 @@ data/*
 
 # Environment
 .env
+**/.env
+**/.env.*
 
 # Database (会通过 volume 挂载)
 *.db

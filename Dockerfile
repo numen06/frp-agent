@@ -56,7 +56,7 @@ RUN apt-get update && apt-get -o Acquire::Retries=3 install -y --no-install-reco
 
 # 维护者信息
 LABEL maintainer="frp-agent"
-LABEL version="1.2.1"
+LABEL version="1.2.2"
 LABEL description="FRP Agent Management Platform"
 
 # 设置工作目录

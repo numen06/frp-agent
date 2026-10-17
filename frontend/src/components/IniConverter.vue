@@ -175,11 +175,7 @@
 
         <div class="mb-3">
           <label class="mb-1 block text-sm font-medium text-gray-700">选择 API Key</label>
-          <AppSelect class="w-full" :number="true" v-model="selectedApiKeyId" @change="handleApiKeyChange">
-            <option v-for="apiKey in apiKeysStore.availableKeys" :key="apiKey.id" :value="apiKey.id">
-              {{ apiKey.description }} ({{ apiKey.is_active ? '激活' : '未激活' }})
-            </option>
-          </AppSelect>
+          <RemoteSelect v-model="selectedApiKeyId" label="选择 API Key" :fetch-options="params => apiKeysApi.list({ ...params, available_only: true })" :resolve-option="apiKeysApi.get" @select="handleApiKeyChange" />
           <p class="mt-1 text-xs text-gray-500">默认使用全局 APPKey，可按需临时切换</p>
         </div>
 
@@ -217,6 +213,8 @@
 </template>
 
 <script setup>
+import { apiKeysApi } from '@/api/apiKeys'
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { FwbFileInput } from 'flowbite-vue'
 import { configApi } from '@/api/config'

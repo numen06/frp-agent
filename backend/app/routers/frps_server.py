@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.auth import get_current_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
@@ -18,14 +19,15 @@ from app.services.frp_version_service import (
 router = APIRouter(prefix="/api/servers", tags=["frps服务器管理"])
 
 
-@router.get("", response_model=List[FrpsServerResponse])
+@router.get("", response_model=List[FrpsServerResponse] | Page[FrpsServerResponse])
 def get_servers(
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取所有 frps 服务器列表"""
-    servers = db.query(FrpsServer).all()
-    return servers
+    query = search_query(db.query(FrpsServer), paging.search, FrpsServer.name, FrpsServer.server_addr)
+    return paginate(query.order_by(FrpsServer.id), paging)
 
 
 @router.get("/{server_id}", response_model=FrpsServerResponse)

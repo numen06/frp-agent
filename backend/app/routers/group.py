@@ -7,10 +7,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Form
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
-from pydantic import BaseModel
+from sqlalchemy import func, case, and_
+from pydantic import BaseModel, Field
 
 from app.database import get_db
+from app.pagination import PageParams, paginate, search_query
 from app.auth import get_current_user, verify_api_key
 from app.models.user import User
 from app.models.proxy import Proxy
@@ -19,6 +20,9 @@ from app.models.group import Group
 from app.models.frp_package import FrpPackage
 from app.models.package_sync_job import PackageSyncJob
 from app.models.port import PortAllocation
+from app.models.proxy_ssh_state import ProxySshState
+from app.models.client_upgrade_job import ClientUpgradeJob
+from sqlalchemy.exc import IntegrityError
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
 from app.script_templates import load_shell_template
@@ -49,8 +53,9 @@ class AutoAnalyzeRequest(BaseModel):
 
 class CreateGroupRequest(BaseModel):
     """创建分组请求"""
-    group_name: str
-    frps_server_id: int
+    group_name: str = Field(..., min_length=1, max_length=50)
+    frps_server_id: int = Field(..., gt=0)
+    create_defaults: bool = False
 
 
 class DeleteGroupRequest(BaseModel):
@@ -394,176 +399,64 @@ def _compose_action_context(
     }
 
 
+def _group_names_query(db, frps_server_id=None):
+    created = db.query(Group.name.label("group_name"), Group.frps_server_id.label("frps_server_id"))
+    discovered = db.query(Proxy.group_name.label("group_name"), Proxy.frps_server_id.label("frps_server_id")).filter(Proxy.group_name.isnot(None), Proxy.group_name != "")
+    if frps_server_id:
+        created = created.filter(Group.frps_server_id == frps_server_id)
+        discovered = discovered.filter(Proxy.frps_server_id == frps_server_id)
+    return created.union(discovered).subquery()
+
+
 @router.get("/list")
 def get_groups_list(
-    frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    frps_server_id: Optional[int] = Query(None),
+    paging: PageParams = Depends(),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """获取所有分组名称列表（用于下拉选择）
-    
-    返回所有分组的名称列表，包括：
-    1. Group 表中已创建的分组
-    2. Proxy 表中存在的分组（即使未在 Group 表中创建）
-    """
-    groups_set = set()
-    
-    # 1. 从 Group 表获取已创建的分组
-    group_query = db.query(Group.name)
-    if frps_server_id:
-        group_query = group_query.filter(Group.frps_server_id == frps_server_id)
-    
-    created_groups = group_query.all()
-    for group in created_groups:
-        groups_set.add(group.name)
-    
-    # 2. 从 Proxy 表获取存在的分组
-    proxy_query = db.query(Proxy.group_name).filter(
-        Proxy.group_name.isnot(None),
-        Proxy.group_name != ""
-    ).distinct()
-    
-    if frps_server_id:
-        proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
-    
-    proxy_groups = proxy_query.all()
-    for group in proxy_groups:
-        if group.group_name:
-            groups_set.add(group.group_name)
-    
-    # 排序并返回
-    groups_list = sorted(list(groups_set))
-    
-    return {
-        "groups": groups_list,
-        "total": len(groups_list)
-    }
+    names = _group_names_query(db, frps_server_id)
+    query = search_query(db.query(names.c.group_name).distinct(), paging.search, names.c.group_name)
+    total = query.count()
+    rows = query.order_by(names.c.group_name).offset(((paging.page or 1) - 1) * paging.page_size).limit(paging.page_size).all()
+    groups = [row.group_name for row in rows]
+    return {"groups": groups, "items": groups, "total": total, "page": paging.page or 1, "page_size": paging.page_size}
 
 
 @router.get("")
 def get_groups(
-    frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
-    search: Optional[str] = Query(None, description="搜索分组名称"),
-    page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    frps_server_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None, max_length=200),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """获取代理分组列表及统计信息（支持分页和搜索）
-    
-    返回所有分组及其代理数量、在线数量等统计信息
-    合并 Group 表（已创建的空分组）和 Proxy 表（有代理的分组）的数据
-    """
-    groups_dict = {}
-    
-    # 1. 从 Group 表获取已创建的分组（包括空分组）
-    group_query = db.query(Group)
+    names = _group_names_query(db, frps_server_id)
+    keep = db.query(func.coalesce(func.max(case((Proxy.local_port > 0, Proxy.id))), func.max(Proxy.id)).label("id"))
     if frps_server_id:
-        group_query = group_query.filter(Group.frps_server_id == frps_server_id)
-    
-    created_groups = group_query.all()
-    for group in created_groups:
-        groups_dict[f"{group.frps_server_id}_{group.name}"] = {
-            "group_name": group.name,
-            "frps_server_id": group.frps_server_id,
-            "total_count": 0,
-            "online_count": 0,
-            "offline_count": 0
-        }
-    
-    # 2. 从 Proxy 表统计代理数量（按 frps_server_id+name 去重，优先保留信息完整的记录）
-    keep_ids_subq = (
-        db.query(
-            func.coalesce(
-                func.max(case((Proxy.local_port > 0, Proxy.id))),
-                func.max(Proxy.id),
-            ).label("keep_id")
-        )
-        .group_by(Proxy.frps_server_id, Proxy.name)
-        .subquery()
-    )
-    keep_id_col = keep_ids_subq.c.keep_id
-
-    proxy_query = db.query(
-        Proxy.group_name,
-        Proxy.frps_server_id,
+        keep = keep.filter(Proxy.frps_server_id == frps_server_id)
+    keep = keep.group_by(Proxy.frps_server_id, Proxy.name).subquery()
+    stats = db.query(
+        Proxy.group_name.label("group_name"), Proxy.frps_server_id.label("frps_server_id"),
         func.count(Proxy.id).label("total_count"),
         func.sum(case((Proxy.status == "online", 1), else_=0)).label("online_count"),
-        func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline_count")
-    ).filter(
-        Proxy.group_name.isnot(None),
-        Proxy.group_name != "",
-        Proxy.id.in_(db.query(keep_id_col)),
-    ).group_by(Proxy.group_name, Proxy.frps_server_id)
-
-    if frps_server_id:
-        proxy_query = proxy_query.filter(Proxy.frps_server_id == frps_server_id)
-    
-    proxy_results = proxy_query.all()
-    
-    # 合并或添加代理统计数据
-    for result in proxy_results:
-        key = f"{result.frps_server_id}_{result.group_name}"
-        if key in groups_dict:
-            # 更新已存在的分组统计
-            groups_dict[key]["total_count"] = result.total_count
-            groups_dict[key]["online_count"] = result.online_count
-            groups_dict[key]["offline_count"] = result.offline_count
-        else:
-            # 添加未在 Group 表中的分组（从代理中发现的）
-            groups_dict[key] = {
-                "group_name": result.group_name,
-                "frps_server_id": result.frps_server_id,
-                "total_count": result.total_count,
-                "online_count": result.online_count,
-                "offline_count": result.offline_count
-            }
-    
-    # 获取服务器信息
-    server_map = {}
-    if groups_dict:
-        server_ids = list(set([g["frps_server_id"] for g in groups_dict.values()]))
-        servers = db.query(FrpsServer).filter(FrpsServer.id.in_(server_ids)).all()
-        server_map = {s.id: s.name for s in servers}
-    
-    # 构建返回结果
-    groups = []
-    for group_data in groups_dict.values():
-        groups.append({
-            "group_name": group_data["group_name"],
-            "frps_server_id": group_data["frps_server_id"],
-            "frps_server_name": server_map.get(group_data["frps_server_id"], "未知"),
-            "total_count": group_data["total_count"],
-            "online_count": group_data["online_count"],
-            "offline_count": group_data["offline_count"]
-        })
-    
-    # 按分组名称排序
-    groups.sort(key=lambda x: x["group_name"])
-    
-    # 搜索过滤
-    if search:
-        search_pattern = search.lower()
-        groups = [g for g in groups if search_pattern in g["group_name"].lower()]
-    
-    # 计算总数
-    total = len(groups)
-    
-    # 应用分页
-    offset = (page - 1) * page_size
-    paginated_groups = groups[offset:offset + page_size]
-    
-    return {
-        "items": paginated_groups,
-        "page": page,
-        "page_size": page_size,
-        "total": total
-    }
+        func.sum(case((Proxy.status == "offline", 1), else_=0)).label("offline_count"),
+    ).filter(Proxy.id.in_(db.query(keep.c.id))).group_by(Proxy.group_name, Proxy.frps_server_id).subquery()
+    query = db.query(
+        names.c.group_name, names.c.frps_server_id, FrpsServer.name.label("frps_server_name"),
+        func.coalesce(stats.c.total_count, 0).label("total_count"),
+        func.coalesce(stats.c.online_count, 0).label("online_count"),
+        func.coalesce(stats.c.offline_count, 0).label("offline_count"),
+    ).outerjoin(stats, and_(stats.c.group_name == names.c.group_name, stats.c.frps_server_id == names.c.frps_server_id)).outerjoin(FrpsServer, FrpsServer.id == names.c.frps_server_id)
+    query = search_query(query, search, names.c.group_name)
+    total = query.count()
+    rows = query.order_by(names.c.group_name, names.c.frps_server_id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [dict(row._mapping) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/{group_name}/proxies")
 def get_group_proxies(
     group_name: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     frps_server_id: Optional[int] = Query(None, description="按服务器ID过滤"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -589,11 +482,13 @@ def get_group_proxies(
     if frps_server_id:
         query = query.filter(Proxy.frps_server_id == frps_server_id)
 
-    proxies = query.all()
+    total = query.count()
+    proxies = query.order_by(Proxy.id).offset((page - 1) * page_size).limit(page_size).all()
     
     return {
         "group_name": group_name,
-        "proxy_count": len(proxies),
+        "proxy_count": total,
+        "total": total, "page": page, "page_size": page_size,
         "proxies": [
             {
                 "id": p.id,
@@ -796,6 +691,10 @@ def create_group(
     if group_name == "其他":
         raise HTTPException(status_code=400, detail="不能创建名为'其他'的分组")
     
+    if not db.query(FrpsServer.id).filter(FrpsServer.id == request.frps_server_id).first():
+        raise HTTPException(status_code=404, detail="服务器不存在")
+    if db.query(Proxy.id).filter(Proxy.frps_server_id == request.frps_server_id, Proxy.group_name == group_name).first():
+        raise HTTPException(status_code=409, detail=f"分组 '{group_name}' 已存在")
     # 检查分组是否已存在
     existing = db.query(Group).filter(
         Group.frps_server_id == request.frps_server_id,
@@ -811,70 +710,78 @@ def create_group(
         name=group_name
     )
     db.add(new_group)
-    db.commit()
-    db.refresh(new_group)
-    
-    return {
-        "success": True,
-        "message": f"分组 '{group_name}' 已创建",
-        "group_name": group_name,
-        "group_id": new_group.id
-    }
+    try:
+        db.flush()
+        defaults = _generate_default_proxies(group_name, request.frps_server_id, db) if request.create_defaults else {"created": 0, "skipped": 0}
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="分组或代理名称已存在，请刷新后重试")
+    except Exception:
+        db.rollback()
+        raise
+    return {"success": True, "message": f"分组 '{group_name}' 已创建", "group_name": group_name,
+            "group_id": new_group.id, "created_proxies": defaults["created"]}
+
+
+def _group_delete_scope(db, group_name, server_id):
+    record = db.query(Group).filter(Group.frps_server_id == server_id, Group.name == group_name).first()
+    proxies = db.query(Proxy).filter(Proxy.frps_server_id == server_id, Proxy.group_name == group_name)
+    count = proxies.count()
+    if not record and not count:
+        raise HTTPException(status_code=404, detail="分组不存在")
+    return record, proxies, count
+
+
+@router.get("/{group_name}/delete-preview")
+def preview_group_delete(group_name: str, frps_server_id: int = Query(..., gt=0), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not group_name or group_name == "其他":
+        raise HTTPException(status_code=400, detail="不能删除此分组")
+    _, proxies, count = _group_delete_scope(db, group_name, frps_server_id)
+    ports = db.query(PortAllocation).filter(PortAllocation.frps_server_id == frps_server_id,
+        PortAllocation.allocated_to.in_(proxies.with_entities(Proxy.name)), PortAllocation.is_allocated.is_(True)).count()
+    return {"group_name": group_name, "frps_server_id": frps_server_id, "proxy_count": count, "port_count": ports}
+
 
 
 @router.delete("/{group_name}")
 def delete_group(
     group_name: str,
-    frps_server_id: int = Query(..., description="frps 服务器 ID"),
-    reassign_group: Optional[str] = Query(None, description="将代理重新分配到的分组"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    frps_server_id: int = Query(..., gt=0),
+    delete_proxies: bool = Query(False),
+    expected_proxy_count: Optional[int] = Query(None, ge=0),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """删除分组
-    
-    删除指定的分组。如果指定了 reassign_group，则将该分组的所有代理重新分配到新分组；
-    否则将代理分配到"其他"分组。
-    """
     if not group_name or group_name == "其他":
-        raise HTTPException(status_code=400, detail="无效的分组名称")
-    
-    # 删除 Group 表中的记录
-    group_record = db.query(Group).filter(
-        Group.frps_server_id == frps_server_id,
-        Group.name == group_name
+        raise HTTPException(status_code=400, detail="不能删除此分组")
+    record, proxies, count = _group_delete_scope(db, group_name, frps_server_id)
+    if count and not delete_proxies:
+        raise HTTPException(status_code=409, detail=f"该分组包含 {count} 条代理配置，需要二次确认后连同配置删除")
+    if count and expected_proxy_count is None:
+        raise HTTPException(status_code=422, detail="请先预览并确认删除的代理配置数量")
+    if expected_proxy_count is not None and expected_proxy_count != count:
+        raise HTTPException(status_code=409, detail=f"分组配置已变化，当前有 {count} 条，请重新预览后确认")
+    active_jobs = db.query(ClientUpgradeJob.id).filter(
+        ClientUpgradeJob.frps_server_id == frps_server_id,
+        ClientUpgradeJob.status.in_(["queued", "running"]),
+        (ClientUpgradeJob.group_name == group_name) | ClientUpgradeJob.proxy_id.in_(proxies.with_entities(Proxy.id)),
     ).first()
-    
-    if group_record:
-        db.delete(group_record)
-    
-    # 查找该分组的所有代理
-    proxies = db.query(Proxy).filter(
-        Proxy.frps_server_id == frps_server_id,
-        Proxy.group_name == group_name
-    ).all()
-    
-    # 确定重新分配的目标分组
-    target_group = reassign_group if reassign_group else "其他"
-    
-    # 重新分配所有代理
-    affected_count = 0
-    for proxy in proxies:
-        proxy.group_name = target_group
-        affected_count += 1
-    
-    db.commit()
-    
-    message = f"已删除分组 '{group_name}'"
-    if affected_count > 0:
-        message += f"，{affected_count} 个代理已移动到分组 '{target_group}'"
-    
-    return {
-        "success": True,
-        "message": message,
-        "deleted_group": group_name,
-        "target_group": target_group if affected_count > 0 else None,
-        "affected_count": affected_count
-    }
+    if active_jobs:
+        raise HTTPException(status_code=409, detail="分组仍有扫描或升级任务执行中，请完成后再删除")
+    try:
+        db.query(ClientUpgradeJob).filter(ClientUpgradeJob.proxy_id.in_(proxies.with_entities(Proxy.id))).update({ClientUpgradeJob.proxy_id: None}, synchronize_session=False)
+        db.query(ProxySshState).filter(ProxySshState.proxy_id.in_(proxies.with_entities(Proxy.id))).delete(synchronize_session=False)
+        released = db.query(PortAllocation).filter(PortAllocation.frps_server_id == frps_server_id,
+            PortAllocation.allocated_to.in_(proxies.with_entities(Proxy.name)), PortAllocation.is_allocated.is_(True)).update({PortAllocation.is_allocated: False}, synchronize_session=False)
+        proxies.delete(synchronize_session=False)
+        if record:
+            db.delete(record)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"success": True, "message": f"已删除分组 '{group_name}' 及 {count} 条代理配置，释放 {released} 个端口",
+            "deleted_group": group_name, "affected_count": count, "released_ports": released}
 
 
 @router.post("/auto-analyze")
@@ -1050,17 +957,17 @@ def check_default_proxies(
 
 
 @router.post("/{group_name}/generate-defaults")
-def generate_default_proxies(
-    group_name: str,
-    frps_server_id: int = Query(..., description="frps 服务器 ID"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """为分组生成默认代理配置
-    
-    为指定分组添加 docker(9000), ssh(22), http(80) 三个常用代理
-    不会覆盖已存在的同名代理
-    """
+def generate_default_proxies(group_name: str, frps_server_id: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        result = _generate_default_proxies(group_name, frps_server_id, db)
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _generate_default_proxies(group_name, frps_server_id, db):
     # 定义默认代理配置
     default_configs = [
         {
@@ -1090,7 +997,7 @@ def generate_default_proxies(
     existing_proxies = db.query(Proxy).filter(
         Proxy.frps_server_id == frps_server_id,
         Proxy.group_name == group_name
-    ).all()
+    ).filter(Proxy.name.in_([config["name"] for config in default_configs])).all()
     existing_names = set([p.name for p in existing_proxies])
     
     # 使用端口服务自动分配远端端口
@@ -1116,7 +1023,7 @@ def generate_default_proxies(
         
         # 分配端口
         try:
-            port_service.allocate_port(frps_server_id, remote_port, config["name"])
+            port_service.allocate_port(frps_server_id, remote_port, config["name"], commit=False)
         except ValueError as e:
             raise HTTPException(status_code=500, detail=f"分配端口失败: {str(e)}")
         
@@ -1140,7 +1047,7 @@ def generate_default_proxies(
             "description": config["description"]
         })
     
-    db.commit()
+    db.flush()
     
     return {
         "success": True,

@@ -18,6 +18,7 @@ from app.schemas.api_key import (
     ApiKeyFullKeyResponse
 )
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.config import get_settings
 from app.services.credential_encryption import decrypt_secret, encrypt_secret
 from app.services.host_access_service import require_admin
@@ -106,16 +107,23 @@ def create_api_key(
     )
 
 
-@router.get("", response_model=List[ApiKeyResponse])
+@router.get("", response_model=List[ApiKeyResponse] | Page[ApiKeyResponse])
 def list_api_keys(
+    paging: PageParams = Depends(),
+    available_only: bool = Query(False),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取 API Key 列表"""
     require_admin(current_user)
-    api_keys = db.query(ApiKey).order_by(ApiKey.created_at.desc()).offset(skip).limit(limit).all()
+    query = search_query(db.query(ApiKey), paging.search, ApiKey.description)
+    if available_only:
+        query = query.filter(ApiKey.is_active.is_(True), (ApiKey.expires_at.is_(None)) | (ApiKey.expires_at > datetime.utcnow()))
+    total = query.count() if paging.page is not None else None
+    offset = (paging.page - 1) * paging.page_size if paging.page is not None else skip
+    api_keys = query.order_by(ApiKey.id.desc()).offset(offset).limit(paging.page_size if paging.page is not None else limit).all()
     
     result = []
     for api_key in api_keys:
@@ -132,6 +140,8 @@ def list_api_keys(
             is_expired=api_key.is_expired()
         ))
     
+    if paging.page is not None:
+        return dict(items=result, total=total, page=paging.page, page_size=paging.page_size)
     return result
 
 

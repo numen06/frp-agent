@@ -31,7 +31,7 @@ export const clientUpgradeApi = {
     return api.get(`/client-upgrade/jobs/${jobId}`)
   },
 
-  getJobResults(jobId) {
-    return api.get(`/client-upgrade/jobs/${jobId}/results`)
+  getJobResults(jobId, params = {}) {
+    return api.get(`/client-upgrade/jobs/${jobId}/results`, { params })
   }
 }

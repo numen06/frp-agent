@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.models.docker_credential import DockerCredential
 from app.models.managed_host import ManagedHost
 from app.models.user import User
@@ -44,13 +45,15 @@ def _validate(auth_type, username, password, api_key, existing=False):
         raise HTTPException(status_code=400, detail="需要提供 Portainer API Key")
 
 
-@router.get("", response_model=List[DockerCredentialResponse])
+@router.get("", response_model=List[DockerCredentialResponse] | Page[DockerCredentialResponse])
 def list_credentials(
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
-    return [_response(row) for row in db.query(DockerCredential).order_by(DockerCredential.id.desc()).all()]
+    query = search_query(db.query(DockerCredential), paging.search, DockerCredential.name, DockerCredential.username)
+    return paginate(query.order_by(DockerCredential.id.desc()), paging, _response)
 
 
 @router.post("", response_model=DockerCredentialResponse, status_code=201)
@@ -141,3 +144,12 @@ def delete_credential(
         raise HTTPException(status_code=409, detail=f"该凭据正被 {used} 台 Docker 主机使用")
     db.delete(row)
     db.commit()
+
+
+@router.get("/{credential_id}", response_model=DockerCredentialResponse)
+def get_credential(credential_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_admin(current_user)
+    row = db.query(DockerCredential).filter(DockerCredential.id == credential_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="凭据不存在")
+    return _response(row)

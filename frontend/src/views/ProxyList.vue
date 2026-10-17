@@ -13,7 +13,7 @@
         <div class="mobile-actions flex w-full flex-wrap items-center gap-2 md:w-auto">
             <div class="relative" v-if="proxiesStore.selectedCount > 0">
               <button 
-                ref="batchActionsDropdown.triggerRef"
+                :ref="batchActionsDropdown.triggerRef"
                 class="btn btn-sm btn-warning min-h-10 md:min-h-8"
                 @click.prevent="toggleBatchActionsDropdown()"
                 :aria-expanded="batchActionsDropdown.isOpen.value"
@@ -36,7 +36,7 @@
             </div>
             <div class="relative">
               <button 
-                ref="addActionsDropdown.triggerRef"
+                :ref="addActionsDropdown.triggerRef"
                 class="btn btn-sm btn-success min-h-10 md:min-h-8"
                 @click.prevent="toggleAddActionsDropdown()"
                 :aria-expanded="addActionsDropdown.isOpen.value"
@@ -84,10 +84,7 @@
             :debounce="300"
             @search="handleSearch"
           />
-          <AppSelect class="w-full md:w-auto" size="sm" v-model="proxiesStore.filters.group" @change="handleFilterChange">
-            <option value="">全部分组</option>
-            <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-          </AppSelect>
+          <RemoteSelect v-model="proxiesStore.filters.group" label="全部分组" :fetch-options="params => groupApi.getGroupsList(currentServerId, params)" :resolve-option="value => value" allow-clear clear-label="全部分组" @select="handleFilterChange" />
           <AppSelect class="w-full md:w-auto" size="sm" v-model="proxiesStore.filters.status" @change="handleFilterChange">
             <option value="">全部状态</option>
             <option value="online">在线</option>
@@ -101,10 +98,7 @@
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="font-semibold text-blue-950">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
             <div class="flex flex-wrap items-center gap-2">
-              <AppSelect class="w-auto" size="sm" v-model="bulkGroupName">
-                <option value="">选择目标分组...</option>
-                <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-              </AppSelect>
+              <RemoteSelect v-model="bulkGroupName" label="选择分组" :fetch-options="params => groupApi.getGroupsList(currentServerId, params)" :resolve-option="value => value" allow-clear clear-label="选择分组" />
               <button class="btn btn-sm btn-primary" @click="handleBulkAssignGroup">分配到分组</button>
               <button class="btn btn-sm btn-success" @click="handleGenerateConfigForSelected">生成配置</button>
               <button class="btn btn-sm btn-secondary" @click="proxiesStore.clearSelection()">取消选择</button>
@@ -386,10 +380,7 @@
       <div class="mx-auto max-w-7xl">
         <div class="mb-2 text-sm font-semibold text-blue-950">已选择 {{ proxiesStore.selectedCount }} 个代理</div>
         <div class="flex flex-col gap-2">
-          <AppSelect class="w-full" size="sm" v-model="bulkGroupName">
-            <option value="">选择目标分组...</option>
-            <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-          </AppSelect>
+          <RemoteSelect v-model="bulkGroupName" label="选择分组" :fetch-options="params => groupApi.getGroupsList(currentServerId, params)" :resolve-option="value => value" allow-clear clear-label="选择分组" />
           <div class="grid grid-cols-2 gap-2">
             <button class="btn btn-sm btn-primary min-h-10 md:min-h-8" @click="handleBulkAssignGroup">分配到分组</button>
             <button class="btn btn-sm btn-success min-h-10 md:min-h-8" @click="handleGenerateConfigForSelected">生成配置</button>
@@ -403,9 +394,9 @@
     <Teleport to="body">
       <div
         v-if="batchActionsDropdown.isOpen.value"
-        ref="batchActionsDropdown.dropdownRef"
+        :ref="batchActionsDropdown.dropdownRef"
         class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="{ top: `${batchDropdownPosition.top}px`, left: `${batchDropdownPosition.left}px` }"
+        :style="batchActionsDropdown.floatingStyle.value"
         @click.stop
       >
         <a class="flex min-h-10 cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="handleBatchDetectPorts(); batchActionsDropdown.close()">
@@ -429,9 +420,9 @@
     <Teleport to="body">
       <div
         v-if="addActionsDropdown.isOpen.value"
-        ref="addActionsDropdown.dropdownRef"
+        :ref="addActionsDropdown.dropdownRef"
         class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="{ top: `${addDropdownPosition.top}px`, left: `${addDropdownPosition.left}px` }"
+        :style="addActionsDropdown.floatingStyle.value"
         @click.stop
       >
         <a class="flex min-h-10 cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#" @click.prevent="showAddProxyDialog = true; addActionsDropdown.close()" :class="{ 'pointer-events-none opacity-50': !currentServerId }">
@@ -496,6 +487,7 @@
 </template>
 
 <script setup>
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useServersStore } from '@/stores/servers'
@@ -521,41 +513,10 @@ const proxiesStore = useProxiesStore()
 const { triggerRefresh } = useRefresh()
 
 // 下拉菜单
-const batchActionsDropdown = useDropdown()
-const addActionsDropdown = useDropdown()
-const batchDropdownPosition = ref({ top: 0, left: 0 })
-const addDropdownPosition = ref({ top: 0, left: 0 })
-const DROPDOWN_MIN_WIDTH = 176
-const DROPDOWN_VIEWPORT_PADDING = 8
-
-const updateDropdownPosition = (triggerRef, positionRef) => {
-  nextTick(() => {
-    const trigger = triggerRef.value
-    if (!trigger) return
-    const rect = trigger.getBoundingClientRect()
-    const maxLeft = window.innerWidth - DROPDOWN_MIN_WIDTH - DROPDOWN_VIEWPORT_PADDING
-    positionRef.value = {
-      top: rect.bottom + 8,
-      left: Math.min(Math.max(rect.left, DROPDOWN_VIEWPORT_PADDING), maxLeft)
-    }
-  })
-}
-
-const toggleBatchActionsDropdown = () => {
-  const willOpen = !batchActionsDropdown.isOpen.value
-  batchActionsDropdown.toggle()
-  if (willOpen) {
-    updateDropdownPosition(batchActionsDropdown.triggerRef, batchDropdownPosition)
-  }
-}
-
-const toggleAddActionsDropdown = () => {
-  const willOpen = !addActionsDropdown.isOpen.value
-  addActionsDropdown.toggle()
-  if (willOpen) {
-    updateDropdownPosition(addActionsDropdown.triggerRef, addDropdownPosition)
-  }
-}
+const batchActionsDropdown = useDropdown({ floating: true })
+const addActionsDropdown = useDropdown({ floating: true })
+const toggleBatchActionsDropdown = () => batchActionsDropdown.toggle()
+const toggleAddActionsDropdown = () => addActionsDropdown.toggle()
 
 const currentServerId = ref(null)
 const showAddProxyDialog = ref(false)
@@ -570,7 +531,7 @@ const showClientUpgradeDialog = ref(false)
 const upgradeProxy = ref(null)
 
 const currentServer = computed(() =>
-  serversStore.servers.find((s) => s.id === currentServerId.value) || null
+  serversStore.servers.find((s) => s.id === currentServerId.value) || serversStore.currentServer
 )
 
 const openClientUpgrade = (proxy) => {
@@ -579,20 +540,7 @@ const openClientUpgrade = (proxy) => {
 }
 
 // 加载分组列表
-const loadGroupOptions = async () => {
-  if (!currentServerId.value) {
-    groupOptions.value = []
-    return
-  }
-  
-  try {
-    const response = await groupApi.getGroupsList(currentServerId.value)
-    groupOptions.value = response.groups || []
-  } catch (error) {
-    console.error('加载分组列表失败:', error)
-    groupOptions.value = []
-  }
-}
+const loadGroupOptions = async () => { groupOptions.value = [] }
 
 onMounted(async () => {
   // ServerSelector 组件会自动加载服务器列表并设置默认值

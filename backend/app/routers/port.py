@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate
+from app.models.port import PortAllocation
 from app.auth import get_current_user
 from app.models.user import User
 from app.schemas.port import PortAllocationResponse, PortAllocateRequest, PortReleaseRequest
@@ -12,16 +14,16 @@ from app.services.port_service import PortService
 router = APIRouter(prefix="/api/ports", tags=["端口管理"])
 
 
-@router.get("", response_model=List[PortAllocationResponse])
+@router.get("", response_model=List[PortAllocationResponse] | Page[PortAllocationResponse])
 def get_ports(
+    paging: PageParams = Depends(),
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取已分配的端口列表"""
-    port_service = PortService(db)
-    allocations = port_service.get_allocated_ports(frps_server_id)
-    return allocations
+    query = db.query(PortAllocation).filter(PortAllocation.frps_server_id == frps_server_id, PortAllocation.is_allocated.is_(True)).order_by(PortAllocation.port, PortAllocation.id)
+    return paginate(query, paging)
 
 
 @router.post("/allocate", response_model=PortAllocationResponse, status_code=status.HTTP_201_CREATED)

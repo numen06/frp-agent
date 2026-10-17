@@ -80,12 +80,13 @@ def get_dashboard_stats_summary(
 
 @router.get("/dashboard-stats/server-stats")
 def get_dashboard_stats_server_stats(
+    server_ids: Optional[List[int]] = Query(None, max_length=100),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Dashboard 各服务器统计（可与 summary 分开发起，减轻首屏等待）。"""
     keep_ids_subq = _proxy_dashboard_keep_ids_subquery(db)
     keep_id_col = keep_ids_subq.c.keep_id
-    server_stats = (
+    query = (
         db.query(
             Proxy.frps_server_id,
             func.count(Proxy.id).label("total"),
@@ -95,8 +96,12 @@ def get_dashboard_stats_server_stats(
         )
         .filter(Proxy.id.in_(db.query(keep_id_col)))
         .group_by(Proxy.frps_server_id)
-        .all()
     )
+    if server_ids is not None:
+        query = query.filter(Proxy.frps_server_id.in_(server_ids))
+    else:
+        query = query.filter(Proxy.frps_server_id.in_(db.query(FrpsServer.id).order_by(FrpsServer.id).limit(20)))
+    server_stats = query.all()
     server_stats_map = {}
     for row in server_stats:
         server_stats_map[row.frps_server_id] = {
@@ -114,7 +119,7 @@ def get_dashboard_stats(
 ):
     """获取 Dashboard 统计数据（兼容：单次请求返回汇总 + 各服务器统计）。"""
     summary = get_dashboard_stats_summary(db=db, current_user=current_user)
-    servers = get_dashboard_stats_server_stats(db=db, current_user=current_user)
+    servers = get_dashboard_stats_server_stats(server_ids=None, db=db, current_user=current_user)
     return {**summary, **servers}
 
 
@@ -125,7 +130,7 @@ async def get_proxies(
     status_filter: Optional[str] = Query(None, description="按状态过滤"),
     search: Optional[str] = Query(None, description="搜索代理名称或分组"),
     page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(10, ge=1, le=1000, description="每页数量"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     sync_from_frps: bool = Query(False, description="是否从frps实时拉取数据进行对比"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -359,7 +364,7 @@ async def get_proxies(
     # 应用分页
     offset = (page - 1) * page_size
     db_proxies = (
-        query.order_by(Proxy.created_at.desc()).offset(offset).limit(page_size).all()
+        query.order_by(Proxy.created_at.desc(), Proxy.id.desc()).offset(offset).limit(page_size).all()
     )
 
     # 返回代理列表（转换为响应格式）

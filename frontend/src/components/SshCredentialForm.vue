@@ -3,16 +3,7 @@
     <div class="flex flex-wrap items-end gap-2">
       <div class="min-w-[140px] flex-1">
         <label class="mb-1 block text-xs font-medium text-gray-600">凭据</label>
-        <select
-          v-model.number="selectedId"
-          class="block w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm"
-          @change="onSelect"
-        >
-          <option :value="0">{{ passwordOnly ? '请选择 Windows 密码凭据' : '请选择 SSH 凭据' }}</option>
-          <option v-for="c in credentials" :key="c.id" :value="c.id">
-            {{ c.name }} ({{ c.username }})
-          </option>
-        </select>
+        <RemoteSelect v-model="selectedId" label="选择凭据" allow-clear clear-label="新建凭据（不使用现有）" :fetch-options="params => sshCredentialsApi.list({ ...params, auth_type: passwordOnly ? 'password' : undefined })" :resolve-option="resolveCredential" :get-label="item => `${item.name} (${item.username})`" @select="selectCredential" />
       </div>
       <button
         type="button"
@@ -106,6 +97,7 @@
 </template>
 
 <script setup>
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, watch, onMounted } from 'vue'
 import { sshCredentialsApi } from '@/api/sshCredentials'
 
@@ -135,6 +127,7 @@ const form = ref({
 
 watch(() => props.modelValue, (v) => {
   selectedId.value = v || 0
+  if (!v) resetForm()
 })
 
 function resetForm() {
@@ -170,12 +163,22 @@ async function loadPrivateKeyFile(event) {
 
 async function loadCredentials() {
   try {
-    const rows = await sshCredentialsApi.list()
-    credentials.value = props.passwordOnly ? rows.filter(c => c.auth_type === 'password') : rows
+    credentials.value = selectedId.value ? [await sshCredentialsApi.get(selectedId.value)] : []
     if (selectedId.value) onSelect()
   } catch (e) {
     console.error(e)
   }
+}
+
+async function resolveCredential(id) {
+  const row = await sshCredentialsApi.get(id)
+  if (selectedId.value === id) { credentials.value = [row]; onSelect() }
+  return row
+}
+function selectCredential(row) {
+  credentials.value = row ? [row] : []
+  if (!row) { selectedId.value = 0; resetForm(); showEditor.value = true }
+  onSelect()
 }
 
 function onSelect() {

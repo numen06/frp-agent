@@ -7,18 +7,7 @@
       <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="text-sm font-medium text-gray-700">当前服务器：</label>
         <div class="min-w-0 w-full flex-1 sm:min-w-[12rem] sm:max-w-md">
-          <AppSelect
-            class="block w-full"
-            :number="true"
-            v-model="selectedServerId"
-            @change="handleServerChange"
-            :disabled="serversStore.loading"
-          >
-            <option :value="null">请选择服务器...</option>
-            <option v-for="server in serversStore.servers" :key="server.id" :value="server.id">
-              {{ server.name }}
-            </option>
-          </AppSelect>
+          <RemoteSelect v-model="selectedServerId" label="选择服务器" :fetch-options="serverApi.getServers" :resolve-option="serverApi.getServer" @select="handleServerChange" />
         </div>
         <button
           type="button"
@@ -40,9 +29,10 @@
 </template>
 
 <script setup>
+import RemoteSelect from '@/components/RemoteSelect.vue'
+import { serverApi } from '@/api/servers'
 import { ref, watch, onMounted } from 'vue'
 import { useServersStore } from '@/stores/servers'
-import AppSelect from '@/components/AppSelect.vue'
 
 const props = defineProps({
   modelValue: {
@@ -57,6 +47,10 @@ const serversStore = useServersStore()
 const selectedServerId = ref(props.modelValue)
 const testing = ref(false)
 
+watch(() => serversStore.currentServerId, id => {
+  if (!selectedServerId.value && id) selectedServerId.value = id
+}, { immediate: true })
+
 watch(() => props.modelValue, (newVal) => {
   selectedServerId.value = newVal
 })
@@ -65,7 +59,8 @@ watch(selectedServerId, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-const handleServerChange = () => {
+const handleServerChange = server => {
+  if (server) serversStore.selectedRecord = server
   emit('change', selectedServerId.value)
   if (selectedServerId.value) {
     serversStore.setCurrentServer(selectedServerId.value)

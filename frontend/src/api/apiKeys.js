@@ -2,11 +2,7 @@ import api from './index'
 
 export const apiKeysApi = {
   // 获取 API Key 列表
-  list(skip = 0, limit = 100) {
-    return api.get('/api-keys', {
-      params: { skip, limit }
-    })
-  },
+  list(params = {}) { return api.get('/api-keys', { params }) },
 
   // 获取单个 API Key
   get(id, params = {}) {

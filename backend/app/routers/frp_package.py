@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, verify_api_key
 from app.database import get_db
+from app.pagination import search_query
 from app.models.user import User
 from app.models.frp_package import FrpPackage
 from app.schemas.frp_package import (
@@ -281,11 +282,11 @@ def _save_script_templates(data: dict):
 
 @router.get("", response_model=FrpPackagePaginatedResponse)
 def list_packages(
-    version: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=200),    version: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     page: int = Query(1, ge=1, description="页码，从 1 开始"),
-    page_size: int = Query(10, ge=1, le=500, description="每页条数（列表页建议≤100；脚本弹窗可选更大 batch）"),
+    page_size: int = Query(20, ge=1, le=100, description="每页条数，最多 100"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -296,10 +297,11 @@ def list_packages(
         query = query.filter(FrpPackage.platform == platform)
     if source:
         query = query.filter(FrpPackage.source == source)
+    query = search_query(query, search, FrpPackage.filename, FrpPackage.version, FrpPackage.platform)
     total = query.count()
     offset = (page - 1) * page_size
     items = (
-        query.order_by(FrpPackage.downloaded_at.desc())
+        query.order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
         .offset(offset)
         .limit(page_size)
         .all()

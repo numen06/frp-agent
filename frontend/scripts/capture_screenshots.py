@@ -5,7 +5,7 @@ Screenshots are real 1920x1080 viewport captures (no resizing or compositing).
 """
 import base64
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import sync_playwright
 
@@ -73,7 +73,7 @@ AUDIT = [dict(id=i, created_at=DATE, actor_name='operator', host_name=host,
 
 
 def paginated(items):
-    return dict(items=items, total=len(items), page=1, page_size=10)
+    return dict(items=items, total=len(items), page=1, page_size=20)
 
 
 RESPONSES = {
@@ -113,6 +113,56 @@ RESPONSES = {
 }
 
 
+def demo_response(url):
+    """Serve bounded demo collections using the same paging contract as production."""
+    query = parse_qs(url.query)
+    path = url.path
+    data = RESPONSES.get(path)
+    if path.startswith('/api/servers/') and path.rsplit('/', 1)[-1].isdigit():
+        data = next((row for row in SERVERS if row['id'] == int(path.rsplit('/', 1)[-1])), None)
+    if path.startswith('/api/api-keys/') and path.rsplit('/', 1)[-1].isdigit():
+        data = next((row for row in KEYS if row['id'] == int(path.rsplit('/', 1)[-1])), None)
+    if path.startswith('/api/api-keys/') and path.endswith('/full-key'):
+        data = dict(key='demo-key-not-a-real-credential')
+    if path.startswith('/api/managed-hosts/audit/logs/'):
+        data = next((row for row in AUDIT if row['id'] == int(path.rsplit('/', 1)[-1])), None)
+    if path.endswith('/delete-preview') and path.startswith('/api/groups/'):
+        name = path.split('/')[-2]
+        rows = [row for row in PROXIES if row['group_name'] == name]
+        return dict(group_name=name, frps_server_id=1, proxy_count=len(rows), port_count=len(rows))
+    if data is None:
+        return None
+    collection = data if isinstance(data, list) else data.get('items') if isinstance(data, dict) else None
+    if path == '/api/groups/list':
+        collection = [row['group_name'] for row in GROUPS]
+    if path.endswith('/docker/containers'):
+        collection = data.get('containers', [])
+    if collection is None:
+        return data
+    rows = list(collection)
+    if query.get('subject_type'):
+        rows = [row for row in rows if row.get('subject_type') == query['subject_type'][0]]
+    if query.get('selected'):
+        rows = [row for row in rows if f"{row.get('subject_type')}:{row.get('id')}" == query['selected'][0]]
+    if query.get('host_id'):
+        key = 'id' if path == '/api/managed-hosts' else 'host_id'
+        rows = [row for row in rows if str(row.get(key)) == query['host_id'][0]]
+    if query.get('search'):
+        term = query['search'][0].lower()
+        rows = [row for row in rows if term in str(row).lower()]
+    if query.get('available_only') == ['true']:
+        rows = [row for row in rows if row.get('is_active') and not row.get('is_expired')]
+    if 'page' not in query and isinstance(data, list):
+        return rows[:20]
+    page = int(query.get('page', ['1'])[0]); size = int(query.get('page_size', ['20'])[0])
+    result = dict(items=rows[(page-1)*size:page*size], total=len(rows), page=page, page_size=size)
+    if path == '/api/groups/list':
+        result['groups'] = result['items']
+    if path.endswith('/docker/containers'):
+        result['containers'] = result['items']
+    return result
+
+
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     errors = []
@@ -126,11 +176,12 @@ def main():
         def intercept(route):
             url = urlparse(route.request.url)
             if url.path.startswith('/api/'):
-                if url.path not in RESPONSES or route.request.method != 'GET':
+                payload = demo_response(url)
+                if payload is None or route.request.method != 'GET':
                     errors.append(f'Unmocked request: {route.request.method} {url.path}')
                     route.fulfill(status=501, json=dict(detail='Screenshot fixture missing'))
                 else:
-                    route.fulfill(json=RESPONSES[url.path])
+                    route.fulfill(json=payload)
             elif url.netloc != '127.0.0.1:4173':
                 errors.append(f'Unexpected external request: {url.netloc}')
                 route.abort()

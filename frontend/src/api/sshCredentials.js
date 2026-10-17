@@ -1,8 +1,9 @@
 import api from './index'
 
 export const sshCredentialsApi = {
-  list() {
-    return api.get('/ssh-credentials')
+  get(id) { return api.get(`/ssh-credentials/${id}`) },
+  list(params = {}) {
+    return api.get('/ssh-credentials', { params })
   },
 
   create(data) {
