@@ -18,6 +18,10 @@ export const packagesApi = {
     return api.post('/packages/sync', data)
   },
 
+  getSyncJob(jobId) {
+    return api.get(`/packages/jobs/${jobId}`)
+  },
+
   getReleases() {
     return api.get('/packages/releases')
   },

@@ -39,6 +39,7 @@ class ProxyResponse(BaseModel):
     local_ip: str
     local_port: int
     client_name: Optional[str]
+    client_version: Optional[str] = None
     status: str
     created_at: datetime
     updated_at: datetime

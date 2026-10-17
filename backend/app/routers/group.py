@@ -17,11 +17,15 @@ from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
 from app.models.frp_package import FrpPackage
+from app.models.package_sync_job import PackageSyncJob
 from app.models.port import PortAllocation
 from app.services.port_service import PortService
 from app.services.config_parser import ConfigParser
 from app.script_templates import load_shell_template
 from app.scheduler import sync_server
+from app.schemas.ssh_upgrade import GroupSshUpgradeRequest, ClientUpgradeJobResponse
+from app.models.ssh_credential import SshCredential
+from app.services.ssh_upgrade_service import scan_group, upgrade_group
 
 router = APIRouter(prefix="/api/groups", tags=["分组管理"])
 
@@ -63,6 +67,331 @@ class ImportConfigRequest(BaseModel):
     config_content: str
     config_format: str = "auto"  # auto, ini, toml
     overwrite: bool = True  # 是否覆盖已存在的同名代理（默认覆盖）
+
+
+class DeployPreviewRequest(BaseModel):
+    """部署命令预览请求"""
+    frps_server_id: Optional[int] = None
+    server_name: Optional[str] = None
+    install_path: str = "/opt/frp"
+    platform: str = "linux_amd64"
+    upgrade: bool = False
+    force_config: bool = False
+    verify: bool = True
+    min_online: int = 1
+    api_key: Optional[str] = None
+
+
+class ImportPreviewRequest(BaseModel):
+    """导入命令预览请求"""
+    frps_server_id: int
+    group_name: str
+    config_path: str = "/opt/frp"
+    config_format: str = "auto"
+    overwrite: bool = True
+    api_key: Optional[str] = None
+
+
+def _missing_requirement(code: str, message: str) -> Dict[str, str]:
+    return {"code": code, "message": message}
+
+
+def _resolve_frps_server(
+    db: Session,
+    *,
+    frps_server_id: Optional[int] = None,
+    server_name: Optional[str] = None,
+) -> Optional[FrpsServer]:
+    if frps_server_id is not None:
+        server = db.query(FrpsServer).filter(FrpsServer.id == frps_server_id).first()
+        if server:
+            return server
+    if server_name:
+        return db.query(FrpsServer).filter(FrpsServer.name == server_name).first()
+    return None
+
+
+def _group_proxy_stats(db: Session, group_name: str, frps_server_id: int):
+    proxies = db.query(Proxy).filter(
+        Proxy.group_name == group_name,
+        Proxy.frps_server_id == frps_server_id,
+    ).all()
+    total = len(proxies)
+    online = sum(1 for p in proxies if p.status == "online")
+    return proxies, total, online, total - online
+
+
+def _build_deploy_script_path(
+    group_name: str,
+    server_name: str,
+    *,
+    platform: str = "linux_amd64",
+    install_path: str = "/opt/frp",
+    upgrade: bool = False,
+    force_config: bool = False,
+    verify: bool = True,
+    min_online: int = 1,
+    verify_attempts: int = 18,
+    verify_interval: int = 5,
+    api_key: Optional[str] = None,
+) -> str:
+    gn = quote(group_name, safe="")
+    params = [("server_name", server_name)]
+    if platform:
+        params.append(("platform", platform))
+    if install_path:
+        params.append(("install_path", install_path))
+    if upgrade:
+        params.append(("upgrade", "true"))
+    if force_config:
+        params.append(("force_config", "true"))
+    if not verify:
+        params.append(("verify", "false"))
+    if min_online != 1:
+        params.append(("min_online", str(min_online)))
+    if verify_attempts != 18:
+        params.append(("verify_attempts", str(verify_attempts)))
+    if verify_interval != 5:
+        params.append(("verify_interval", str(verify_interval)))
+    if api_key:
+        params.append(("api_key", api_key))
+    qs = "&".join(f"{quote(k, safe='')}={quote(str(v), safe='')}" for k, v in params)
+    return f"/api/groups/{gn}/deploy?{qs}"
+
+
+def _build_import_script_path(
+    frps_server_id: int,
+    group_name: str,
+    *,
+    config_path: str = "/opt/frp",
+    config_format: str = "auto",
+    overwrite: bool = True,
+    api_key: Optional[str] = None,
+) -> str:
+    params = [
+        ("frps_server_id", str(frps_server_id)),
+        ("group_name", group_name),
+    ]
+    if config_path:
+        params.append(("config_path", config_path))
+    if config_format:
+        params.append(("config_format", config_format))
+    if not overwrite:
+        params.append(("overwrite", "false"))
+    if api_key:
+        params.append(("api_key", api_key))
+    qs = "&".join(f"{quote(k, safe='')}={quote(str(v), safe='')}" for k, v in params)
+    return f"/api/groups/import-script?{qs}"
+
+
+def _compose_deploy_preview(
+    db: Session,
+    group_name: str,
+    body: DeployPreviewRequest,
+    server_base: str,
+) -> Dict[str, Any]:
+    missing: List[Dict[str, str]] = []
+    warnings: List[str] = []
+
+    server = _resolve_frps_server(
+        db, frps_server_id=body.frps_server_id, server_name=body.server_name
+    )
+    if not server:
+        missing.append(_missing_requirement("server_not_found", "未找到指定的 frps 服务器"))
+
+    platform = (body.platform or "linux_amd64").strip()
+    install_path = (body.install_path or "/opt/frp").strip() or "/opt/frp"
+
+    if platform.startswith("windows_"):
+        missing.append(_missing_requirement(
+            "platform_unsupported",
+            "分组一键部署脚本当前仅支持 Linux；Windows 请使用「一键安装」生成的 PowerShell 脚本。",
+        ))
+
+    pkg = None
+    if platform and not platform.startswith("windows_"):
+        pkg, _pkg_version = _get_latest_package_for_platform(db, platform)
+        if not pkg:
+            syncing = _has_active_package_sync(db, platform)
+            missing.append(_missing_requirement(
+                "package_syncing" if syncing else "package_missing",
+                (
+                    f"{platform} 安装包正在同步中，请等待任务完成后再生成部署命令"
+                    if syncing
+                    else f"未找到可用的 {platform} 安装包，请先同步或上传安装包"
+                ),
+            ))
+
+    if not body.api_key:
+        missing.append(_missing_requirement(
+            "api_key_missing",
+            "请先在密钥管理中创建并选择默认 API Key，以便生成带鉴权的一键命令",
+        ))
+
+    effective_options = {
+        "group_name": group_name,
+        "server_name": server.name if server else body.server_name,
+        "frps_server_id": server.id if server else body.frps_server_id,
+        "install_path": install_path,
+        "platform": platform,
+        "upgrade": body.upgrade,
+        "force_config": body.force_config,
+        "verify": body.verify,
+        "min_online": body.min_online,
+    }
+
+    script_url = ""
+    command = ""
+    blocking_codes = {"server_not_found", "platform_unsupported", "package_missing", "package_syncing", "api_key_missing"}
+    can_build = server and not any(m["code"] in blocking_codes for m in missing)
+
+    if can_build:
+        script_path = _build_deploy_script_path(
+            group_name,
+            server.name,
+            platform=platform,
+            install_path=install_path,
+            upgrade=body.upgrade,
+            force_config=body.force_config,
+            verify=body.verify,
+            min_online=body.min_online,
+            api_key=body.api_key,
+        )
+        script_url = f"{server_base}{script_path}"
+        command = f'curl -sL "{script_url}" | sudo bash'
+        if body.upgrade:
+            warnings.append("已启用升级 frpc 二进制，目标机将下载并替换现有 frpc。")
+        if body.force_config:
+            warnings.append("已启用覆盖配置文件，将强制重新拉取 frpc.toml。")
+
+    return {
+        "command": command,
+        "script_url": script_url,
+        "effective_options": effective_options,
+        "warnings": warnings,
+        "missing_requirements": missing,
+        "package_available": pkg is not None,
+    }
+
+
+def _compose_import_preview(
+    db: Session,
+    body: ImportPreviewRequest,
+    server_base: str,
+) -> Dict[str, Any]:
+    missing: List[Dict[str, str]] = []
+    warnings: List[str] = []
+
+    group_name = (body.group_name or "").strip()
+    if not group_name:
+        missing.append(_missing_requirement("group_name_missing", "请填写分组名称"))
+
+    server = db.query(FrpsServer).filter(FrpsServer.id == body.frps_server_id).first()
+    if not server:
+        missing.append(_missing_requirement("server_not_found", "未找到指定的 frps 服务器"))
+
+    if not body.api_key:
+        missing.append(_missing_requirement(
+            "api_key_missing",
+            "请先在密钥管理中创建并选择默认 API Key，以便生成带鉴权的一键命令",
+        ))
+
+    config_path = (body.config_path or "/opt/frp").strip() or "/opt/frp"
+    effective_options = {
+        "frps_server_id": body.frps_server_id,
+        "group_name": group_name,
+        "config_path": config_path,
+        "config_format": body.config_format or "auto",
+        "overwrite": body.overwrite,
+    }
+
+    script_url = ""
+    command = ""
+    blocking_codes = {"group_name_missing", "server_not_found", "api_key_missing"}
+    can_build = not any(m["code"] in blocking_codes for m in missing)
+
+    if can_build:
+        script_path = _build_import_script_path(
+            body.frps_server_id,
+            group_name,
+            config_path=config_path,
+            config_format=body.config_format or "auto",
+            overwrite=body.overwrite,
+            api_key=body.api_key,
+        )
+        script_url = f"{server_base}{script_path}"
+        command = f'curl -sL "{script_url}" | bash'
+
+    if not body.overwrite:
+        warnings.append("未开启覆盖同名代理，已存在的代理将被跳过。")
+
+    return {
+        "command": command,
+        "script_url": script_url,
+        "effective_options": effective_options,
+        "warnings": warnings,
+        "missing_requirements": missing,
+    }
+
+
+def _compose_action_context(
+    db: Session,
+    group_name: str,
+    frps_server_id: int,
+) -> Dict[str, Any]:
+    from app.services.ssh_candidate import is_ssh_candidate
+
+    server = db.query(FrpsServer).filter(FrpsServer.id == frps_server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="服务器不存在")
+
+    proxies, total, online, offline = _group_proxy_stats(db, group_name, frps_server_id)
+    pkg, _ = _get_latest_package_for_platform(db, "linux_amd64")
+    has_package = pkg is not None
+    package_syncing = _has_active_package_sync(db, "linux_amd64") if not has_package else False
+    has_ssh_candidates = any(is_ssh_candidate(p) for p in proxies)
+    has_ssh_credentials = db.query(SshCredential).count() > 0
+
+    if has_package:
+        deploy_reason = ""
+    elif package_syncing:
+        deploy_reason = "linux_amd64 安装包正在同步中，请等待任务完成后再部署"
+    else:
+        deploy_reason = "未找到 linux_amd64 安装包，请先同步或上传安装包"
+    if has_ssh_credentials and (has_ssh_candidates or total > 0):
+        ssh_reason = ""
+        ssh_enabled = True
+    elif not has_ssh_credentials:
+        ssh_reason = "请先在 SSH 凭据管理中配置凭据"
+        ssh_enabled = False
+    else:
+        ssh_reason = "该分组暂无可用 SSH 升级候选代理"
+        ssh_enabled = False
+
+    missing: List[Dict[str, str]] = []
+    if not has_package:
+        missing.append(_missing_requirement("package_syncing" if package_syncing else "package_missing", deploy_reason))
+
+    return {
+        "group_name": group_name,
+        "frps_server_id": frps_server_id,
+        "frps_server_name": server.name,
+        "summary": {"total": total, "online": online, "offline": offline},
+        "defaults": {
+            "install_path": "/opt/frp",
+            "platform": "linux_amd64",
+            "verify": True,
+        },
+        "capabilities": {
+            "deploy": {"enabled": has_package, "reason": deploy_reason},
+            "ssh_upgrade": {"enabled": ssh_enabled, "reason": ssh_reason},
+            "generate_config": {"enabled": True, "reason": ""},
+            "import_config": {"enabled": True, "reason": ""},
+        },
+        "has_ssh_candidates": has_ssh_candidates,
+        "has_package": has_package,
+        "missing_requirements": missing,
+    }
 
 
 @router.get("/list")
@@ -330,6 +659,17 @@ def get_group_summary(
         "port_range": port_range,
         "servers": list(set([p.frps_server_id for p in proxies]))
     }
+
+
+@router.get("/{group_name}/action-context")
+def get_group_action_context(
+    group_name: str,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取分组在当前服务器下的动作上下文与默认可用性"""
+    return _compose_action_context(db, group_name, frps_server_id)
 
 
 @router.put("/proxy/update")
@@ -976,33 +1316,62 @@ def _default_install_template(platform: str) -> str:
     return load_shell_template("group_quick_install_linux.sh")
 
 
+def _package_file_ready(pkg: FrpPackage) -> bool:
+    if not pkg or not pkg.file_path:
+        return False
+    try:
+        return os.path.isfile(pkg.file_path) and os.path.getsize(pkg.file_path) > 0
+    except OSError:
+        return False
+
+
+def _first_ready_package(query):
+    for pkg in query.all():
+        if _package_file_ready(pkg):
+            return pkg
+    return None
+
+
+def _has_active_package_sync(db: Session, platform: str) -> bool:
+    jobs = (
+        db.query(PackageSyncJob)
+        .filter(PackageSyncJob.status.in_(["queued", "running"]))
+        .order_by(PackageSyncJob.created_at.desc())
+        .all()
+    )
+    for job in jobs:
+        try:
+            platforms = json.loads(job.platforms or "[]")
+        except json.JSONDecodeError:
+            platforms = []
+        if platform in platforms:
+            return True
+    return False
+
+
 def _get_latest_package_for_platform(db: Session, platform: str):
     """查找指定平台最新版本的激活安装包（优先 versions_cache 中的 latest_version）"""
     cache = _load_versions_cache()
     latest_version = cache.get("latest_version")
-    if not latest_version:
-        row = db.query(FrpPackage.version).filter(
-            FrpPackage.is_active == True,
-            FrpPackage.platform == platform
-        ).order_by(FrpPackage.id.desc()).first()
-        if not row:
-            return None, None
-        latest_version = row.version
-
-    pkg = db.query(FrpPackage).filter(
+    base_query = db.query(FrpPackage).filter(
         FrpPackage.is_active == True,
         FrpPackage.platform == platform,
-        FrpPackage.version == latest_version
-    ).first()
-    if not pkg:
-        pkg = db.query(FrpPackage).filter(
-            FrpPackage.is_active == True,
-            FrpPackage.platform == platform
-        ).order_by(FrpPackage.id.desc()).first()
+    )
+
+    if latest_version:
+        pkg = _first_ready_package(
+            base_query.filter(FrpPackage.version == latest_version)
+            .order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
+        )
         if pkg:
             return pkg, pkg.version
-        return None, None
-    return pkg, latest_version
+
+    pkg = _first_ready_package(
+        base_query.order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
+    )
+    if pkg:
+        return pkg, pkg.version
+    return None, None
 
 
 def _get_latest_linux_amd64_package(db: Session):
@@ -1230,6 +1599,19 @@ async def deploy_verify(
     }
 
 
+@router.post("/{group_name}/deploy-preview")
+def deploy_preview(
+    group_name: str,
+    body: DeployPreviewRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """部署命令预览：返回推荐 curl 命令、缺失条件与有效选项"""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+    return _compose_deploy_preview(db, group_name, body, server_base)
+
+
 @router.get("/{group_name}/deploy", response_class=PlainTextResponse)
 def group_deploy(
     group_name: str,
@@ -1258,9 +1640,14 @@ def group_deploy(
 
     pkg, _version = _get_latest_package_for_platform(db, platform)
     if not pkg:
+        syncing = _has_active_package_sync(db, platform)
         raise HTTPException(
             status_code=404,
-            detail=f"未找到可用的 {platform} 安装包，请先同步或上传安装包",
+            detail=(
+                f"{platform} 安装包正在同步中，请等待任务完成后再部署"
+                if syncing
+                else f"未找到可用的 {platform} 安装包，请先同步或上传安装包"
+            ),
         )
 
     script = _build_deploy_script(
@@ -1486,6 +1873,18 @@ def import_config(
     )
 
 
+@router.post("/import-preview")
+def import_preview(
+    body: ImportPreviewRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """导入命令预览：返回推荐 curl 命令、缺失条件与有效选项"""
+    server_base = f"{request.url.scheme}://{request.url.netloc}"
+    return _compose_import_preview(db, body, server_base)
+
+
 @router.post("/import-config-form")
 def import_config_form(
     frps_server_id: int = Form(...),
@@ -1559,3 +1958,49 @@ def import_script(
         api_key=api_key,
     )
     return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@router.post("/{group_name}/ssh-upgrade/scan")
+def ssh_upgrade_scan_group(
+    group_name: str,
+    body: GroupSshUpgradeRequest,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    job = scan_group(db, frps_server_id, group_name, cred, body.install_path)
+    return ClientUpgradeJobResponse.model_validate(job)
+
+
+@router.post("/{group_name}/ssh-upgrade")
+def ssh_upgrade_group(
+    group_name: str,
+    body: GroupSshUpgradeRequest,
+    frps_server_id: int = Query(..., description="frps 服务器 ID"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    verify_url_base = f"{request.url.scheme}://{request.url.netloc}" if request else None
+
+    job = upgrade_group(
+        db,
+        frps_server_id,
+        group_name,
+        cred,
+        body.install_path,
+        body.proxy_ids,
+        verify_mode=body.verify_mode,
+        verify_attempts=body.verify_attempts,
+        verify_interval=body.verify_interval,
+        verify_url_base=verify_url_base if not body.skip_remote_verify else None,
+    )
+    return ClientUpgradeJobResponse.model_validate(job)

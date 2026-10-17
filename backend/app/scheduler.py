@@ -14,6 +14,7 @@ from app.models.proxy import Proxy
 from app.models.history import ProxyHistory
 from app.frps_client import FrpsClient
 from app.services.port_service import PortService
+from app.services.frp_version_service import refresh_server_version, apply_proxy_version
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -61,7 +62,14 @@ async def sync_server(db: Session, server: FrpsServer):
     
     # 创建客户端
     client = FrpsClient(server)
-    
+
+    try:
+        await refresh_server_version(db, server, client)
+    except Exception as e:
+        server.last_version_check_time = datetime.utcnow()
+        server.last_version_check_message = f"版本检查失败: {e}"
+        logger.warning(f"服务器 {server.name} 版本检查失败: {e}")
+
     # 获取所有代理
     all_proxies_data = await client.get_all_proxies()
     
@@ -93,7 +101,8 @@ async def sync_server(db: Session, server: FrpsServer):
             # 只有当远程端口存在且与现有值不同时才更新，避免清除现有端口
             if proxy_info.get("remote_port") is not None:
                 db_proxy.remote_port = proxy_info["remote_port"]
-            
+            apply_proxy_version(db_proxy, proxy_info)
+
             # 如果分组信息为空，自动设置分组
             if not db_proxy.group_name:
                 db_proxy.group_name = Proxy.parse_group_name(proxy_name)
@@ -120,7 +129,8 @@ async def sync_server(db: Session, server: FrpsServer):
                 local_ip=proxy_info["local_ip"],
                 local_port=0,
                 status=proxy_info["status"],
-                group_name=group_name
+                group_name=group_name,
+                client_version=proxy_info.get("client_version"),
             )
             db.add(new_proxy)
             

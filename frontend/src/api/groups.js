@@ -56,6 +56,15 @@ export const groupApi = {
     })
   },
 
+  // 为分组生成标准代理（http:80, docker:9000, ssh:22）
+  generateDefaults(groupName, frpsServerId) {
+    return api.post(`/groups/${encodeURIComponent(groupName)}/generate-defaults`, null, {
+      params: {
+        frps_server_id: frpsServerId
+      }
+    })
+  },
+
   // 一键安装脚本 URL
   getQuickInstallUrl(params) {
     const query = new URLSearchParams()
@@ -112,5 +121,22 @@ export const groupApi = {
     if (params.overwrite === false) query.set('overwrite', 'false')
     if (params.api_key) query.set('api_key', params.api_key)
     return `/api/groups/import-script?${query.toString()}`
+  },
+
+  // v3：分组动作上下文
+  getActionContext(groupName, frpsServerId) {
+    return api.get(`/groups/${encodeURIComponent(groupName)}/action-context`, {
+      params: { frps_server_id: frpsServerId }
+    })
+  },
+
+  // v3：部署命令预览
+  previewDeploy(groupName, data) {
+    return api.post(`/groups/${encodeURIComponent(groupName)}/deploy-preview`, data)
+  },
+
+  // v3：导入命令预览
+  previewImport(data) {
+    return api.post('/groups/import-preview', data)
   }
 }

@@ -1,11 +1,11 @@
 <template>
   <div>
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">FRP 安装包管理</h3>
-        <div class="card-actions flex flex-wrap gap-2 items-center">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div class="flex flex-col gap-3 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-2">
+        <h3 class="text-base font-semibold text-gray-900">FRP 安装包管理</h3>
+        <div class="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
           <button
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
+            class="btn btn-sm btn-secondary min-h-10 flex-1 sm:min-h-8 sm:flex-none"
             type="button"
             :disabled="refreshLoading"
             @click="handleRefresh"
@@ -15,30 +15,30 @@
             </svg>
             {{ refreshLoading ? '刷新中...' : '刷新' }}
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showSyncDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showSyncDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 14v4a1 1 0 0 0 1 1h4"/><path d="M17 3h4a1 1 0 0 1 1 1v4"/><path d="M16 8l-8 8"/>
             </svg>
             GitHub 同步
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showUploadDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showUploadDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/>
             </svg>
             手动上传
           </button>
-          <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" type="button" @click="showInstallDialog = true">
+          <button class="btn btn-sm btn-primary min-h-10 flex-1 sm:min-h-8 sm:flex-none" type="button" @click="showInstallDialog = true">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/>
             </svg>
             脚本生成
           </button>
-          <div class="dropdown">
+          <div class="relative w-full sm:w-auto">
             <button
               ref="moreActionsDropdown.triggerRef"
               type="button"
-              class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              @click.prevent="moreActionsDropdown.toggle()"
+              class="btn btn-sm btn-outline min-h-10 w-full gap-1 sm:min-h-8 sm:w-auto"
+              @click.prevent="toggleMoreActionsMenu"
               :aria-expanded="moreActionsDropdown.isOpen.value"
             >
               更多
@@ -46,43 +46,46 @@
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6"/>
               </svg>
             </button>
+            <Teleport to="body">
             <div
+              v-if="moreActionsDropdown.isOpen.value"
               ref="moreActionsDropdown.dropdownRef"
-              class="dropdown-menu"
-              :class="{ show: moreActionsDropdown.isOpen.value }"
+              class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+              :style="moreActionsMenuStyle"
               @click.stop
             >
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
-                :class="{ 'opacity-50 pointer-events-none': checkUpdateLoading }"
+                :class="{ 'pointer-events-none opacity-50': checkUpdateLoading }"
                 @click.prevent="handleMoreCheckUpdate"
               >
                 {{ checkUpdateLoading ? '检查中...' : '检查更新' }}
               </a>
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
-                :class="{ 'opacity-50 pointer-events-none': syncPlatformsLoading }"
+                :class="{ 'pointer-events-none opacity-50': syncPlatformsLoading }"
                 @click.prevent="handleMoreSyncPlatforms"
               >
                 {{ syncPlatformsLoading ? '同步中...' : '同步平台类型' }}
               </a>
-              <div class="dropdown-divider"></div>
+              <div class="my-1 border-t border-gray-100"></div>
               <a
-                class="dropdown-item"
+                class="flex cursor-pointer items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 href="#"
                 @click.prevent="showTemplateDialog = true; moreActionsDropdown.close()"
               >
                 脚本模板编辑
               </a>
             </div>
+            </Teleport>
           </div>
         </div>
       </div>
-      <div class="card-body">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-          <select v-model="filters.version" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+      <div class="p-3 sm:p-5">
+        <div class="mb-4 flex flex-col gap-3 md:grid md:grid-cols-3">
+          <select v-model="filters.version" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部版本</option>
             <option v-if="versionsMeta.latest_version" value="__latest__">
               最新（{{ versionsMeta.latest_version }}）
@@ -94,22 +97,23 @@
               <option v-for="v in otherVersionsForUi" :key="'ov-' + v" :value="v">{{ v }}</option>
             </optgroup>
           </select>
-          <select v-model="filters.platform" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+          <select v-model="filters.platform" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部平台</option>
             <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
           </select>
-          <select v-model="filters.source" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+          <select v-model="filters.source" class="block min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
             <option value="">全部来源</option>
             <option value="github">github</option>
             <option value="upload">upload</option>
           </select>
         </div>
-        <div v-if="loading" class="text-center py-8">
-          <div class="spinner-border spinner-border-sm" role="status"></div>
-          <span class="ms-2 text-muted">加载中...</span>
+        <div v-if="loading" class="py-8 text-center">
+          <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
+          <span class="ml-2 align-middle text-sm text-gray-500">加载中...</span>
         </div>
-        <div v-else class="overflow-x-auto">
-          <table class="w-full border-collapse text-left text-sm text-gray-700">
+        <div v-else>
+          <div class="hidden overflow-x-auto md:block">
+            <table class="w-full border-collapse text-left text-sm text-gray-700">
             <thead>
               <tr>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">ID</th>
@@ -120,17 +124,20 @@
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">来源</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">下载时间</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">SHA256</th>
-                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:220px">操作</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200 whitespace-nowrap" style="min-width:96px">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="packages.length === 0">
-                <td colspan="9" class="text-center text-muted py-8">暂无安装包</td>
+                <td colspan="9" class="py-8 text-center text-gray-500">暂无安装包</td>
               </tr>
               <tr v-for="item in packages" :key="item.id">
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ item.id }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.version }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.version }}</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ item.platform }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
@@ -138,35 +145,32 @@
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatSize(item.file_size) }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
-                  <span class="badge" :class="item.source === 'github' ? 'bg-blue' : 'bg-secondary'">{{ item.source }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.source }}</span>
                 </td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle whitespace-nowrap">{{ formatDate(item.downloaded_at) }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle"><code class="text-xs text-gray-500">{{ item.sha256_checksum?.slice(0, 12) }}...</code></td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200" title="复制下载命令" @click="copyDownloadCommand(item, $event)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4v5h.582m15.356 2a8.001 8.001 0 0 0 -15.356 -2m15.356 2a15 15 0 0 1 2 0m-17 0a15 15 0 0 1 2 0"/><path d="M4 13a8.001 8.001 0 0 0 4 0"/>
-                      </svg>
-                    </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100" title="下载安装包" type="button" @click="downloadPackageFile(item)">
+                    <button class="btn btn-icon-sm btn-icon-accent" title="下载安装包" type="button" @click="downloadPackageFile(item)">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
                       </svg>
                     </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100" title="复制安装命令" @click="copyInstallCommand(item, $event)">
+                    <button
+                      class="btn btn-icon-sm btn-icon-muted"
+                      title="更多"
+                      aria-label="更多操作"
+                      type="button"
+                      @click.stop="togglePackageMore(item.id, $event)"
+                    >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l0 18"/><path d="M8 7l4 -4l4 4"/><path d="M8 17l4 4l4 -4"/>
-                      </svg>
-                    </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700 transition-colors hover:bg-green-100" title="复制升级命令" @click="copyUpgradeCommand(item, $event)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6l0 12"/><path d="M16 10l-4 -4l-4 4"/><path d="M16 14l-4 4l-4 -4"/>
-                      </svg>
-                    </button>
-                    <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100" title="删除" @click="remove(item)">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <circle cx="5" cy="12" r="1" fill="currentColor"/>
+                        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                        <circle cx="19" cy="12" r="1" fill="currentColor"/>
                       </svg>
                     </button>
                   </div>
@@ -174,15 +178,140 @@
               </tr>
             </tbody>
           </table>
+          </div>
+          <div class="md:hidden">
+            <p v-if="packages.length === 0" class="py-8 text-center text-gray-500">暂无安装包</p>
+            <ul v-else class="divide-y divide-gray-100">
+              <li v-for="item in packages" :key="item.id" class="p-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'"
+                  >{{ item.version }}</span>
+                  <span class="text-sm font-medium text-gray-900">{{ item.platform }}</span>
+                  <span
+                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="item.source === 'github' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-600'"
+                  >{{ item.source }}</span>
+                </div>
+                <p class="mt-1 break-all text-sm text-gray-700" :title="item.filename">{{ item.filename }}</p>
+                <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500">
+                  <div><dt class="inline">大小 </dt><dd class="inline text-gray-700">{{ formatSize(item.file_size) }}</dd></div>
+                  <div class="col-span-2"><dt class="inline">下载 </dt><dd class="inline text-gray-700">{{ formatDate(item.downloaded_at) }}</dd></div>
+                  <div class="col-span-2 break-all"><dt class="inline">SHA256 </dt><dd class="inline font-mono text-gray-600">{{ item.sha256_checksum?.slice(0, 16) }}…</dd></div>
+                </dl>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button class="btn btn-icon-md btn-icon-accent" title="下载安装包" aria-label="下载安装包" type="button" @click="downloadPackageFile(item)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-md btn-icon-muted"
+                    title="更多"
+                    aria-label="更多操作"
+                    type="button"
+                    @click.stop="togglePackageMore(item.id, $event)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <circle cx="5" cy="12" r="1" fill="currentColor"/>
+                      <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                      <circle cx="19" cy="12" r="1" fill="currentColor"/>
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div class="mt-4 border-t border-gray-100 pt-4">
+            <TablePagination
+              :total="pagination.total"
+              :page="pagination.page"
+              :page-size="pagination.page_size"
+              @page-change="onPackagePageChange"
+              @page-size-change="onPackagePageSizeChange"
+            />
+          </div>
         </div>
       </div>
     </div>
 
-    <PackageSyncDialog v-model="showSyncDialog" :releases="releases" :loading="syncLoading" @submit="handleSync" />
+    <Teleport to="body">
+      <div
+        v-if="openMorePackageId"
+        class="fixed z-50 min-w-[168px] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        :style="packageMoreMenuStyle"
+        @click.stop
+      >
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyDownload($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 4v5h.582m15.356 2a8.001 8.001 0 0 0 -15.356 -2m15.356 2a15 15 0 0 1 2 0m-17 0a15 15 0 0 1 2 0"/>
+            <path d="M4 13a8.001 8.001 0 0 0 4 0"/>
+          </svg>
+          复制下载命令
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyInstall($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3l0 18"/>
+            <path d="M8 7l4 -4l4 4"/>
+            <path d="M8 17l4 4l4 -4"/>
+          </svg>
+          复制安装命令
+        </a>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          href="#"
+          @click.prevent="handleMoreCopyUpgrade($event)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 6l0 12"/>
+            <path d="M16 10l-4 -4l-4 4"/>
+            <path d="M16 14l-4 4l-4 -4"/>
+          </svg>
+          复制升级命令
+        </a>
+        <div class="my-1 border-t border-gray-100"></div>
+        <a
+          class="flex cursor-pointer items-center px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+          href="#"
+          @click.prevent="handleMoreRemove"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 7l16 0"/>
+            <path d="M10 11l0 6"/>
+            <path d="M14 11l0 6"/>
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+          </svg>
+          删除
+        </a>
+      </div>
+    </Teleport>
+
+    <PackageSyncDialog
+      v-model="showSyncDialog"
+      :releases="syncDialogReleases"
+      :loading="syncLoading"
+      :progress="syncProgress"
+      @submit="handleSync"
+    />
     <PackageUploadDialog v-model="showUploadDialog" :platforms="platforms" :loading="uploadLoading" @submit="handleUpload" @submit-batch="handleUploadBatch" />
     <PackageInstallDialog
       v-model="showInstallDialog"
-      :packages="packages"
+      :packages="installPickerPackages"
       :latest-version="versionsMeta.latest_version"
       :loading="scriptLoading"
       :script="installScript"
@@ -201,7 +330,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { packagesApi } from '@/api/packages'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { useDropdown } from '@/composables/useDropdown'
@@ -210,9 +339,12 @@ import PackageSyncDialog from '@/components/PackageSyncDialog.vue'
 import PackageUploadDialog from '@/components/PackageUploadDialog.vue'
 import PackageInstallDialog from '@/components/PackageInstallDialog.vue'
 import ScriptTemplateDialog from '@/components/ScriptTemplateDialog.vue'
+import TablePagination from '@/components/TablePagination.vue'
 
 const loading = ref(false)
 const syncLoading = ref(false)
+const syncProgress = ref({ completed: 0, total: 0, status: '' })
+let syncPollTimer = null
 const uploadLoading = ref(false)
 const scriptLoading = ref(false)
 const showSyncDialog = ref(false)
@@ -224,10 +356,49 @@ const syncPlatformsLoading = ref(false)
 const savingTemplate = ref(false)
 const refreshLoading = ref(false)
 const moreActionsDropdown = useDropdown()
+const openMorePackageId = ref(null)
+const packageMoreMenuPosition = ref({ top: 0, left: 0, right: 0 })
+const moreActionsMenuPosition = ref({ top: 0, left: 0 })
+const MENU_WIDTH = 176
+
+const clampFloatingMenu = (rect, menuWidth = MENU_WIDTH) => {
+  const margin = 8
+  const vw = window.innerWidth
+  let left = rect.left
+  if (left + menuWidth > vw - margin) {
+    left = Math.max(margin, vw - menuWidth - margin)
+  }
+  left = Math.max(margin, left)
+  const top = Math.max(margin, rect.top)
+  return { top, left }
+}
+
+const packageMoreMenuStyle = computed(() => {
+  const { top, left, right } = packageMoreMenuPosition.value
+  if (left > 0) {
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      transform: 'translateY(-100%)'
+    }
+  }
+  return {
+    top: `${top}px`,
+    right: `${right}px`,
+    transform: 'translateY(-100%)'
+  }
+})
+
+const moreActionsMenuStyle = computed(() => ({
+  top: `${moreActionsMenuPosition.value.top}px`,
+  left: `${moreActionsMenuPosition.value.left}px`,
+  transform: 'translateY(-100%)'
+}))
 /** 从服务端恢复/修正筛选条件时避免 watch 重复请求 */
 const filterSyncing = ref(false)
 
 const packages = ref([])
+const installPickerPackages = ref([])
 const releases = ref([])
 const installScript = ref('')
 const upgradeScript = ref('')
@@ -235,6 +406,18 @@ const scriptTemplates = ref({})
 const apiKeysStore = useApiKeysStore()
 
 const PKG_FILTER_KEY = 'fm_package_list_filters_v1'
+const PKG_PAGE_SIZE_KEY = 'fm_package_list_page_size_v1'
+
+function readSavedPageSize() {
+  try {
+    const raw = localStorage.getItem(PKG_PAGE_SIZE_KEY)
+    const n = raw ? parseInt(raw, 10) : 10
+    if ([10, 20, 50, 100].includes(n)) return n
+  } catch {
+    /* ignore */
+  }
+  return 10
+}
 
 function readSavedFilters() {
   try {
@@ -257,6 +440,11 @@ function readSavedFilters() {
 
 const platforms = ref([])
 const filters = reactive(readSavedFilters())
+const pagination = reactive({
+  page: 1,
+  page_size: readSavedPageSize(),
+  total: 0
+})
 const versionsMeta = ref({
   versions: [],
   latest_version: '',
@@ -275,6 +463,35 @@ const otherVersionsForUi = computed(() => {
   const recent = new Set(versionsMeta.value.recent_versions || [])
   const lv = versionsMeta.value.latest_version
   return merged.filter((v) => v && !recent.has(v) && v !== lv)
+})
+
+const syncDialogReleases = computed(() => {
+  const byVersion = new Map()
+  for (const item of releases.value || []) {
+    if (item?.version) {
+      byVersion.set(item.version, {
+        ...item,
+        platforms: item.platforms || []
+      })
+    }
+  }
+  const localVersions = versionsMeta.value.versions || []
+  const latest = versionsMeta.value.latest_version
+  for (const version of localVersions) {
+    if (!version || byVersion.has(version)) continue
+    byVersion.set(version, {
+      version,
+      name: version,
+      platforms: version === latest ? platforms.value : [],
+      source: 'local-cache'
+    })
+  }
+  return Array.from(byVersion.values())
+})
+
+const currentMorePackage = computed(() => {
+  if (!openMorePackageId.value) return null
+  return packages.value.find((item) => item.id === openMorePackageId.value) || null
 })
 
 const formatDate = (v) => (v ? new Date(v).toLocaleString('zh-CN') : '')
@@ -321,6 +538,7 @@ const loadVersionsMeta = async () => {
       filters.version = ''
       filterSyncing.value = false
       persistFilters()
+      pagination.page = 1
       await loadPackages()
       ranLoadPackages = true
     } else if (sel && sel !== '__latest__' && merged.length && !merged.includes(sel)) {
@@ -328,6 +546,7 @@ const loadVersionsMeta = async () => {
       filters.version = ''
       filterSyncing.value = false
       persistFilters()
+      pagination.page = 1
       await loadPackages()
       ranLoadPackages = true
     }
@@ -343,22 +562,86 @@ const loadVersionsMeta = async () => {
   return ranLoadPackages
 }
 
+const persistPageSize = () => {
+  try {
+    localStorage.setItem(PKG_PAGE_SIZE_KEY, String(pagination.page_size))
+  } catch {
+    /* ignore */
+  }
+}
+
+const buildListParams = (page, pageSize) => {
+  const params = {
+    version: resolveVersionForApi(),
+    platform: filters.platform || undefined,
+    source: filters.source || undefined,
+    page,
+    page_size: pageSize
+  }
+  return Object.fromEntries(Object.entries(params).filter(([, val]) => val !== undefined && val !== ''))
+}
+
 const loadPackages = async () => {
   loading.value = true
   try {
-    const params = {
-      version: resolveVersionForApi(),
-      platform: filters.platform || undefined,
-      source: filters.source || undefined
+    const clean = buildListParams(pagination.page, pagination.page_size)
+    const res = await packagesApi.list(clean)
+    const items = res.items || []
+    const total = res.total ?? 0
+    pagination.total = total
+    if (items.length === 0 && total > 0 && pagination.page > 1) {
+      pagination.page = Math.max(1, Math.ceil(total / pagination.page_size) || 1)
+      const clean2 = buildListParams(pagination.page, pagination.page_size)
+      const res2 = await packagesApi.list(clean2)
+      packages.value = res2.items || []
+      pagination.total = res2.total ?? total
+      return
     }
-    const clean = Object.fromEntries(
-      Object.entries(params).filter(([, val]) => val !== undefined && val !== '')
-    )
-    packages.value = await packagesApi.list(clean)
+    packages.value = items
   } catch (e) {
     alert(`加载失败: ${e.message}`)
   } finally {
     loading.value = false
+  }
+}
+
+const onPackagePageChange = (p) => {
+  pagination.page = p
+  loadPackages()
+}
+
+const onPackagePageSizeChange = (ps) => {
+  pagination.page_size = ps
+  pagination.page = 1
+  persistPageSize()
+  loadPackages()
+}
+
+/** 弹窗打开时加载完整候选列表（多页合并） */
+const loadInstallDialogPackages = async () => {
+  try {
+    const base = {
+      version: resolveVersionForApi(),
+      platform: filters.platform || undefined,
+      source: filters.source || undefined
+    }
+    const cleanBase = Object.fromEntries(Object.entries(base).filter(([, val]) => val !== undefined && val !== ''))
+    const merged = []
+    let page = 1
+    const page_size = 200
+    let total = 0
+    for (let guard = 0; guard < 50; guard += 1) {
+      const res = await packagesApi.list({ ...cleanBase, page, page_size })
+      total = res.total ?? 0
+      const chunk = res.items || []
+      merged.push(...chunk)
+      if (merged.length >= total || chunk.length === 0) break
+      page += 1
+    }
+    installPickerPackages.value = merged
+  } catch (e) {
+    console.warn('加载安装包候选列表失败', e)
+    installPickerPackages.value = []
   }
 }
 
@@ -387,11 +670,57 @@ const handleMoreSyncPlatforms = () => {
   handleSyncPlatforms()
 }
 
+const toggleMoreActionsMenu = () => {
+  const willOpen = !moreActionsDropdown.isOpen.value
+  moreActionsDropdown.toggle()
+  if (!willOpen) return
+  nextTick(() => {
+    const button = moreActionsDropdown.triggerRef.value
+    if (!button) return
+    const rect = button.getBoundingClientRect()
+    const pos = clampFloatingMenu(rect)
+    moreActionsMenuPosition.value = { top: pos.top, left: pos.left }
+  })
+}
+
+const togglePackageMore = (packageId, event) => {
+  if (openMorePackageId.value === packageId) {
+    openMorePackageId.value = null
+    return
+  }
+  openMorePackageId.value = packageId
+  nextTick(() => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    if (window.innerWidth < 768) {
+      const pos = clampFloatingMenu(rect)
+      packageMoreMenuPosition.value = { top: pos.top, left: pos.left, right: 0 }
+    } else {
+      packageMoreMenuPosition.value = {
+        top: rect.top,
+        left: 0,
+        right: window.innerWidth - rect.right
+      }
+    }
+  })
+}
+
+const closePackageMoreOnOutsideClick = (event) => {
+  if (
+    openMorePackageId.value &&
+    !event.target.closest('[aria-label="更多操作"]') &&
+    !event.target.closest('.fixed.z-50')
+  ) {
+    openMorePackageId.value = null
+  }
+}
+
 const loadReleases = async () => {
   try {
     releases.value = await packagesApi.getReleases()
   } catch (e) {
     console.warn('获取 release 失败', e)
+    releases.value = []
   }
 }
 
@@ -431,12 +760,81 @@ const handleSaveTemplate = async ({ platform, content }) => {
   }
 }
 
+const stopSyncPoll = () => {
+  if (syncPollTimer) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+const pollSyncJob = (jobId) => {
+  stopSyncPoll()
+  return new Promise((resolve, reject) => {
+    const tick = async () => {
+      try {
+        const job = await packagesApi.getSyncJob(jobId)
+        syncProgress.value = {
+          completed: job.completed ?? 0,
+          total: job.total ?? 0,
+          status: job.status || ''
+        }
+        if (job.status !== 'running' && job.status !== 'queued') {
+          stopSyncPoll()
+          resolve(job)
+        }
+      } catch (e) {
+        stopSyncPoll()
+        reject(e)
+      }
+    }
+    tick()
+    syncPollTimer = setInterval(tick, 1500)
+  })
+}
+
+const formatSyncResultMessage = (job) => {
+  const results = job.results || []
+  const successCount = results.filter((r) => r.status === 'success').length
+  const skippedCount = results.filter((r) => r.status === 'skipped').length
+  const failCount = results.filter((r) => r.status === 'failed').length
+  if (job.status === 'failed' && successCount === 0) {
+    const detail = results.find((r) => r.status === 'failed')?.message
+    return job.error || detail || '同步失败'
+  }
+  if (failCount > 0) {
+    const failedNames = results
+      .filter((r) => r.status === 'failed')
+      .map((r) => r.platform || r.filename)
+      .join('、')
+    return `同步完成：成功 ${successCount} 个，失败 ${failCount} 个${failedNames ? `\n失败平台：${failedNames}` : ''}`
+  }
+  if (skippedCount > 0 && successCount === 0) {
+    return `安装包已存在，已跳过 ${skippedCount} 个平台`
+  }
+  if (skippedCount > 0) {
+    return `同步完成：成功 ${successCount} 个，跳过 ${skippedCount} 个`
+  }
+  return `同步成功，共 ${successCount} 个安装包`
+}
+
 const handleSync = async (payload) => {
   syncLoading.value = true
+  syncProgress.value = { completed: 0, total: 0, status: 'queued' }
   try {
-    await packagesApi.sync(payload)
-    alert('同步成功')
-    showSyncDialog.value = false
+    const created = await packagesApi.sync(payload)
+    syncProgress.value = {
+      completed: created.completed ?? 0,
+      total: created.total ?? 0,
+      status: created.status || 'queued'
+    }
+    const job = await pollSyncJob(created.job_id)
+    const message = formatSyncResultMessage(job)
+    if (job.status === 'failed' && !(job.results || []).some((r) => r.status === 'success')) {
+      alert(`同步失败: ${message}`)
+    } else {
+      alert(message)
+      showSyncDialog.value = false
+    }
     const ran = await loadVersionsMeta()
     if (!ran) {
       await loadPackages()
@@ -445,7 +843,9 @@ const handleSync = async (payload) => {
   } catch (e) {
     alert(`同步失败: ${e.message}`)
   } finally {
+    stopSyncPoll()
     syncLoading.value = false
+    syncProgress.value = { completed: 0, total: 0, status: '' }
   }
 }
 
@@ -508,6 +908,31 @@ const remove = async (item) => {
   } catch (e) {
     alert(`删除失败: ${e.message}`)
   }
+}
+
+const handleMoreCopyDownload = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyDownloadCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreCopyInstall = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyInstallCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreCopyUpgrade = async (event) => {
+  if (!currentMorePackage.value) return
+  await copyUpgradeCommand(currentMorePackage.value, event)
+  openMorePackageId.value = null
+}
+
+const handleMoreRemove = async () => {
+  if (!currentMorePackage.value) return
+  const item = currentMorePackage.value
+  openMorePackageId.value = null
+  await remove(item)
 }
 
 const handleCheckUpdate = async () => {
@@ -630,17 +1055,30 @@ watch(
   () => {
     if (filterSyncing.value) return
     persistFilters()
+    pagination.page = 1
     loadPackages()
   },
   { deep: true }
 )
 
+watch(showInstallDialog, (open) => {
+  if (open) {
+    loadInstallDialogPackages()
+  }
+})
+
 onMounted(async () => {
+  document.addEventListener('click', closePackageMoreOnOutsideClick)
   apiKeysStore.selectedKeyId = apiKeysStore.getStoredDefaultId()
   const ran = await loadVersionsMeta()
   if (!ran) {
     await loadPackages()
   }
   await Promise.all([loadReleases(), loadPlatforms(), loadScriptTemplates(), apiKeysStore.loadKeys()])
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closePackageMoreOnOutsideClick)
+  stopSyncPoll()
 })
 </script>

@@ -17,6 +17,8 @@ VERIFY_URL='{{verify_url}}'
 ROLLBACK_FRPC_AVAILABLE=0
 ROLLBACK_TOML_BAK=""
 
+echo "提示: 如果当前 shell 是通过 frpc 隧道 SSH 进入目标机，重启 frpc 时 SSH 可能中断。脚本会在目标机本地继续执行校验/回滚；verify=false 时无法可靠证明代理已恢复。"
+
 # 若文件存在则复制一份带时间戳的备份（不删除原文件）
 backup_copy() {
     local f="$1"
@@ -96,8 +98,8 @@ mkdir -p "$FRP_DIR"
 if [ -f "$INI_FILE" ]; then
     if [ ! -f "$CONFIG_FILE" ]; then
         backup_copy "$INI_FILE"
-        echo "迁移 INI -> TOML: $INI_FILE -> $CONFIG_FILE"
-        mv "$INI_FILE" "$CONFIG_FILE"
+        echo "检测到旧 INI 配置，已备份；将从平台拉取新的 frpc.toml，避免 INI 被 TOML 解析导致启动失败。"
+        mv "$INI_FILE" "${INI_FILE}.backup_$(date +%Y%m%d_%H%M%S)"
     else
         echo "检测到 frpc.ini 与 frpc.toml 并存，不合并内容；将 ini 备份移走（保留现有 toml）。"
         backup_copy "$INI_FILE"

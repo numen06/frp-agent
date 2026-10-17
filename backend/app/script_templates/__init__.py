@@ -21,4 +21,4 @@ def load_shell_template(name: str) -> str:
     p = _SCRIPT_TEMPLATES_DIR / name
     if not p.is_file():
         raise FileNotFoundError(str(p))
-    return p.read_text(encoding="utf-8")
+    return p.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")

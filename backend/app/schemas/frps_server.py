@@ -39,6 +39,9 @@ class FrpsServerResponse(BaseModel):
     last_test_status: str = "unknown"
     last_test_time: Optional[datetime] = None
     last_test_message: Optional[str] = None
+    server_version: Optional[str] = None
+    last_version_check_time: Optional[datetime] = None
+    last_version_check_message: Optional[str] = None
     created_at: datetime
     
     class Config:

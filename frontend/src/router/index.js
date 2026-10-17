@@ -25,6 +25,11 @@ const routes = [
         component: () => import('@/views/ServerManagePage.vue')
       },
       {
+        path: 'hosts',
+        name: 'HostManage',
+        component: () => import('@/views/HostManagePage.vue')
+      },
+      {
         path: 'proxies',
         name: 'ProxyList',
         component: () => import('@/views/ProxyList.vue')

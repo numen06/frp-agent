@@ -12,17 +12,19 @@ export const useGroupsStore = defineStore('groups', {
     },
     filters: {
       search: ''
-    }
+    },
+    _loadRequestId: 0
   }),
   
   actions: {
-    // 加载分组列表
+    // 加载分组列表（仅最后一次请求的结果会写入 state）
     async loadGroups(frpsServerId, params = {}) {
+      const requestId = ++this._loadRequestId
       this.loading = true
       try {
         const page = params.page || this.pagination.page
         const page_size = params.page_size || this.pagination.page_size
-        
+
         const response = await groupApi.getGroups({
           frps_server_id: frpsServerId,
           page,
@@ -30,10 +32,12 @@ export const useGroupsStore = defineStore('groups', {
           search: params.search || this.filters.search || undefined,
           ...params
         })
-        
-        // 处理分页响应格式
+
+        if (requestId !== this._loadRequestId) {
+          return
+        }
+
         if (response.items !== undefined) {
-          // 新的分页格式
           this.groups = response.items || []
           this.pagination = {
             page: response.page || page,
@@ -41,7 +45,6 @@ export const useGroupsStore = defineStore('groups', {
             total: response.total || 0
           }
         } else {
-          // 兼容旧格式（无分页）
           this.groups = response.groups || []
           this.pagination = {
             page: 1,
@@ -50,10 +53,14 @@ export const useGroupsStore = defineStore('groups', {
           }
         }
       } catch (error) {
-        console.error('加载分组列表失败:', error)
-        throw error
+        if (requestId === this._loadRequestId) {
+          console.error('加载分组列表失败:', error)
+          throw error
+        }
       } finally {
-        this.loading = false
+        if (requestId === this._loadRequestId) {
+          this.loading = false
+        }
       }
     },
     

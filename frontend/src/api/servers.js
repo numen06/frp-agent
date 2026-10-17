@@ -29,6 +29,16 @@ export const serverApi = {
   // 测试服务器连接
   testServer(id) {
     return api.post(`/servers/${id}/test`)
+  },
+
+  // 查询 FRP 版本信息
+  getFrpVersion(serverId) {
+    return api.get(`/servers/${serverId}/frp-version`)
+  },
+
+  // 刷新 FRP 版本
+  refreshFrpVersion(serverId, params = {}) {
+    return api.post(`/servers/${serverId}/frp-version/refresh`, null, { params })
   }
 }
 

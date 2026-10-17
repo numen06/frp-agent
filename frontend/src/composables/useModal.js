@@ -7,6 +7,30 @@ const activeModals = []
 // 保存原始的 body overflow 值
 let originalBodyOverflow = null
 
+// dvh alone does not follow the software keyboard on every mobile browser.
+// All open dialogs share the visual viewport and one pair of listeners.
+const syncViewport = () => {
+  const viewport = window.visualViewport
+  const style = document.documentElement.style
+  style.setProperty('--app-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
+  style.setProperty('--app-viewport-top', `${viewport?.offsetTop ?? 0}px`)
+}
+
+const watchViewport = () => {
+  syncViewport()
+  window.visualViewport?.addEventListener('resize', syncViewport)
+  window.visualViewport?.addEventListener('scroll', syncViewport)
+  window.addEventListener('resize', syncViewport)
+}
+
+const unwatchViewport = () => {
+  window.visualViewport?.removeEventListener('resize', syncViewport)
+  window.visualViewport?.removeEventListener('scroll', syncViewport)
+  window.removeEventListener('resize', syncViewport)
+  document.documentElement.style.removeProperty('--app-viewport-height')
+  document.documentElement.style.removeProperty('--app-viewport-top')
+}
+
 // 全局 ESC 键监听器（所有模态框共享同一个）
 const globalEscapeHandler = (event) => {
   if (event.key === 'Escape' || event.keyCode === 27) {
@@ -65,6 +89,7 @@ export function useModal(visible, onClose, options = {}) {
       
       // 只在第一个模态框打开时添加全局监听器
       if (modalCount === 1) {
+        watchViewport()
         document.addEventListener('keydown', globalEscapeHandler)
         // 保存原始的 overflow 值
         originalBodyOverflow = document.body.style.overflow || ''
@@ -82,6 +107,7 @@ export function useModal(visible, onClose, options = {}) {
       
       // 当所有模态框都关闭时，移除全局监听器并恢复滚动
       if (modalCount <= 0) {
+        unwatchViewport()
         modalCount = 0
         document.removeEventListener('keydown', globalEscapeHandler)
         // 恢复原始的 overflow 值
@@ -106,6 +132,7 @@ export function useModal(visible, onClose, options = {}) {
       }
       
       if (modalCount <= 0) {
+        unwatchViewport()
         modalCount = 0
         document.removeEventListener('keydown', globalEscapeHandler)
         // 恢复原始的 overflow 值

@@ -12,8 +12,28 @@ import os
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
-from app.routers import frps_server, proxy, port, config, sync, user_settings, group, frpc_config, config_import, api_key, frp_package
+from app.routers import (
+    login,
+    frps_server,
+    proxy,
+    port,
+    config,
+    sync,
+    user_settings,
+    group,
+    frpc_config,
+    config_import,
+    api_key,
+    frp_package,
+    ssh_credential,
+    client_upgrade,
+    managed_host,
+    docker_credential,
+)
 from app.scheduler import start_scheduler, shutdown_scheduler
+from app.services.ssh_gateway_service import ssh_gateway_service
+from app.services.docker_gateway_service import docker_gateway_service
+from app.services.rdp_gateway_service import rdp_gateway_service
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -37,6 +57,26 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     logger.info("初始化数据库...")
     init_db()
+    try:
+        from app.migrations.add_frp_version_fields import upgrade as frp_version_upgrade
+        frp_version_upgrade()
+    except Exception as e:
+        logger.warning("FRP 版本字段迁移跳过或失败: %s", e)
+    try:
+        from app.migrations.add_ssh_upgrade_tables import upgrade as ssh_tables_upgrade
+        ssh_tables_upgrade()
+    except Exception as e:
+        logger.warning("SSH 升级表迁移跳过或失败: %s", e)
+    try:
+        from app.migrations.add_package_sync_job_table import upgrade as package_sync_job_upgrade
+        package_sync_job_upgrade()
+    except Exception as e:
+        logger.warning("安装包同步任务表迁移跳过或失败: %s", e)
+    try:
+        from app.migrations.add_host_management_tables import upgrade as host_management_upgrade
+        host_management_upgrade()
+    except Exception as e:
+        logger.warning("主机管理表迁移跳过或失败: %s", e)
     
     # 创建默认用户和 API Key（如果不存在）
     logger.info("检查并创建默认用户和 API Key...")
@@ -52,11 +92,26 @@ async def lifespan(app: FastAPI):
     # 启动定时任务
     logger.info("启动定时同步任务...")
     await start_scheduler()
+    try:
+        ssh_gateway_service.start()
+    except Exception as e:
+        logger.error("SSH 网关启动失败: %s", e)
+    try:
+        docker_gateway_service.start()
+    except Exception as e:
+        logger.error("Docker 网关启动失败: %s", e)
+    try:
+        rdp_gateway_service.start()
+    except Exception as e:
+        logger.error("RDP 网关启动失败: %s", e)
     
     yield
     
     # 关闭时清理资源
     logger.info("关闭定时任务...")
+    rdp_gateway_service.stop()
+    docker_gateway_service.stop()
+    ssh_gateway_service.stop()
     shutdown_scheduler()
 
 
@@ -83,9 +138,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Retry-After"],
 )
 
 # 注册路由
+app.include_router(login.router)
 app.include_router(frps_server.router)
 app.include_router(proxy.router)
 app.include_router(port.router)
@@ -97,6 +154,10 @@ app.include_router(group.router)
 app.include_router(frpc_config.router)
 app.include_router(api_key.router)
 app.include_router(frp_package.router)
+app.include_router(ssh_credential.router)
+app.include_router(client_upgrade.router)
+app.include_router(managed_host.router)
+app.include_router(docker_credential.router)
 
 
 @app.get("/api/public/version")

@@ -21,6 +21,9 @@ class FrpsServer(Base):
     last_test_status = Column(String(20), default="unknown", nullable=False)  # online, offline, unknown
     last_test_time = Column(DateTime, nullable=True)
     last_test_message = Column(String(500), nullable=True)
+    server_version = Column(String(50), nullable=True)
+    last_version_check_time = Column(DateTime, nullable=True)
+    last_version_check_message = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # 关系

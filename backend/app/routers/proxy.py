@@ -1,7 +1,8 @@
 """代理管理路由"""
 
+import logging
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from datetime import datetime
@@ -12,24 +13,24 @@ from app.models.user import User
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
 from app.schemas.proxy import ProxyCreate, ProxyUpdate, ProxyResponse
+from app.schemas.ssh_upgrade import SshUpgradeRequest, ProxySshStateResponse, VerifyResponse
+from app.models.ssh_credential import SshCredential
+from app.services.ssh_upgrade_service import scan_single_proxy, upgrade_single_proxy, state_to_dict
+from app.scheduler import sync_server
+from app.services.frp_version_util import normalize_version_display
+from sqlalchemy.orm import joinedload
 from app.services.port_service import PortService
 from app.frps_client import FrpsClient
+from app.services.frp_version_service import apply_proxy_version
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/proxies", tags=["代理管理"])
 
 
-@router.get("/dashboard-stats")
-def get_dashboard_stats(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """获取 Dashboard 统计数据（单次请求返回所有服务器的汇总统计）
-
-    将统计计算下推到数据库，避免前端拉取大量代理数据。
-    """
-    from sqlalchemy import case
-
-    # 按 (frps_server_id, name) 去重：优先保留 local_port > 0（信息完整）的记录，同条件下取 id 最大
-    keep_ids_subq = (
+def _proxy_dashboard_keep_ids_subquery(db: Session):
+    """按 (frps_server_id, name) 去重：优先保留 local_port > 0 的记录，同条件下取 id 最大。"""
+    return (
         db.query(
             func.coalesce(
                 func.max(case((Proxy.local_port > 0, Proxy.id))),
@@ -39,9 +40,15 @@ def get_dashboard_stats(
         .group_by(Proxy.frps_server_id, Proxy.name)
         .subquery()
     )
-    keep_id_col = keep_ids_subq.c.keep_id
 
-    # 总汇总（去重后）
+
+@router.get("/dashboard-stats/summary")
+def get_dashboard_stats_summary(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Dashboard 全局汇总（首屏快速展示）。"""
+    keep_ids_subq = _proxy_dashboard_keep_ids_subquery(db)
+    keep_id_col = keep_ids_subq.c.keep_id
     total_row = (
         db.query(
             func.count(Proxy.id).label("total"),
@@ -52,8 +59,32 @@ def get_dashboard_stats(
         .filter(Proxy.id.in_(db.query(keep_id_col)))
         .first()
     )
+    if not total_row:
+        return {
+            "total": {
+                "total": 0,
+                "online": 0,
+                "offline": 0,
+                "portCount": 0,
+            }
+        }
+    return {
+        "total": {
+            "total": total_row.total or 0,
+            "online": int(total_row.online or 0),
+            "offline": int(total_row.offline or 0),
+            "portCount": total_row.port_count or 0,
+        }
+    }
 
-    # 按服务器分组统计（去重后）
+
+@router.get("/dashboard-stats/server-stats")
+def get_dashboard_stats_server_stats(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Dashboard 各服务器统计（可与 summary 分开发起，减轻首屏等待）。"""
+    keep_ids_subq = _proxy_dashboard_keep_ids_subquery(db)
+    keep_id_col = keep_ids_subq.c.keep_id
     server_stats = (
         db.query(
             Proxy.frps_server_id,
@@ -66,8 +97,6 @@ def get_dashboard_stats(
         .group_by(Proxy.frps_server_id)
         .all()
     )
-
-    # 构建每个服务器的统计 map
     server_stats_map = {}
     for row in server_stats:
         server_stats_map[row.frps_server_id] = {
@@ -76,16 +105,17 @@ def get_dashboard_stats(
             "offline": int(row.offline or 0),
             "portCount": row.port_count,
         }
+    return {"server_stats": server_stats_map}
 
-    return {
-        "total": {
-            "total": total_row.total,
-            "online": int(total_row.online or 0),
-            "offline": int(total_row.offline or 0),
-            "portCount": total_row.port_count,
-        },
-        "server_stats": server_stats_map,
-    }
+
+@router.get("/dashboard-stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """获取 Dashboard 统计数据（兼容：单次请求返回汇总 + 各服务器统计）。"""
+    summary = get_dashboard_stats_summary(db=db, current_user=current_user)
+    servers = get_dashboard_stats_server_stats(db=db, current_user=current_user)
+    return {**summary, **servers}
 
 
 @router.get("")
@@ -192,6 +222,12 @@ async def get_proxies(
                     "status_changed": [],  # 状态改变的
                 }
 
+                # 同步该服务器下所有在 frps 中出现的代理的 frpc 版本
+                for db_proxy in all_server_db_proxies:
+                    frps_proxy = frps_proxy_map.get(db_proxy.name)
+                    if frps_proxy:
+                        apply_proxy_version(db_proxy, frps_proxy)
+
                 # 更新本地代理状态（更新所有匹配的代理，不仅仅是当前页）
                 for db_proxy in all_matching_proxies:
                     frps_proxy = filtered_frps_proxy_map.get(db_proxy.name)
@@ -200,6 +236,9 @@ async def get_proxies(
                         # frps中存在，更新状态
                         old_status = db_proxy.status
                         new_status = frps_proxy["status"]
+
+                        if frps_proxy.get("remote_port") is not None:
+                            db_proxy.remote_port = frps_proxy["remote_port"]
 
                         if old_status != new_status:
                             db_proxy.status = new_status
@@ -250,6 +289,7 @@ async def get_proxies(
                             local_port=0,  # 需要后续识别
                             status=frps_proxy["status"],
                             group_name=parsed_group_name,
+                            client_version=frps_proxy.get("client_version"),
                         )
                         db.add(new_proxy)
 
@@ -605,3 +645,110 @@ def batch_detect_ports(
         "failed": failed_count,
         "results": results,
     }
+
+
+@router.post("/{proxy_id}/ssh-upgrade/scan")
+def ssh_upgrade_scan_proxy(
+    proxy_id: int,
+    body: SshUpgradeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    state = scan_single_proxy(db, proxy, cred, body.install_path)
+    return ProxySshStateResponse(**state_to_dict(state, proxy))
+
+
+@router.get("/{proxy_id}/ssh-upgrade/verify", response_model=VerifyResponse)
+async def ssh_upgrade_verify_proxy(
+    proxy_id: int,
+    expected_version: Optional[str] = Query(None, description="期望的版本号"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """验证代理是否在线并检查版本。供主机端升级脚本回调使用。"""
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+
+    server = proxy.frps_server
+    if not server:
+        raise HTTPException(status_code=400, detail="代理未关联 frps 服务器")
+
+    # 同步 frps 获取最新状态
+    try:
+        await sync_server(db, server)
+    except Exception as e:
+        logger.warning(f"同步 frps 失败: {e}")
+
+    # 刷新代理状态
+    db.refresh(proxy)
+
+    online = proxy.status == "online"
+    client_version = normalize_version_display(proxy.client_version)
+
+    ok = online
+    if expected_version and client_version:
+        ok = online and (client_version == expected_version or client_version == normalize_version_display(expected_version))
+
+    message = None
+    if not online:
+        message = f"代理离线，状态: {proxy.status}"
+    elif expected_version and client_version != normalize_version_display(expected_version):
+        message = f"版本不匹配，期望 {expected_version}，实际 {client_version}"
+
+    return VerifyResponse(
+        ok=ok,
+        online=online,
+        client_version=client_version,
+        expected_version=expected_version,
+        message=message,
+    )
+
+
+@router.post("/{proxy_id}/ssh-upgrade")
+def ssh_upgrade_proxy(
+    proxy_id: int,
+    body: SshUpgradeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    proxy = (
+        db.query(Proxy)
+        .options(joinedload(Proxy.frps_server))
+        .filter(Proxy.id == proxy_id)
+        .first()
+    )
+    if not proxy:
+        raise HTTPException(status_code=404, detail="代理不存在")
+    cred = db.query(SshCredential).filter(SshCredential.id == body.credential_id).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="SSH 凭据不存在")
+
+    # 构建验证 URL 基础路径
+    verify_url_base = f"{request.url.scheme}://{request.url.netloc}"
+
+    return upgrade_single_proxy(
+        db, proxy, cred, body.install_path,
+        verify_mode=body.verify_mode,
+        verify_attempts=body.verify_attempts,
+        verify_interval=body.verify_interval,
+        verify_url_base=verify_url_base if not body.skip_remote_verify else None,
+    )

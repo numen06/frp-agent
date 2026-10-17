@@ -2,13 +2,13 @@
 import sys
 import secrets
 import hashlib
-import base64
 from sqlalchemy.orm import Session
 
 from app.database import engine, SessionLocal, Base
 from app.models import User, FrpsServer, Proxy, PortAllocation, ProxyHistory, ApiKey
 from app.auth import get_password_hash
 from app.config import get_settings
+from app.services.credential_encryption import encrypt_secret
 
 settings = get_settings()
 
@@ -24,12 +24,8 @@ def hash_api_key(key: str) -> str:
 
 
 def encrypt_key(key: str) -> str:
-    """加密 API Key（使用 base64 编码，简单但足够）"""
-    # 使用应用密钥作为盐值
-    salt = f"{settings.auth_username}{settings.auth_password}".encode()
-    # 简单的 XOR 加密 + base64 编码
-    encoded = base64.b64encode(bytes([ord(c) ^ salt[i % len(salt)] for i, c in enumerate(key)])).decode()
-    return encoded
+    """使用 AES-GCM 加密 API Key 的可恢复副本。"""
+    return encrypt_secret(key)
 
 
 def init_database():
@@ -54,7 +50,9 @@ def create_default_user(db: Session):
     # 创建默认管理员
     admin_user = User(
         username=settings.auth_username,
-        password_hash=get_password_hash(settings.auth_password)
+        password_hash=get_password_hash(settings.auth_password),
+        role="admin",
+        is_active=True,
     )
     
     db.add(admin_user)

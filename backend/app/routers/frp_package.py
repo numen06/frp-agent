@@ -14,9 +14,22 @@ from app.auth import get_current_user, verify_api_key
 from app.database import get_db
 from app.models.user import User
 from app.models.frp_package import FrpPackage
-from app.schemas.frp_package import FrpPackageResponse, FrpPackageSyncRequest
+from app.schemas.frp_package import (
+    FrpPackageResponse,
+    FrpPackagePaginatedResponse,
+    FrpPackageSyncRequest,
+    PackageSyncJobResponse,
+    PackageSyncJobCreatedResponse,
+)
 from app.config import get_settings
 from app.services.github_service import GithubService
+from app.services.package_sync_service import (
+    create_sync_job,
+    create_finished_sync_job,
+    schedule_sync_job,
+    job_to_dict,
+)
+from app.models.package_sync_job import PackageSyncJob
 from app.script_templates import load_shell_template
 
 router = APIRouter(prefix="/api/packages", tags=["安装包管理"])
@@ -70,6 +83,52 @@ def _require_api_key_only(request: Request, db: Session = Depends(get_db)):
     if not api_key_obj:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API Key 无效或已过期")
     return api_key_obj
+
+
+def _package_file_ready(item: FrpPackage) -> bool:
+    if not item or not item.file_path:
+        return False
+    try:
+        return os.path.isfile(item.file_path) and os.path.getsize(item.file_path) > 0
+    except OSError:
+        return False
+
+
+def _ready_package_for(db: Session, version: str, platform: str) -> Optional[FrpPackage]:
+    rows = (
+        db.query(FrpPackage)
+        .filter(
+            FrpPackage.version == version,
+            FrpPackage.platform == platform,
+            FrpPackage.is_active == True,
+        )
+        .order_by(FrpPackage.downloaded_at.desc(), FrpPackage.id.desc())
+        .all()
+    )
+    for row in rows:
+        if _package_file_ready(row):
+            return row
+    return None
+
+
+def _job_platforms(job: PackageSyncJob) -> List[str]:
+    try:
+        value = json.loads(job.platforms or "[]")
+        return value if isinstance(value, list) else []
+    except json.JSONDecodeError:
+        return []
+
+
+def _active_sync_jobs_for_version(db: Session, version: str) -> List[PackageSyncJob]:
+    return (
+        db.query(PackageSyncJob)
+        .filter(
+            PackageSyncJob.version == version,
+            PackageSyncJob.status.in_(["queued", "running"]),
+        )
+        .order_by(PackageSyncJob.created_at.asc())
+        .all()
+    )
 
 
 def _scripts_file_path() -> str:
@@ -220,13 +279,13 @@ def _save_script_templates(data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-@router.get("", response_model=List[FrpPackageResponse])
+@router.get("", response_model=FrpPackagePaginatedResponse)
 def list_packages(
     version: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(10, ge=1, le=500, description="每页条数（列表页建议≤100；脚本弹窗可选更大 batch）"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -237,7 +296,20 @@ def list_packages(
         query = query.filter(FrpPackage.platform == platform)
     if source:
         query = query.filter(FrpPackage.source == source)
-    return query.order_by(FrpPackage.downloaded_at.desc()).offset(skip).limit(limit).all()
+    total = query.count()
+    offset = (page - 1) * page_size
+    items = (
+        query.order_by(FrpPackage.downloaded_at.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+    return FrpPackagePaginatedResponse(
+        items=[FrpPackageResponse.model_validate(p) for p in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 def _parse_filename_info(filename: str) -> Optional[dict]:
@@ -459,16 +531,46 @@ async def list_releases(
     current_user: User = Depends(get_current_user),
 ):
     service = GithubService()
-    releases = await service.fetch_releases()
+    try:
+        releases = await service.fetch_releases()
+        out = []
+        for x in releases:
+            platforms = service.discover_platforms_from_release(x)
+            out.append(
+                {
+                    "version": x.get("tag_name"),
+                    "name": x.get("name"),
+                    "published_at": x.get("published_at"),
+                    "platforms": platforms,
+                    "source": "github",
+                }
+            )
+        return out
+    except Exception as e:
+        logger.warning("获取 GitHub releases 失败，使用本地版本缓存兜底: %s", e)
+
+    versions = _merge_versions_local_and_cache(db, _load_versions_cache())
+    platform_cache = _load_platforms_cache()
+    cached_platforms = platform_cache.get("platforms") or []
+    cache_version = platform_cache.get("version")
+    local_rows = db.query(FrpPackage.version, FrpPackage.platform).distinct().all()
+    local_platforms = {}
+    for version, platform in local_rows:
+        if version and platform:
+            local_platforms.setdefault(version, set()).add(platform)
+
     out = []
-    for x in releases:
-        platforms = service.discover_platforms_from_release(x)
+    for version in versions:
+        platforms = sorted(local_platforms.get(version, set()))
+        if not platforms and version == cache_version:
+            platforms = cached_platforms
         out.append(
             {
-                "version": x.get("tag_name"),
-                "name": x.get("name"),
-                "published_at": x.get("published_at"),
+                "version": version,
+                "name": version,
+                "published_at": None,
                 "platforms": platforms,
+                "source": "backend-cache",
             }
         )
     return out
@@ -577,7 +679,7 @@ def update_script_template(
     return {"platform": platform, "saved": True}
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=PackageSyncJobCreatedResponse)
 async def sync_from_github(
     payload: FrpPackageSyncRequest,
     db: Session = Depends(get_db),
@@ -600,61 +702,110 @@ async def sync_from_github(
     if not selected_platforms:
         raise HTTPException(status_code=400, detail="未选择有效平台（请从该版本 Release 提供的平台中选择）")
 
+    ready_packages = {
+        platform: pkg
+        for platform in selected_platforms
+        if (pkg := _ready_package_for(db, payload.version, platform)) is not None
+    }
+    active_by_platform = {}
+    for active_job in _active_sync_jobs_for_version(db, payload.version):
+        for platform in _job_platforms(active_job):
+            if platform in selected_platforms and platform not in ready_packages:
+                active_by_platform.setdefault(platform, active_job)
+
+    downloadable_platforms = [
+        platform
+        for platform in selected_platforms
+        if platform not in ready_packages and platform not in active_by_platform
+    ]
+
     assets = release.get("assets", [])
-    packages_dir = _ensure_packages_dir()
-    results = []
+    pending_assets = []
     for asset in assets:
         name = asset.get("name", "")
         platform = service.parse_platform_from_filename(name)
-        if not platform or platform not in selected_platforms:
+        if not platform or platform not in downloadable_platforms:
             continue
-        url = asset.get("browser_download_url")
-        if not url:
+        source_url = asset.get("browser_download_url")
+        if not source_url:
             continue
+        pending_assets.append(
+            {
+                "name": name,
+                "platform": platform,
+                "source_url": source_url,
+            }
+        )
 
-        save_path = os.path.join(packages_dir, name)
-        size = await service.download_asset(url, save_path)
-        checksum = service.calculate_sha256(save_path)
-
-        existed = db.query(FrpPackage).filter(
-            FrpPackage.version == payload.version,
-            FrpPackage.platform == platform
-        ).first()
-
-        if existed:
-            if os.path.exists(existed.file_path) and existed.file_path != save_path:
-                os.remove(existed.file_path)
-            existed.filename = name
-            existed.file_path = save_path
-            existed.file_size = size
-            existed.source = "github"
-            existed.download_url = url
-            existed.sha256_checksum = checksum
-            existed.downloaded_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existed)
-            results.append(existed)
-        else:
-            item = FrpPackage(
-                version=payload.version,
-                platform=platform,
-                filename=name,
-                file_path=save_path,
-                file_size=size,
-                source="github",
-                download_url=url,
-                is_active=True,
-                sha256_checksum=checksum,
-                downloaded_at=datetime.utcnow(),
+    if not pending_assets:
+        if active_by_platform:
+            job = next(iter(active_by_platform.values()))
+            return PackageSyncJobCreatedResponse(
+                job_id=job.job_id,
+                status=job.status,
+                total=job.total,
+                completed=job.completed,
+                message="相同版本/平台的同步任务正在进行中，已返回现有任务",
             )
-            db.add(item)
-            db.commit()
-            db.refresh(item)
-            results.append(item)
+        if ready_packages:
+            results = [
+                {
+                    "platform": platform,
+                    "filename": ready_packages[platform].filename,
+                    "status": "skipped",
+                    "message": "安装包已存在且文件可用，跳过下载",
+                    "package_id": ready_packages[platform].id,
+                }
+                for platform in selected_platforms
+                if platform in ready_packages
+            ]
+            job = create_finished_sync_job(
+                db,
+                payload.version,
+                selected_platforms,
+                payload.download_source,
+                results,
+            )
+            return PackageSyncJobCreatedResponse(
+                job_id=job.job_id,
+                status=job.status,
+                total=job.total,
+                completed=job.completed,
+                message="所选安装包已存在且文件可用，已跳过下载",
+            )
+        raise HTTPException(status_code=400, detail="未找到可下载的安装包资源")
 
-    _save_platforms_cache(sorted(discovered), payload.version)
-    _refresh_versions_cache_from_releases(releases)
-    return {"version": payload.version, "count": len(results), "items": results}
+    job = create_sync_job(
+        db,
+        payload.version,
+        [asset["platform"] for asset in pending_assets],
+        payload.download_source,
+        pending_assets,
+    )
+    schedule_sync_job(job.job_id, pending_assets, sorted(discovered))
+    skipped_count = len(selected_platforms) - len(pending_assets)
+    message = "同步任务已创建，正在后台下载"
+    if skipped_count > 0:
+        message += f"（已跳过 {skipped_count} 个已存在或正在同步的平台）"
+    return PackageSyncJobCreatedResponse(
+        job_id=job.job_id,
+        status=job.status,
+        total=job.total,
+        completed=job.completed,
+        message=message,
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=PackageSyncJobResponse)
+def get_sync_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    job = db.query(PackageSyncJob).filter(PackageSyncJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="同步任务不存在")
+    return PackageSyncJobResponse.model_validate(job_to_dict(job))
 
 
 @router.post("/sync/check")
@@ -698,7 +849,7 @@ def download_package(
     item = db.query(FrpPackage).filter(FrpPackage.id == package_id, FrpPackage.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="安装包不存在")
-    if not os.path.exists(item.file_path):
+    if not _package_file_ready(item):
         raise HTTPException(status_code=404, detail="安装包文件不存在")
     return FileResponse(path=item.file_path, filename=item.filename, media_type="application/octet-stream")
 
@@ -739,6 +890,8 @@ def get_install_script(
     item = db.query(FrpPackage).filter(FrpPackage.id == package_id, FrpPackage.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="安装包不存在")
+    if not _package_file_ready(item):
+        raise HTTPException(status_code=404, detail="安装包文件尚未准备好，请等待同步完成或重新同步")
 
     api_key = request.query_params.get("api_key") or ""
     server_base = f"{request.url.scheme}://{request.url.netloc}"
@@ -774,6 +927,8 @@ def get_upgrade_script(
     item = db.query(FrpPackage).filter(FrpPackage.id == package_id, FrpPackage.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="安装包不存在")
+    if not _package_file_ready(item):
+        raise HTTPException(status_code=404, detail="安装包文件尚未准备好，请等待同步完成或重新同步")
 
     api_key = request.query_params.get("api_key") or ""
     server_base = f"{request.url.scheme}://{request.url.netloc}"

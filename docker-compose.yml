@@ -1,35 +1,33 @@
-version: '3.8'
-
 services:
-  backend:
+  frp-agent:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: frp-agent-backend
+      dockerfile: Dockerfile
+    container_name: frp-agent
     restart: always
+    ports:
+      - "8000:8000"
+      - "2222:2222"
+      - "23750:23750"
+      - "13389:13389"
     volumes:
       - ./data:/app/data
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin}
+      - SSH_CREDENTIAL_SECRET=${SSH_CREDENTIAL_SECRET:-}
+      - SSH_GATEWAY_ENABLED=true
+      - SSH_GATEWAY_PORT=2222
+      - DOCKER_GATEWAY_ENABLED=true
+      - DOCKER_GATEWAY_PORT=23750
+      - DOCKER_GATEWAY_TLS_COMMON_NAME=${DOCKER_GATEWAY_TLS_COMMON_NAME:-localhost}
+      - RDP_GATEWAY_ENABLED=${RDP_GATEWAY_ENABLED:-false}
+      - RDP_GATEWAY_PORT=13389
+      - RDP_GATEWAY_PUBLIC_ADDRESS=${RDP_GATEWAY_PUBLIC_ADDRESS:-}
+      - RDP_GATEWAY_TLS_CERT_PATH=/app/data/rdp_gateway_cert.pem
+      - RDP_GATEWAY_TLS_KEY_PATH=/app/data/rdp_gateway_key.pem
+      - RDP_GATEWAY_TRUSTED_PROXIES=${RDP_GATEWAY_TRUSTED_PROXIES:-}
       - APP_DEBUG=false
       - SYNC_INTERVAL_SECONDS=30
-    networks:
-      - frp-agent-network
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: frp-agent-frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - frp-agent-network
-
-networks:
-  frp-agent-network:
-    driver: bridge

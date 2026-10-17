@@ -1,18 +1,39 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: visible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">一键脚本生成</h5>
-            <button type="button" class="btn-close" @click="closeDialog"></button>
-          </div>
-          <div class="modal-body">
-            <div class="grid gap-3">
+    <div
+      v-if="visible"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+      <div
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
+        @click.stop
+      >
+        <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-gray-900">一键脚本生成</h2>
+          <button
+            type="button"
+            class="btn btn-icon btn-ghost shrink-0"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
+            <div class="grid gap-4">
               <div>
-                <label class="form-label">安装包</label>
-                <select v-model.number="packageId" class="form-control">
+                <label class="mb-1 block text-sm font-medium text-gray-700">安装包</label>
+                <select
+                  v-model.number="packageId"
+                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
                   <option :value="0">请选择安装包</option>
                   <option v-for="p in packages" :key="p.id" :value="p.id">
                     {{ p.version }} / {{ p.platform }} / {{ p.filename }}
@@ -20,73 +41,103 @@
                 </select>
               </div>
               <div>
-                <label class="form-label">API Key</label>
-                <select v-if="availableKeys.length > 0" v-model.number="selectedKeyId" class="form-control">
+                <label class="mb-1 block text-sm font-medium text-gray-700">API Key</label>
+                <select
+                  v-if="availableKeys.length > 0"
+                  v-model.number="selectedKeyId"
+                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
                   <option v-for="k in availableKeys" :key="k.id" :value="k.id">
                     #{{ k.id }} {{ k.description }}
                   </option>
                 </select>
-                <input v-else v-model="manualApiKey" class="form-control" type="text" placeholder="没有可用的 API Key，请手动输入" />
+                <input
+                  v-else
+                  v-model="manualApiKey"
+                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  type="text"
+                  placeholder="没有可用的 API Key，请手动输入"
+                />
               </div>
               <div>
-                <label class="form-label">安装路径</label>
-                <input v-model="installPath" class="form-control" type="text" />
+                <label class="mb-1 block text-sm font-medium text-gray-700">安装路径</label>
+                <input v-model="installPath" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" type="text" />
               </div>
               <div v-if="activeTab === 'install'">
-                <label class="form-label">配置URL（可选）</label>
-                <input v-model="configUrl" class="form-control" type="text" placeholder="http://.../frpc.toml" />
+                <label class="mb-1 block text-sm font-medium text-gray-700">配置URL（可选）</label>
+                <input
+                  v-model="configUrl"
+                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  type="text"
+                  placeholder="http://.../frpc.toml"
+                />
               </div>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 <button
-                  class="btn"
+                  type="button"
+                  class="btn btn-md"
                   :class="activeTab === 'install' ? 'btn-primary' : 'btn-outline-primary'"
                   :disabled="loading"
                   @click="activeTab = 'install'"
-                >安装脚本</button>
+                >
+                  安装脚本
+                </button>
                 <button
-                  class="btn"
+                  type="button"
+                  class="btn btn-md"
                   :class="activeTab === 'upgrade' ? 'btn-success' : 'btn-outline-success'"
                   :disabled="loading"
                   @click="activeTab = 'upgrade'"
-                >升级脚本</button>
-              </div>
-              <div>
-                <button
-                  v-if="activeTab === 'install'"
-                  class="btn btn-primary"
-                  :disabled="loading"
-                  @click="submit"
-                >{{ loading ? '生成中...' : '生成安装脚本' }}</button>
-                <button
-                  v-else
-                  class="btn btn-success"
-                  :disabled="loading"
-                  @click="submitUpgrade"
-                >{{ loading ? '生成中...' : '生成升级脚本' }}</button>
+                >
+                  升级脚本
+                </button>
               </div>
               <div v-if="activeTab === 'install' && script">
-                <label class="form-label">安装脚本预览</label>
-                <CodeEditor
-                  :model-value="script"
-                  language="shell"
-                  :height="'320px'"
-                  :readonly="true"
-                />
-                <button class="btn btn-outline-primary mt-2" :disabled="!packageId" @click="handleCopyCommand($event)">复制安装命令</button>
+                <label class="mb-1 block text-sm font-medium text-gray-700">安装脚本预览</label>
+                <CodeEditor :model-value="script" language="shell" :height="'320px'" :readonly="true" />
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary mt-2"
+                  :disabled="!packageId"
+                  @click="handleCopyCommand($event)"
+                >
+                  复制安装命令
+                </button>
               </div>
               <div v-if="activeTab === 'upgrade' && upgradeScript">
-                <label class="form-label">升级脚本预览</label>
-                <CodeEditor
-                  :model-value="upgradeScript"
-                  language="shell"
-                  :height="'320px'"
-                  :readonly="true"
-                />
-                <button class="btn btn-outline-success mt-2" :disabled="!packageId" @click="handleCopyUpgradeCommand($event)">复制升级命令</button>
+                <label class="mb-1 block text-sm font-medium text-gray-700">升级脚本预览</label>
+                <CodeEditor :model-value="upgradeScript" language="shell" :height="'320px'" :readonly="true" />
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-success mt-2"
+                  :disabled="!packageId"
+                  @click="handleCopyUpgradeCommand($event)"
+                >
+                  复制升级命令
+                </button>
               </div>
             </div>
-          </div>
         </div>
+              <div class="app-dialog-footer flex shrink-0 justify-end gap-2 border-t border-gray-200 bg-white p-4">
+                <button
+                  v-if="activeTab === 'install'"
+                  type="button"
+                  class="btn btn-md btn-primary"
+                  :disabled="loading"
+                  @click="submit"
+                >
+                  {{ loading ? '生成中...' : '生成安装脚本' }}
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="btn btn-md btn-success"
+                  :disabled="loading"
+                  @click="submitUpgrade"
+                >
+                  {{ loading ? '生成中...' : '生成升级脚本' }}
+                </button>
+              </div>
       </div>
     </div>
   </Teleport>

@@ -1,8 +1,7 @@
 import { ref } from 'vue'
 
 /**
- * Tabler 折叠组件组合式函数
- * 用于导航栏折叠功能
+ * 折叠面板开关（如侧栏/导航），与具体 UI 库无关。
  */
 export function useCollapse() {
   const isOpen = ref(false)

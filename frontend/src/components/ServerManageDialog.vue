@@ -1,18 +1,36 @@
 <template>
   <!-- 服务器管理对话框 -->
   <Teleport to="body">
-    <div v-if="dialogVisible" class="modal-backdrop fade show" @click="closeDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: dialogVisible }" tabindex="-1" role="dialog" @click.self="closeDialog">
-      <div class="modal-dialog modal-lg modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">服务器管理</h5>
-          <button type="button" class="btn-close" @click="closeDialog"></button>
+    <div
+      v-if="dialogVisible"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+      <div
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,85vh)] sm:rounded-xl"
+        @click.stop
+      >
+        <div class="app-dialog-header sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
+          <h2 class="text-lg font-semibold text-gray-900">服务器管理</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
           <div class="mb-3">
-            <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700" @click="showAddDialog = true">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <button class="btn btn-sm btn-primary min-h-10 w-full sm:min-h-8 sm:w-auto" @click="showAddDialog = true">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M12 5l0 14" />
                 <path d="M5 12l14 0" />
@@ -20,8 +38,8 @@
               添加服务器
             </button>
           </div>
-          
-          <div class="overflow-x-auto">
+
+          <div class="hidden overflow-x-auto md:block">
             <table class="w-full border-collapse text-left text-sm text-gray-700">
               <thead>
                 <tr>
@@ -29,27 +47,31 @@
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">服务器地址</th>
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">端口</th>
                   <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">API 地址</th>
+                  <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">frps 版本</th>
                   <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="serversStore.loading">
-                  <td colspan="5" class="text-center py-4">
-                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                    <span class="ms-2">加载中...</span>
+                  <td colspan="6" class="py-4">
+                    <div class="flex items-center justify-center gap-2 text-center text-sm text-gray-600">
+                      <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
+                      <span>加载中...</span>
+                    </div>
                   </td>
                 </tr>
                 <tr v-else-if="serversStore.servers.length === 0">
-                  <td colspan="5" class="text-center text-muted py-4">暂无服务器</td>
+                  <td colspan="6" class="py-4 text-center text-sm text-gray-500">暂无服务器</td>
                 </tr>
                 <tr v-else v-for="server in serversStore.servers" :key="server.id">
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.name }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.server_addr }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ server.server_port }}</td>
-                  <td class="px-4 py-3 border-b border-gray-100 align-middle"><small>{{ server.api_base_url }}</small></td>
+                  <td class="px-4 py-3 border-b border-gray-100 align-middle"><span class="text-xs text-gray-600">{{ server.api_base_url }}</span></td>
+                  <td class="px-4 py-3 border-b border-gray-100 align-middle text-sm text-gray-700">{{ server.server_version || '未知' }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">
                     <div class="inline-flex items-center gap-2">
-                      <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200" @click="editServer(server)" title="编辑" aria-label="编辑">
+                      <button class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -57,7 +79,7 @@
                           <path d="M16 5l3 3" />
                         </svg>
                       </button>
-                      <button class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100" @click="deleteServer(server)" title="删除" aria-label="删除">
+                      <button class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M4 7l16 0" />
@@ -73,7 +95,41 @@
               </tbody>
             </table>
           </div>
-        </div>
+          <div class="md:hidden">
+            <div v-if="serversStore.loading" class="py-4 text-center text-sm text-gray-600">
+              <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
+              <span class="ml-2">加载中...</span>
+            </div>
+            <p v-else-if="serversStore.servers.length === 0" class="py-6 text-center text-sm text-gray-500">暂无服务器</p>
+            <ul v-else class="divide-y divide-gray-100">
+              <li v-for="server in serversStore.servers" :key="server.id" class="py-3">
+                <div class="font-semibold text-gray-900">{{ server.name }}</div>
+                <p class="mt-1 break-all text-sm text-gray-600">{{ server.server_addr }}:{{ server.server_port }}</p>
+                <p class="mt-0.5 break-all text-xs text-gray-500">{{ server.api_base_url }}</p>
+                <p class="mt-1 text-xs text-gray-600">frps: {{ server.server_version || '未知' }}</p>
+                <div class="mt-3 flex gap-2">
+                  <button class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
+                      <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" />
+                      <path d="M16 5l3 3" />
+                    </svg>
+                  </button>
+                  <button class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M4 7l16 0" />
+                      <path d="M10 11l0 6" />
+                      <path d="M14 11l0 6" />
+                      <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+                      <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -81,50 +137,67 @@
 
   <!-- 添加/编辑服务器对话框 -->
   <Teleport to="body">
-    <div v-if="showAddDialog" class="modal-backdrop fade show" @click="closeAddDialog"></div>
-    <div class="modal modal-blur fade" :class="{ show: showAddDialog }" tabindex="-1" role="dialog" @click.self="closeAddDialog">
-      <div class="modal-dialog modal-dialog-centered" role="document" @click.stop>
-        <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ editingServer ? '编辑服务器' : '添加服务器' }}</h5>
-          <button type="button" class="btn-close" @click="closeAddDialog"></button>
+    <div
+      v-if="showAddDialog"
+      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      @click.self="closeAddDialog"
+    >
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeAddDialog"></div>
+      <div
+        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(90vh,640px)] sm:rounded-xl"
+        @click.stop
+      >
+        <div class="app-dialog-header sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3.5 sm:px-5">
+          <h2 class="text-lg font-semibold text-gray-900">{{ editingServer ? '编辑服务器' : '添加服务器' }}</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            aria-label="关闭"
+            @click="closeAddDialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">服务器名称 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="serverForm.name" required />
+        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 text-sm sm:px-5">
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">服务器名称 <span class="text-red-600">*</span></label>
+            <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.name" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label">服务器地址 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="serverForm.server_addr" @change="generateApiUrl" required />
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">服务器地址 <span class="text-red-600">*</span></label>
+            <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.server_addr" @change="generateApiUrl" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label">服务器端口 <span class="text-danger">*</span></label>
-            <input type="number" class="form-control" v-model.number="serverForm.server_port" min="1" max="65535" required />
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">服务器端口 <span class="text-red-600">*</span></label>
+            <input type="number" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model.number="serverForm.server_port" min="1" max="65535" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label">API 基础地址 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="serverForm.api_base_url" required />
-            <small class="form-hint">可自动生成或手动修改</small>
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">API 基础地址 <span class="text-red-600">*</span></label>
+            <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.api_base_url" required />
+            <span class="mt-1 block text-xs text-gray-500">可自动生成或手动修改</span>
           </div>
-          <div class="mb-3">
-            <label class="form-label">认证用户名 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" v-model="serverForm.auth_username" required />
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">认证用户名 <span class="text-red-600">*</span></label>
+            <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.auth_username" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label">认证密码 <span class="text-danger">*</span></label>
-            <input type="password" class="form-control" v-model="serverForm.auth_password" required />
+          <div class="mb-4">
+            <label class="mb-1 block text-sm font-medium text-gray-700">认证密码 <span class="text-red-600">*</span></label>
+            <input type="password" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.auth_password" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label">认证 Token</label>
-            <input type="text" class="form-control" v-model="serverForm.auth_token" placeholder="可选，留空表示使用用户名密码认证" />
+          <div class="mb-0">
+            <label class="mb-1 block text-sm font-medium text-gray-700">认证 Token</label>
+            <input type="text" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" v-model="serverForm.auth_token" placeholder="可选，留空表示使用用户名密码认证" />
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300 me-auto" @click="closeAddDialog">取消</button>
-          <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-300" @click="testConnection">测试连接</button>
-          <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" @click="handleSubmit">保存</button>
-        </div>
+        <div class="app-dialog-footer sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:px-5">
+          <button type="button" class="btn btn-md btn-secondary w-full sm:mr-auto sm:w-auto" @click="closeAddDialog">取消</button>
+          <button type="button" class="btn btn-md btn-secondary w-full sm:w-auto" @click="testConnection">测试连接</button>
+          <button type="button" class="btn btn-md btn-primary w-full sm:w-auto" @click="handleSubmit">保存</button>
         </div>
       </div>
     </div>
@@ -265,5 +338,4 @@ const handleClose = () => {
   showAddDialog.value = false
 }
 </script>
-
 

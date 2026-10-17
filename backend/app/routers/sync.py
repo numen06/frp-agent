@@ -12,6 +12,7 @@ from app.models.proxy import Proxy
 from app.models.history import ProxyHistory
 from app.frps_client import FrpsClient
 from app.services.port_service import PortService
+from app.services.frp_version_service import apply_proxy_version
 
 router = APIRouter(prefix="/api/analysis", tags=["数据分析"])
 
@@ -70,7 +71,8 @@ async def compare_proxies(
             # 只有当远程端口存在且与现有值不同时才更新，避免清除现有端口
             if proxy_info.get("remote_port") is not None:
                 db_proxy.remote_port = proxy_info["remote_port"]
-            
+            apply_proxy_version(db_proxy, proxy_info)
+
             # 如果状态改变，记录历史
             if old_status != proxy_info["status"]:
                 history = ProxyHistory(
@@ -95,7 +97,8 @@ async def compare_proxies(
                     remote_port=proxy_info["remote_port"],
                     local_ip=proxy_info["local_ip"],
                     local_port=0,  # 本地端口未知
-                    status=proxy_info["status"]
+                    status=proxy_info["status"],
+                    client_version=proxy_info.get("client_version"),
                 )
                 db.add(new_proxy)
                 

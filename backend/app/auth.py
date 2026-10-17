@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.models.api_key import ApiKey
+from app.services.login_guard import client_address, login_guard
 
 security = HTTPBasic(auto_error=False)  # 不自动报错，避免浏览器弹窗
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -33,8 +34,13 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return None
+    if not getattr(user, "is_active", True):
+        return None
     if not verify_password(password, user.password_hash):
         return None
+    if get_settings().rdp_gateway_enabled:
+        from app.services.rdp_auth_service import remember_ntlm_password
+        remember_ntlm_password(db, user, password)
     return user
 
 
@@ -101,6 +107,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
                     id=-api_key_obj.id,  # 使用负数 ID 标识 API Key 用户
                     username=f"api_key_{api_key_obj.id}",
                     password_hash="",
+                    role="api_key",
+                    is_active=True,
                 )
                 return temp_user
             else:
@@ -125,6 +133,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
                 id=-api_key_obj.id,  # 使用负数 ID 标识 API Key 用户
                 username=f"api_key_{api_key_obj.id}",
                 password_hash="",
+                role="api_key",
+                is_active=True,
             )
             return temp_user
         else:
@@ -143,31 +153,26 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
     username, password = auth_info
 
-    # 验证用户
-    user = authenticate_user(db, username, password)
-    if user:
+    return authenticate_http_user(db, username, password, request)
+
+
+def authenticate_http_user(db: Session, username: str, password: str, request: Request, challenge=None) -> User:
+    """Shared backoff for interactive login, Basic Auth and legacy config tokens."""
+    ip = client_address(request)
+    with login_guard.attempt(ip, username) as states:
+        if challenge is not None and not login_guard.verify_challenge(ip, *challenge):
+            delay = login_guard.failure(states)
+            raise HTTPException(400, "验证码错误或已过期，请刷新后重试", headers={"Retry-After": str(delay), "Cache-Control": "no-store"})
+        user = authenticate_user(db, username, password)
+        if user is None and not db.query(User).filter(User.username == username).first():
+            settings = get_settings()
+            if secrets.compare_digest(username.encode(), settings.auth_username.encode()) and secrets.compare_digest(password.encode(), settings.auth_password.encode()):
+                user = User(id=0, username=username, password_hash=get_password_hash(password), role="admin", is_active=True)
+        if user is None:
+            delay = login_guard.failure(states)
+            raise HTTPException(401, "用户名或密码错误", headers={"Retry-After": str(delay), "Cache-Control": "no-store"})
+        login_guard.success(states)
         return user
-
-    # 如果数据库中已存在该用户名，但密码不匹配，不允许回退到环境变量认证
-    db_user_exists = db.query(User).filter(User.username == username).first()
-    if db_user_exists:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
-        )
-
-    # 仅当数据库不存在该用户时，才允许使用环境变量凭据作为临时用户登录
-    settings = get_settings()
-    if username == settings.auth_username and password == settings.auth_password:
-        temp_user = User(
-            id=0, username=username, password_hash=get_password_hash(password)
-        )
-        return temp_user
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="用户名或密码错误",
-    )
 
 
 def verify_credentials(credentials: HTTPBasicCredentials) -> bool:

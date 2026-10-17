@@ -1,5 +1,5 @@
 <template>
-  <div ref="editorContainer" class="code-editor" :style="{ height: height }"></div>
+  <div ref="editorContainer" class="code-editor min-w-0" :style="{ height: height }"></div>
 </template>
 
 <script setup>
@@ -12,6 +12,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { javascript } from '@codemirror/lang-javascript'
+import { yaml } from '@codemirror/lang-yaml'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -126,7 +127,7 @@ function getLanguageExtension(lang) {
       return javascript()
     case 'yaml':
     case 'yml':
-      return []
+      return yaml()
     default:
       return []
   }
@@ -261,6 +262,7 @@ defineExpose({
 <style scoped>
 .code-editor {
   width: 100%;
+  min-width: 0;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -271,5 +273,21 @@ defineExpose({
 
 .code-editor :deep(.cm-scroller) {
   padding: 8px 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 639px) {
+  .code-editor :deep(.cm-editor) {
+    font-size: 13px;
+  }
+
+  .code-editor :deep(.cm-scroller) {
+    padding: 10px 0;
+  }
+
+  .code-editor :deep(.cm-line) {
+    padding: 0 2px;
+  }
 }
 </style>

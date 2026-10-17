@@ -93,6 +93,35 @@ class FrpsClient:
             print(f"获取 HTTPS 代理失败: {e}")
             return []
     
+    async def get_server_info(self) -> Optional[Dict]:
+        """获取 frps 服务端信息
+
+        Returns:
+            服务端信息字典，失败时返回 None
+        """
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/serverinfo",
+                    auth=self.auth,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"获取 frps 服务端信息失败: {e}")
+            return None
+
+    async def get_server_version(self) -> Optional[str]:
+        """获取 frps 服务端版本"""
+        info = await self.get_server_info()
+        if not info:
+            return None
+        for key in ("version", "server_version", "serverVersion"):
+            value = info.get(key)
+            if value:
+                return str(value)
+        return None
+
     async def get_all_proxies(self) -> Dict[str, List[Dict]]:
         """获取所有类型的代理
         

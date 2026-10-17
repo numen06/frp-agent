@@ -54,7 +54,7 @@ defineProps({
   },
   iconClass: {
     type: String,
-    default: 'icon'
+    default: 'frp-logo'
   },
   animated: {
     type: Boolean,
@@ -64,6 +64,11 @@ defineProps({
 </script>
 
 <style scoped>
+.frp-logo {
+  flex-shrink: 0;
+  display: inline-block;
+}
+
 .data-flow {
   animation: flow 2s ease-in-out infinite;
 }

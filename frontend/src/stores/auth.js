@@ -12,8 +12,8 @@ export const useAuthStore = defineStore('auth', {
   
   actions: {
     // 登录
-    async login(username, password) {
-      const token = btoa(`${username}:${password}`)
+    async login(username, password, challengeId, captcha) {
+      const token = btoa(String.fromCharCode(...new TextEncoder().encode(`${username}:${password}`)))
       
       try {
         // 使用独立的 axios 实例验证登录（避免拦截器循环依赖）
@@ -23,10 +23,8 @@ export const useAuthStore = defineStore('auth', {
           timeout: 10000
         })
         
-        const response = await axiosInstance.get('/servers', {
-          headers: {
-            'Authorization': `Basic ${token}`
-          }
+        await axiosInstance.post('/auth/login', {
+          username, password, challenge_id: challengeId, captcha
         })
         
         // 验证成功，保存认证信息
@@ -60,14 +58,13 @@ export const useAuthStore = defineStore('auth', {
           requirePasswordChange: false
         }
       } catch (error) {
-        console.error('Login error:', error)
-        if (error.response?.status === 401) {
-          throw new Error('用户名或密码错误')
-        }
         if (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
-          throw new Error('无法连接到服务器，请检查后端服务是否启动（http://localhost:8000）')
+          throw new Error('无法连接到服务器，请稍后重试')
         }
-        throw new Error(error.response?.data?.detail || error.message || '登录失败')
+        const detail = error.response?.data?.detail
+        const failure = new Error(typeof detail === 'string' ? detail : '登录信息有误，请检查后重试')
+        failure.retryAfter = Math.max(0, Number(error.response?.headers?.['retry-after']) || 0)
+        throw failure
       }
     },
     
