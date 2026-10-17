@@ -1,8 +1,6 @@
 services:
   frp-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
     container_name: frp-agent
     restart: always
     ports:
