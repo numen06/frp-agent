@@ -1,10 +1,11 @@
 """SSH 凭据管理路由"""
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.pagination import Page, PageParams, paginate, search_query
 from app.models.user import User
 from app.models.ssh_credential import SshCredential
 from app.schemas.ssh_credential import (
@@ -33,14 +34,18 @@ def _to_response(cred: SshCredential) -> SshCredentialResponse:
     )
 
 
-@router.get("", response_model=List[SshCredentialResponse])
+@router.get("", response_model=List[SshCredentialResponse] | Page[SshCredentialResponse])
 def list_credentials(
+    auth_type: Optional[str] = Query(None, max_length=20),
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
-    rows = db.query(SshCredential).order_by(SshCredential.id.desc()).all()
-    return [_to_response(c) for c in rows]
+    query = search_query(db.query(SshCredential), paging.search, SshCredential.name, SshCredential.username)
+    if auth_type:
+        query = query.filter(SshCredential.auth_type == auth_type)
+    return paginate(query.order_by(SshCredential.id.desc()), paging, _to_response)
 
 
 @router.post("", response_model=SshCredentialResponse, status_code=status.HTTP_201_CREATED)
@@ -83,6 +88,17 @@ def update_credential(
     cred = db.query(SshCredential).filter(SshCredential.id == credential_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="凭据不存在")
+
+    next_type = body.auth_type or cred.auth_type
+    secret_field = "password" if next_type == "password" else "private_key"
+    replacement = getattr(body, secret_field)
+    if replacement == "" or (replacement is None and not getattr(cred, secret_field + "_encrypted")):
+        raise HTTPException(status_code=400, detail="密码认证需要提供 password" if next_type == "password" else "私钥认证需要提供 private_key")
+    if next_type == "private_key":
+        from app.models.managed_host import ManagedHost
+
+        if db.query(ManagedHost.id).filter(ManagedHost.credential_id == credential_id, ManagedHost.host_type == "rdp").first():
+            raise HTTPException(status_code=409, detail="该凭据正被 RDP 主机使用，不能切换为私钥认证，请先更换主机凭据")
 
     if body.name is not None:
         cred.name = body.name
@@ -127,5 +143,23 @@ def delete_credential(
             status_code=409,
             detail=f"该凭据正被 {used_count} 台主机使用，请先调整主机配置",
         )
+    from app.models.proxy_ssh_state import ProxySshState
+    from app.models.client_upgrade_job import ClientUpgradeJob
+
+    if db.query(ProxySshState.id).filter(ProxySshState.credential_id == credential_id).first():
+        raise HTTPException(status_code=409, detail="该凭据正被代理客户端使用，请先使用其他凭据重新扫描客户端")
+    jobs = db.query(ClientUpgradeJob).filter(ClientUpgradeJob.credential_id == credential_id)
+    if jobs.filter(ClientUpgradeJob.status.in_(["queued", "running"])).first():
+        raise HTTPException(status_code=409, detail="该凭据正在用于扫描或升级任务，请等待任务结束")
+    jobs.update({ClientUpgradeJob.credential_id: None}, synchronize_session=False)
     db.delete(cred)
     db.commit()
+
+
+@router.get("/{credential_id}", response_model=SshCredentialResponse)
+def get_credential(credential_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_admin(current_user)
+    row = db.query(SshCredential).filter(SshCredential.id == credential_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="凭据不存在")
+    return _to_response(row)

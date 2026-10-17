@@ -43,10 +43,7 @@
 
           <div class="mb-4">
             <label class="mb-1 block text-sm font-medium text-gray-700">选择分组 <span class="text-red-600">*</span></label>
-            <AppSelect v-model="importForm.group_name" required>
-              <option value="">请选择分组...</option>
-              <option v-for="group in groupOptions" :key="group" :value="group">{{ group }}</option>
-            </AppSelect>
+            <RemoteSelect v-model="importForm.group_name" label="选择分组" :fetch-options="params => groupApi.getGroupsList(props.serverId, params)" :resolve-option="value => value" allow-clear clear-label="选择分组" />
             <small class="mt-1 block text-xs text-gray-500">导入的代理将被分配到此分组</small>
           </div>
 
@@ -91,6 +88,8 @@
 </template>
 
 <script setup>
+import { groupApi } from '@/api/groups'
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, reactive, computed, watch } from 'vue'
 import { useServersStore } from '@/stores/servers'
 import { useGroupsStore } from '@/stores/groups'
@@ -136,7 +135,7 @@ const groupOptions = computed(() => {
 watch(() => props.modelValue, (val) => {
   dialogVisible.value = val
   if (val && props.serverId) {
-    groupsStore.loadGroups(props.serverId)
+    // Options load on demand in the paged picker.
   }
 })
 

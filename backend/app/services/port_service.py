@@ -19,7 +19,8 @@ class PortService:
         self,
         frps_server_id: int,
         port: int,
-        allocated_to: str
+        allocated_to: str,
+        commit: bool = True,
     ) -> PortAllocation:
         """分配端口
         
@@ -62,7 +63,10 @@ class PortService:
         )
         self.db.add(history)
         
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         self.db.refresh(allocation)
         
         return allocation

@@ -9,7 +9,7 @@
         </div>
         <div class="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
           <span class="h-2 w-2 rounded-full bg-blue-500"></span>
-          已接入 {{ serversStore.servers.length }} 台服务器
+          已接入 {{ serversStore.pagination.total }} 台服务器
         </div>
       </div>
     </div>
@@ -257,6 +257,10 @@
       </template>
     </div>
 
+    <div class="rounded-xl border border-gray-200 bg-white p-4">
+      <TablePagination :total="serversStore.pagination.total" :page="serversStore.pagination.page" :page-size="serversStore.pagination.page_size" @page-change="page => serversStore.loadServers(page)" @page-size-change="serversStore.resize" />
+    </div>
+
     <!-- 快速操作 -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
@@ -299,6 +303,7 @@
 </template>
 
 <script setup>
+import TablePagination from '@/components/TablePagination.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServersStore } from '@/stores/servers'
@@ -370,7 +375,7 @@ const loadDashboardSummary = async () => {
 const loadDashboardServerStats = async () => {
   serverStatsLoading.value = true
   try {
-    const response = await proxyApi.getDashboardServerStats()
+    const response = await proxyApi.getDashboardServerStats(serversStore.servers.map(server => server.id))
     mergeServerStats(response.server_stats)
   } catch (error) {
     console.error('加载各服务器统计失败:', error)
@@ -378,6 +383,8 @@ const loadDashboardServerStats = async () => {
     serverStatsLoading.value = false
   }
 }
+
+watch(() => serversStore.servers.map(server => server.id).join(','), () => loadDashboardServerStats())
 
 const reloadServerStats = () => loadDashboardServerStats()
 

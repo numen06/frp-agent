@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 
 from app.database import get_db
+from app.pagination import PageParams, paginate
 from app.auth import get_current_user
 from app.models.user import User
 from app.models.frps_server import FrpsServer
@@ -164,14 +165,16 @@ async def compare_proxies(
 @router.get("/history")
 def get_analysis_history(
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
-    limit: int = Query(50, description="返回记录数量"),
+    paging: PageParams = Depends(),
+    limit: int = Query(20, ge=1, le=100, description="返回记录数量"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取对比分析历史记录"""
-    histories = db.query(ProxyHistory).filter(
+    query = db.query(ProxyHistory).filter(
         ProxyHistory.frps_server_id == frps_server_id
-    ).order_by(ProxyHistory.timestamp.desc()).limit(limit).all()
-    
-    return histories
+    ).order_by(ProxyHistory.timestamp.desc(), ProxyHistory.id.desc())
+    if paging.page is None:
+        paging.page_size = limit
+    return paginate(query, paging)
 

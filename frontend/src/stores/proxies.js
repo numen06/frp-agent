@@ -14,7 +14,7 @@ export const useProxiesStore = defineStore('proxies', {
     loading: false,
     pagination: {
       page: 1,
-      page_size: 10,
+      page_size: 20,
       total: 0
     },
     stats: {
@@ -60,6 +60,10 @@ export const useProxiesStore = defineStore('proxies', {
         }
 
         // 处理分页响应格式
+        if (response.items !== undefined && page > Math.max(1, Math.ceil(response.total / page_size))) {
+          return await this.loadProxies(frpsServerId, { ...params, page: Math.max(1, Math.ceil(response.total / page_size)) })
+        }
+
         if (response.items !== undefined) {
           const items = response.items || []
           const seen = new Set()

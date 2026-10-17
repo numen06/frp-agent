@@ -17,8 +17,10 @@ export const proxyApi = {
   },
 
   /** Dashboard 各服务器统计（可与 summary 分开发起） */
-  getDashboardServerStats() {
-    return api.get('/proxies/dashboard-stats/server-stats')
+  getDashboardServerStats(serverIds = []) {
+    const params = new URLSearchParams()
+    serverIds.forEach(id => params.append('server_ids', id))
+    return api.get('/proxies/dashboard-stats/server-stats', { params })
   },
   
   // 获取代理详情

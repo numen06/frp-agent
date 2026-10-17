@@ -1,5 +1,6 @@
 <template>
   <div>
+    <p v-if="groupNotice" role="status" class="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{{ groupNotice }}</p>
     <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
       <p class="mb-0 text-sm text-gray-500">管理所有代理分组，支持重命名和快速生成配置</p>
       <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
@@ -275,6 +276,7 @@
               required
             />
           </div>
+          <div class="px-6 pb-4"><label class="flex items-center gap-2 text-sm"><input v-model="createForm.create_defaults" type="checkbox" :disabled="creating">生成 SSH / HTTP / Docker 标准代理并打开配置</label><p v-if="createError" role="alert" class="mt-2 text-sm text-red-600">{{ createError }}</p></div>
           <div class="app-dialog-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
             <button
               type="button"
@@ -286,9 +288,9 @@
             <button
               type="button"
               class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-              @click="handleCreateGroup"
+              @click="handleCreateGroup" :disabled="creating"
             >
-              创建
+              {{ creating ? '创建中…' : '创建并使用' }}
             </button>
           </div>
         </div>
@@ -508,7 +510,7 @@
                 <p class="font-medium" :class="importResult.success ? 'text-green-800' : 'text-red-800'">{{ importResult.message }}</p>
                 <div v-if="importResult.details && importResult.details.length > 0" class="mt-2 max-h-40 overflow-y-auto text-xs">
                   <div
-                    v-for="(item, idx) in importResult.details"
+                    v-for="(item, idx) in importDetails.items.value"
                     :key="idx"
                     class="flex items-center gap-1 py-0.5"
                     :class="{
@@ -527,6 +529,7 @@
                 </div>
               </div>
 
+              <div v-if="importDetails.pagination.total" class="py-3"><TablePagination :total="importDetails.pagination.total" :page="importDetails.pagination.page" :page-size="importDetails.pagination.page_size" @page-change="importDetails.load" @page-size-change="importDetails.resize" /></div>
               <!-- 导入按钮 -->
               <button
                 type="button"
@@ -758,11 +761,7 @@
       <div
         v-if="openMoreGroupName"
         class="group-more-menu fixed z-50 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-        :style="{
-          top: `${moreMenuPosition.top}px`,
-          right: `${moreMenuPosition.right}px`,
-          transform: moreMenuPosition.transform
-        }"
+        :ref="moreDropdown.dropdownRef" :style="moreDropdown.floatingStyle.value"
         @click.stop
       >
         <button
@@ -835,6 +834,18 @@
       </div>
     </Teleport>
 
+    <AppDialog v-model="deleteOpen" title="删除分组" :busy="deleting" panel-class="max-w-xl">
+      <p v-if="!deletePreview && !deleteError" class="text-sm text-gray-500">正在确认分组数据…</p>
+      <div v-if="deletePreview" class="space-y-3 text-sm">
+        <p class="break-all">分组：<strong>{{ deletingGroup.group_name }}</strong></p>
+        <p>包含 {{ deletePreview.proxy_count }} 条代理配置，将释放 {{ deletePreview.port_count }} 个端口。</p>
+        <p class="text-red-600">确认后将删除整个分组、代理配置及关联扫描状态，不会移动到“其他”分组。已运行的 frpc 客户端仍需单独停止或更新配置。</p>
+        <label v-if="deleteStage === 2" class="block">二次确认：输入分组名称 <strong class="break-all">{{ deletingGroup.group_name }}</strong><input v-model="deleteName" :disabled="deleting" aria-label="确认删除的分组名称" class="mt-2 w-full rounded-lg border border-red-300 px-3 py-2" autocomplete="off"></label>
+      </div>
+      <p v-if="deleteError" role="alert" class="mt-3 text-sm text-red-600">{{ deleteError }}</p>
+      <template #footer><button type="button" class="btn btn-md btn-outline" :disabled="deleting" @click="deleteOpen = false">取消</button><button type="button" class="btn btn-md btn-danger" :disabled="deleting || !deletePreview || (deleteStage === 2 && deleteName !== deletingGroup.group_name)" @click="confirmDeleteGroup">{{ deleting ? '删除中…' : deletePreview?.proxy_count && deleteStage === 1 ? '继续删除' : '确认全部删除' }}</button></template>
+    </AppDialog>
+
     <GroupProxiesDialog
       v-model="showGroupProxiesDialog"
       :server-id="props.serverId"
@@ -852,6 +863,8 @@
 </template>
 
 <script setup>
+import AppDialog from '@/components/AppDialog.vue'
+import { useDropdown } from '@/composables/useDropdown'
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useGroupsStore } from '@/stores/groups'
 import { useServersStore } from '@/stores/servers'
@@ -859,6 +872,7 @@ import { useModal } from '@/composables/useModal'
 import { useApiKeysStore } from '@/stores/apiKeys'
 import { groupApi } from '@/api/groups'
 import TablePagination from '@/components/TablePagination.vue'
+import { useLocalPagination } from '@/composables/useLocalPagination'
 import TableSearch from '@/components/TableSearch.vue'
 import GroupProxiesDialog from '@/components/GroupProxiesDialog.vue'
 import GroupClientUpgradeDialog from '@/components/GroupClientUpgradeDialog.vue'
@@ -881,7 +895,8 @@ const serversStore = useServersStore()
 const apiKeysStore = useApiKeysStore()
 
 const openMoreGroupName = ref('')
-const moreMenuPosition = ref({ top: 0, right: 0, transform: 'translateY(-100%)' })
+const moreDropdown = useDropdown({ floating: true })
+watch(moreDropdown.isOpen, value => { if (!value) openMoreGroupName.value = '' })
 
 const currentMoreGroup = computed(() => {
   if (!openMoreGroupName.value) return null
@@ -976,6 +991,7 @@ const deployCopied = ref(false)
 const showGroupProxiesDialog = ref(false)
 const importLoading = ref(false)
 const importResult = ref(null)
+const importDetails = useLocalPagination(computed(() => importResult.value?.details || []))
 const importCopied = ref(false)
 const analyzeLoading = ref(false)
 const analyzeSummary = ref(null)
@@ -1034,7 +1050,7 @@ const currentServerName = computed(() => {
     return 'server_name'
   }
   // 从 stores 获取服务器信息
-  const server = serversStore.servers.find(s => s.id === props.serverId)
+  const server = (serversStore.servers.find(s => s.id === props.serverId) || serversStore.currentServer)
   if (server && server.name) {
     return encodeURIComponent(server.name)
   }
@@ -1053,9 +1069,10 @@ const loadApiKeys = async () => {
   }
 }
 
-const createForm = reactive({
-  group_name: ''
-})
+const createForm = reactive({ group_name: '', create_defaults: true })
+const creating = ref(false), createError = ref(''), groupNotice = ref('')
+const deleteOpen = ref(false), deleting = ref(false), deleteStage = ref(1), deleteName = ref(''), deletePreview = ref(null), deleteError = ref('')
+const deletingGroup = ref(null)
 
 const renameForm = reactive({
   new_name: ''
@@ -1143,7 +1160,7 @@ const resetImportPreview = () => {
 }
 
 const getCurrentServerRawName = () => {
-  const server = serversStore.servers.find(s => s.id === props.serverId)
+  const server = (serversStore.servers.find(s => s.id === props.serverId) || serversStore.currentServer)
   return server?.name || ''
 }
 
@@ -1249,36 +1266,21 @@ const importCommandDetail = computed(() => {
 })
 
 const handleCreateGroup = async () => {
-  if (!createForm.group_name) {
-    alert('请输入分组名称')
-    return
-  }
-
   const groupName = createForm.group_name.trim()
-
+  if (!groupName || creating.value) { createError.value = '请输入分组名称'; return }
+  creating.value = true; createError.value = ''
   try {
-    await groupsStore.createGroup({
-      group_name: groupName,
-      frps_server_id: props.serverId
-    })
-
-    let defaultsMessage = ''
-    try {
-      const defaultsResult = await groupApi.generateDefaults(groupName, props.serverId)
-      defaultsMessage = `\n\n已生成标准代理：新建 ${defaultsResult.created ?? 0} 个，跳过 ${defaultsResult.skipped ?? 0} 个`
-    } catch (defaultsError) {
-      defaultsMessage = `\n\n标准代理生成失败: ${defaultsError.response?.data?.detail || defaultsError.message}`
-    }
-
-    alert(`创建分组成功${defaultsMessage}`)
+    const result = await groupsStore.createGroup({ group_name: groupName, frps_server_id: props.serverId, create_defaults: createForm.create_defaults })
     showCreateDialog.value = false
     createForm.group_name = ''
-    // 刷新分组列表，重置到第一页
+    groupsStore.setFilters({ search: groupName })
     groupsStore.setPagination({ page: 1 })
     await loadGroups(1)
-  } catch (error) {
-    alert('创建分组失败: ' + error.message)
-  }
+    groupNotice.value = `分组 ${groupName} 创建成功，已生成 ${result.created_proxies || 0} 条标准代理配置。`
+    if (createForm.create_defaults) emit('generate-config', groupName)
+    else viewGroupProxies(groupName)
+  } catch (error) { createError.value = `创建失败：${error.message}` }
+  finally { creating.value = false }
 }
 
 const editGroup = (group) => {
@@ -1308,29 +1310,32 @@ const handleRenameGroup = async () => {
   }
 }
 
-const deleteGroup = async (group) => {
-  // 确保 serverId 存在且有效
-  if (!props.serverId) {
-    alert('服务器ID无效，无法删除分组')
-    return
-  }
-
-  const reassignGroup = prompt(
-    `确定要删除分组 "${group.group_name}" 吗？该分组下有 ${group.total_count} 个代理。\n请输入目标分组名称（留空则移动到"其他"分组）：`
-  )
-
-  if (reassignGroup === null) {
-    return
-  }
-
+const deleteGroup = async group => {
+  if (!props.serverId) return
+  deletingGroup.value = group
+  deleteOpen.value = true
+  deleteStage.value = 1; deleteName.value = ''; deleteError.value = ''; deletePreview.value = null
+  try { deletePreview.value = await groupApi.previewDelete(group.group_name, props.serverId) }
+  catch (e) { deleteError.value = e.message }
+}
+const confirmDeleteGroup = async () => {
+  const group = deletingGroup.value
+  if (!group || !deletePreview.value || deleting.value) return
+  if (deletePreview.value.proxy_count && deleteStage.value === 1) { deleteStage.value = 2; return }
+  if (deletePreview.value.proxy_count && deleteName.value !== group.group_name) return
+  deleting.value = true; deleteError.value = ''
   try {
-    await groupsStore.deleteGroup(group.group_name, reassignGroup || '', props.serverId)
-    alert('删除成功')
-    // 刷新分组列表，保持当前页
-    await loadGroups(groupsStore.pagination.page)
-  } catch (error) {
-    alert('删除失败: ' + error.message)
-  }
+    const result = await groupsStore.deleteGroup(group.group_name, { delete_proxies: true, expected_proxy_count: deletePreview.value.proxy_count }, props.serverId)
+    deleteOpen.value = false
+    groupNotice.value = result.message
+    groupsStore.setFilters({ search: '' })
+    const lastPage = Math.max(1, Math.ceil((groupsStore.pagination.total - 1) / groupsStore.pagination.page_size))
+    await loadGroups(Math.min(groupsStore.pagination.page, lastPage))
+  } catch (e) {
+    deleteError.value = e.message
+    deleteStage.value = 1; deleteName.value = ''
+    try { deletePreview.value = await groupApi.previewDelete(group.group_name, props.serverId) } catch { deletePreview.value = null }
+  } finally { deleting.value = false }
 }
 
 const handleAutoAnalyze = async () => {
@@ -1397,27 +1402,12 @@ const openImportOrganizeDialog = async () => {
   showImportDialog.value = true
 }
 
-const closeMoreMenu = () => {
-  openMoreGroupName.value = ''
-}
-
+const closeMoreMenu = () => { openMoreGroupName.value = ''; moreDropdown.close() }
 const toggleGroupMore = (groupName, event) => {
-  if (openMoreGroupName.value === groupName) {
-    closeMoreMenu()
-    return
-  }
+  if (openMoreGroupName.value === groupName) { closeMoreMenu(); return }
+  moreDropdown.triggerRef.value = event.currentTarget
   openMoreGroupName.value = groupName
-  nextTick(() => {
-    const button = event.currentTarget
-    const rect = button.getBoundingClientRect()
-    const menuHeight = 220
-    const openAbove = rect.top - 8 >= menuHeight
-    moreMenuPosition.value = {
-      top: openAbove ? rect.top - 8 : rect.bottom + 8,
-      right: Math.max(8, window.innerWidth - rect.right),
-      transform: openAbove ? 'translateY(-100%)' : 'none'
-    }
-  })
+  moreDropdown.open()
 }
 
 const runMoreAction = (action) => {
@@ -1461,6 +1451,8 @@ const handleGroupProxiesChanged = async () => {
 }
 
 const closeCreateDialog = () => {
+  if (creating.value) return
+  createError.value = ''
   showCreateDialog.value = false
   createForm.group_name = ''
 }
@@ -1590,7 +1582,7 @@ const copyImportCommand = async () => {
 }
 
 // 使用统一的模态框功能
-useModal(showCreateDialog, closeCreateDialog)
+useModal(showCreateDialog, closeCreateDialog, { disabled: () => creating.value })
 useModal(showRenameDialog, closeRenameDialog)
 useModal(showImportDialog, closeImportDialog)
 useModal(showDeployDialog, closeDeployDialog)

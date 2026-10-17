@@ -80,7 +80,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(item, idx) in fileList" :key="item.id" class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                      <tr v-for="(item, idx) in uploadPage.items.value" :key="item.id" class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
                         <td class="px-3 py-2">
                           <div class="truncate font-medium text-gray-900" :title="item.file.name">{{ item.file.name }}</div>
                           <div v-if="!item.parsed" class="mt-0.5 text-xs text-red-600">无法自动解析版本/平台</div>
@@ -99,7 +99,7 @@
                             type="button"
                             class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                             title="移除"
-                            @click="removeFile(idx)"
+                            @click="removeFile(item.id)"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                               <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12"/><path d="M6 6l12 12"/>
@@ -108,7 +108,7 @@
                         </td>
                       </tr>
                     </tbody>
-                  </table>
+                  </table><div class="p-3"><TablePagination :total="uploadPage.pagination.total" :page="uploadPage.pagination.page" :page-size="uploadPage.pagination.page_size" @page-change="uploadPage.load" @page-size-change="uploadPage.resize" /></div>
                 </div>
               </div>
 
@@ -163,6 +163,8 @@
 </template>
 
 <script setup>
+import TablePagination from '@/components/TablePagination.vue'
+import { useLocalPagination } from '@/composables/useLocalPagination'
 import { ref, watch, computed } from 'vue'
 import { useDropzone } from 'vue3-dropzone'
 import { useModal } from '@/composables/useModal'
@@ -176,6 +178,7 @@ const emit = defineEmits(['update:modelValue', 'submit', 'submit-batch'])
 
 const visible = ref(false)
 const fileList = ref([])
+const uploadPage = useLocalPagination(fileList)
 const manualVersion = ref('')
 const manualPlatform = ref('')
 
@@ -240,8 +243,9 @@ const closeDialog = () => {
 }
 useModal(visible, closeDialog)
 
-const removeFile = (idx) => {
-  fileList.value.splice(idx, 1)
+const removeFile = id => {
+  const index = fileList.value.findIndex(item => item.id === id)
+  if (index >= 0) fileList.value.splice(index, 1)
   if (fileList.value.length === 1) {
     const first = fileList.value[0]
     if (first.parsed) {

@@ -14,11 +14,10 @@
             >
               <AppIcon name="menu" class="h-5 w-5" />
             </button>
-            <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2">
+            <router-link to="/dashboard" class="flex min-w-0 items-center gap-1.5 text-blue-600 sm:gap-2" aria-label="FRP-AGENT 首页">
               <span class="shrink-0 sm:hidden"><FrpLogo :size="32" color="currentColor" /></span>
               <span class="hidden shrink-0 sm:inline"><FrpLogo :size="40" color="currentColor" /></span>
-              <span class="truncate font-extrabold text-blue-600 max-[360px]:hidden min-[361px]:inline sm:inline">FRP</span>
-              <span class="hidden font-semibold text-gray-500 sm:inline">-AGENT</span>
+              <span class="hidden whitespace-nowrap min-[361px]:inline"><span class="font-extrabold text-blue-600">FRP</span><span class="hidden font-semibold text-gray-500 sm:inline">-AGENT</span></span>
             </router-link>
           </div>
           <div class="flex shrink-0 items-center gap-1 sm:gap-3">
@@ -38,20 +37,11 @@
             </button>
             <div v-if="currentUserRole === 'admin'" class="hidden lg:flex items-center gap-2">
               <label class="text-xs text-gray-500 whitespace-nowrap">默认APPKey</label>
-              <select
-                class="block min-w-[200px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                :value="apiKeysStore.selectedKeyId ?? ''"
-                @change="handleDefaultKeyChange"
-              >
-                <option value="" disabled>无可用 APPKey</option>
-                <option v-for="item in apiKeysStore.availableKeys" :key="item.id" :value="item.id">
-                  #{{ item.id }} {{ item.description }}
-                </option>
-              </select>
+              <RemoteSelect :model-value="apiKeysStore.selectedKeyId" @update:model-value="apiKeysStore.setDefaultKey" label="选择 API Key" :fetch-options="params => apiKeysApi.list({ ...params, available_only: true })" :resolve-option="apiKeysApi.get" />
             </div>
             <div class="relative">
               <button
-                ref="notifyDropdown.triggerRef"
+                :ref="notifyDropdown.triggerRef"
                 class="btn btn-icon btn-ghost relative"
                 type="button"
                 :aria-expanded="notifyDropdown.isOpen.value"
@@ -66,7 +56,7 @@
                 ></span>
               </button>
               <div
-                ref="notifyDropdown.dropdownRef"
+                :ref="notifyDropdown.dropdownRef"
                 class="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs rounded-lg border border-gray-200 bg-white py-1 shadow-lg sm:w-72 sm:max-w-none"
                 :class="notifyDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
@@ -90,7 +80,7 @@
             </div>
             <div class="relative">
               <button
-                ref="userDropdown.triggerRef"
+                :ref="userDropdown.triggerRef"
                 class="btn btn-avatar btn-ghost"
                 type="button"
                 :aria-expanded="userDropdown.isOpen.value"
@@ -107,7 +97,7 @@
                 </div>
               </button>
               <div
-                ref="userDropdown.dropdownRef"
+                :ref="userDropdown.dropdownRef"
                 class="absolute right-0 z-50 mt-2 w-40 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
                 :class="userDropdown.isOpen.value ? 'block' : 'hidden'"
                 @click.stop
@@ -366,6 +356,8 @@
 </template>
 
 <script setup>
+import { apiKeysApi } from '@/api/apiKeys'
+import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

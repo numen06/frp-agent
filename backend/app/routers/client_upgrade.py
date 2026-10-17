@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.pagination import PageParams
 from app.models.user import User
 from app.models.client_upgrade_job import ClientUpgradeJob
 from app.schemas.ssh_upgrade import ClientUpgradeJobResponse
@@ -13,7 +14,7 @@ from app.services.ssh_upgrade_service import refresh_detached_job_results
 router = APIRouter(prefix="/api/client-upgrade", tags=["客户端升级"])
 
 
-@router.get("/jobs/{job_id}", response_model=ClientUpgradeJobResponse)
+@router.get("/jobs/{job_id}", response_model=ClientUpgradeJobResponse, response_model_exclude={"result_json"})
 def get_job(
     job_id: int,
     db: Session = Depends(get_db),
@@ -28,6 +29,7 @@ def get_job(
 @router.get("/jobs/{job_id}/results")
 def get_job_results(
     job_id: int,
+    paging: PageParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -40,7 +42,10 @@ def get_job_results(
             results = json.loads(job.result_json)
         except json.JSONDecodeError:
             results = []
+    total = len(results)
+    start = ((paging.page or 1) - 1) * paging.page_size
     return {
-        "job": ClientUpgradeJobResponse.model_validate(job),
-        "results": results,
+        "job": ClientUpgradeJobResponse.model_validate(job).model_dump(exclude={"result_json"}),
+        "results": results[start:start + paging.page_size],
+        "total": total, "page": paging.page or 1, "page_size": paging.page_size,
     }

@@ -29,7 +29,9 @@
     </div>
 
     <section v-if="tab === 'hosts'" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div v-if="loading" class="p-10 text-center text-sm text-gray-500">加载中...</div>
+      <form class="flex gap-2 border-b border-gray-200 p-4" @submit.prevent="hostList.load(1)"><input v-model="hostList.search.value" aria-label="搜索主机" placeholder="搜索主机名称、地址或标签" class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"><button class="btn btn-md btn-outline">搜索</button></form>
+      <p v-if="hostList.error.value" role="alert" class="p-4 text-sm text-red-600">{{ hostList.error.value }}</p>
+      <div v-if="loading || hostList.loading.value" class="p-10 text-center text-sm text-gray-500">加载中...</div>
       <div v-else-if="hosts.length === 0" class="p-10 text-center text-sm text-gray-500">
         暂无可访问的主机资源
       </div>
@@ -88,28 +90,23 @@
           </div>
         </article>
       </div>
+      <div class="border-t border-gray-200 p-4"><TablePagination :total="hostList.pagination.total" :page="hostList.pagination.page" :page-size="hostList.pagination.page_size" @page-change="hostList.load" @page-size-change="hostList.resize" /></div>
     </section>
 
+    <HostCredentialPanel v-else-if="tab === 'credentials' && context.is_admin" @changed="loadHosts" />
     <section v-else-if="tab === 'access' && context.is_admin" class="space-y-4">
       <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 class="font-semibold text-gray-900">添加访问授权</h2>
         <form class="mt-3 grid gap-3 md:grid-cols-5" @submit.prevent="saveGrant">
-          <select v-model.number="grantForm.host_id" class="min-h-11 rounded-lg border border-gray-300 px-3 py-2 text-sm md:min-h-9" required>
-            <option :value="0" disabled>选择主机</option>
-            <option v-for="host in hosts" :key="host.id" :value="host.id">{{ host.name }}（{{ host.host_type.toUpperCase() }}）</option>
-          </select>
-          <select v-model="grantForm.subject" class="min-h-11 rounded-lg border border-gray-300 px-3 py-2 text-sm md:min-h-9" required>
-            <option value="" disabled>选择用户或 API Key</option>
-            <option v-for="subject in activeSubjects" :key="subject.subject_type + subject.id" :value="`${subject.subject_type}:${subject.id}`">
-              {{ subject.subject_type === 'user' ? '用户' : 'API Key' }} · {{ subject.name }}
-            </option>
-          </select>
+          <RemoteSelect v-model="grantForm.host_id" label="选择主机" :fetch-options="managedHostsApi.list" :resolve-option="async id => (await managedHostsApi.list({ page: 1, host_id: id })).items[0]" />
+          <RemoteSelect v-model="grantForm.subject" label="选择用户或 API Key" :fetch-options="params => managedHostsApi.subjects({ ...params, active_only: true })" :resolve-option="async selected => (await managedHostsApi.subjects({ page: 1, selected })).items[0]" :get-value="item => `${item.subject_type}:${item.id}`" :get-label="item => `${item.subject_type === 'user' ? '用户' : 'API Key'} · ${item.name}`" />
           <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_connect" type="checkbox">连接 / RDP 访问</label>
           <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_execute" type="checkbox">SSH 命令</label>
           <label class="flex min-h-11 items-center gap-2 rounded-lg bg-gray-50 px-3 text-sm md:min-h-9 md:bg-transparent md:px-0"><input v-model="grantForm.can_manage_docker" type="checkbox">Docker 操作</label>
           <button class="btn btn-md btn-primary min-h-11 md:col-span-1 md:min-h-9" type="submit">保存授权</button>
         </form>
       </div>
+      <form class="flex gap-2" @submit.prevent="grantList.load(1)"><input v-model="grantList.search.value" aria-label="搜索授权主机" placeholder="搜索授权的主机名称" class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"><button class="btn btn-md btn-outline">搜索</button></form>
       <div class="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm md:block">
         <table class="w-full min-w-[760px] text-left text-sm">
           <thead class="bg-gray-50 text-xs text-gray-500"><tr><th class="px-4 py-3">主机</th><th class="px-4 py-3">主体</th><th class="px-4 py-3">权限</th><th class="px-4 py-3">状态</th><th class="px-4 py-3">操作</th></tr></thead>
@@ -143,6 +140,7 @@
           </li>
         </ul>
       </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-4"><p v-if="grantList.error.value" role="alert" class="mb-3 text-sm text-red-600">{{ grantList.error.value }}</p><TablePagination :total="grantList.pagination.total" :page="grantList.pagination.page" :page-size="grantList.pagination.page_size" @page-change="grantList.load" @page-size-change="grantList.resize" /></div>
     </section>
 
     <section v-else-if="tab === 'users' && context.is_admin" class="grid gap-4 lg:grid-cols-[360px_1fr]">
@@ -157,7 +155,7 @@
         </div>
       </form>
       <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-200 px-4 py-3 font-semibold">系统用户</div>
+        <div class="border-b border-gray-200 px-4 py-3 font-semibold">系统用户</div><form class="flex gap-2 p-4" @submit.prevent="userList.load(1)"><input v-model="userList.search.value" aria-label="搜索系统用户" placeholder="搜索用户名" class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"><button class="btn btn-md btn-outline">搜索</button></form>
         <div class="divide-y divide-gray-100">
           <div v-for="user in userSubjects" :key="user.id" class="flex items-center justify-between gap-3 px-4 py-3">
             <div><div class="font-medium">{{ user.name }}</div><div class="text-xs text-gray-400">{{ user.role === 'admin' ? '管理员' : '普通用户' }} · {{ user.has_ssh_public_key ? '已配置 SSH 证书' : '未配置 SSH 证书' }}</div></div>
@@ -167,49 +165,11 @@
             </div>
           </div>
         </div>
+        <div class="border-t border-gray-200 p-4"><p v-if="userList.error.value" role="alert" class="mb-3 text-sm text-red-600">{{ userList.error.value }}</p><TablePagination :total="userList.pagination.total" :page="userList.pagination.page" :page-size="userList.pagination.page_size" @page-change="userList.load" @page-size-change="userList.resize" /></div>
       </div>
     </section>
 
-    <section v-else-if="tab === 'audit'" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-        <h2 class="font-semibold">访问审计</h2>
-        <button class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="loadAudit">刷新</button>
-      </div>
-      <div class="hidden overflow-x-auto md:block">
-      <table class="w-full min-w-[900px] text-left text-sm">
-        <thead class="bg-gray-50 text-xs text-gray-500"><tr><th class="px-4 py-3">时间</th><th class="px-4 py-3">操作者</th><th class="px-4 py-3">主机</th><th class="px-4 py-3">动作</th><th class="px-4 py-3">目标/命令</th><th class="px-4 py-3">结果</th><th class="px-4 py-3">来源 IP</th></tr></thead>
-        <tbody>
-          <tr v-for="log in auditLogs" :key="log.id" class="border-t border-gray-100">
-            <td class="whitespace-nowrap px-4 py-3 text-xs">{{ formatDate(log.created_at) }}</td><td class="px-4 py-3">{{ log.actor_name }}</td><td class="px-4 py-3">{{ log.host_name }}</td><td class="px-4 py-3">{{ actionLabel(log.action) }}</td>
-            <td class="max-w-xs truncate px-4 py-3 font-mono text-xs" :title="log.command || log.target">{{ log.command || log.target || '-' }}</td>
-            <td class="px-4 py-3" :class="log.status === 'success' ? 'text-emerald-600' : 'text-red-600'">{{ log.status }}<span v-if="log.exit_code !== null"> ({{ log.exit_code }})</span></td><td class="px-4 py-3 text-xs">{{ log.client_ip || '-' }}</td>
-          </tr>
-          <tr v-if="auditLogs.length === 0"><td colspan="7" class="px-4 py-8 text-center text-gray-400">暂无审计记录</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="md:hidden">
-        <p v-if="auditLogs.length === 0" class="px-4 py-8 text-center text-sm text-gray-400">暂无审计记录</p>
-        <ul v-else class="divide-y divide-gray-100">
-          <li v-for="log in auditLogs" :key="log.id" class="p-4">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="font-medium text-gray-900">{{ log.host_name }}</span>
-                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ actionLabel(log.action) }}</span>
-                </div>
-                <div class="mt-1 text-xs text-gray-500">{{ log.actor_name }} · {{ formatDate(log.created_at) }}</div>
-              </div>
-              <span class="shrink-0 text-sm font-medium" :class="log.status === 'success' ? 'text-emerald-600' : 'text-red-600'">
-                {{ log.status }}
-              </span>
-            </div>
-            <div v-if="log.command || log.target" class="mt-3 break-all rounded-lg bg-gray-50 p-2 font-mono text-xs text-gray-600">{{ log.command || log.target }}</div>
-            <div class="mt-2 text-xs text-gray-400">来源：{{ log.client_ip || '-' }}<span v-if="log.exit_code !== null"> · exit {{ log.exit_code }}</span></div>
-          </li>
-        </ul>
-      </div>
-    </section>
+    <HostAuditPanel v-else-if="tab === 'audit'" ref="auditPanel" :is-admin="context.is_admin" />
 
     <section v-else-if="tab === 'guide'" class="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-5">
       <h2 class="font-semibold text-gray-900">统一网关访问</h2>
@@ -369,7 +329,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           </template>
           <template v-else-if="hostForm.host_type === 'docker'">
             <div class="rounded-lg border border-violet-100 bg-violet-50/40 p-3">
-              <label class="text-sm">Portainer 凭据<select v-model.number="hostForm.docker_credential_id" class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" required><option :value="0" disabled>请选择凭据</option><option v-for="cred in dockerCredentials" :key="cred.id" :value="cred.id">{{ cred.name }}（{{ cred.auth_type === 'api_key' ? 'API Key' : '用户名/密码' }}）</option></select></label>
+              <label class="text-sm">Portainer 凭据<RemoteSelect v-model="hostForm.docker_credential_id" label="选择 Portainer 凭据" :fetch-options="dockerCredentialsApi.list" :resolve-option="dockerCredentialsApi.get" /></label>
               <button type="button" class="mt-2 text-xs font-medium text-violet-700" @click="dockerCredentialEditor = !dockerCredentialEditor">+ 新建 Docker 凭据</button>
               <div v-if="dockerCredentialEditor" class="mt-3 space-y-2 border-t border-violet-100 pt-3">
                 <input v-model.trim="dockerCredForm.name" class="w-full rounded-lg border px-3 py-2 text-sm" placeholder="凭据名称">
@@ -438,26 +398,33 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             <div v-if="containers.length === 0" class="py-8 text-center text-sm text-gray-400">暂无容器</div>
           </div>
         </div>
+        <div class="app-dialog-footer border-t border-gray-200 p-4"><div class="w-full"><p v-if="containerList.error.value" role="alert" class="mb-2 text-sm text-red-600">{{ containerList.error.value }}</p><TablePagination :total="containerList.pagination.total" :page="containerList.pagination.page" :page-size="containerList.pagination.page_size" @page-change="containerList.load" @page-size-change="containerList.resize" /></div></div>
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
+import HostAuditPanel from '@/components/HostAuditPanel.vue'
+import HostCredentialPanel from '@/components/HostCredentialPanel.vue'
+import RemoteSelect from '@/components/RemoteSelect.vue'
+import TablePagination from '@/components/TablePagination.vue'
+import { usePagedList } from '@/composables/usePagedList'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import SshCredentialForm from '@/components/SshCredentialForm.vue'
-import { sshCredentialsApi } from '@/api/sshCredentials'
 import { dockerCredentialsApi, managedHostsApi } from '@/api/managedHosts'
 import { copyWithTooltip } from '@/composables/useCopyTooltip'
 import { useModal } from '@/composables/useModal'
 
-const hosts = ref([])
+const hostList = usePagedList(managedHostsApi.list)
+const grantList = usePagedList(managedHostsApi.grants)
+const userList = usePagedList(params => managedHostsApi.subjects({ ...params, subject_type: 'user' }))
+const hosts = hostList.items
+const auditPanel = ref(null)
 const context = reactive({ is_admin: false, actor_type: 'user', actor_name: '' })
 const gatewayInfo = ref({})
-const subjects = ref([])
-const grants = ref([])
-const auditLogs = ref([])
-const dockerCredentials = ref([])
+const grants = grantList.items
+
 const loading = ref(true)
 const operating = ref(false)
 const tab = ref('hosts')
@@ -469,19 +436,19 @@ const cloningHostId = ref(null)
 const connectionHost = ref(null)
 const consoleHost = ref(null)
 const dockerHost = ref(null)
-const containers = ref([])
+const containerList = usePagedList(params => managedHostsApi.containers(dockerHost.value.id, params))
+const containers = containerList.items
 const command = ref('uptime')
 const commandOutput = ref('')
 const origin = window.location.origin
 
 const tabs = computed(() => [
   { key: 'hosts', label: '主机列表' },
-  ...(context.is_admin ? [{ key: 'access', label: '访问授权' }, { key: 'users', label: '系统用户' }] : []),
+  ...(context.is_admin ? [{ key: 'credentials', label: '凭证管理' }, { key: 'access', label: '访问授权' }, { key: 'users', label: '系统用户' }] : []),
   { key: 'audit', label: '访问审计' },
   { key: 'guide', label: 'API 访问' }
 ])
-const activeSubjects = computed(() => subjects.value.filter(item => item.is_active))
-const userSubjects = computed(() => subjects.value.filter(item => item.subject_type === 'user'))
+const userSubjects = userList.items
 const connectionInfo = computed(() => connectionHost.value ? buildConnectionInfo(connectionHost.value) : {})
 const aiHostPrompt = computed(() => {
   const type = aiPromptForm.host_type === 'ssh' ? 'SSH' : 'Docker / Portainer'
@@ -525,12 +492,13 @@ const grantForm = reactive({ host_id: 0, subject: '', can_connect: true, can_exe
 const userForm = reactive({ username: '', password: '', role: 'user', ssh_public_key: '' })
 const aiPromptForm = reactive({ host_type: 'ssh', name: '', address: '', port: 22, docker_endpoint_id: 1 })
 
-async function loadHosts() { hosts.value = await managedHostsApi.list() }
+async function loadHosts() { await hostList.load() }
 async function loadAdminData() {
   if (!context.is_admin) return
-  ;[subjects.value, grants.value, dockerCredentials.value] = await Promise.all([managedHostsApi.subjects(), managedHostsApi.grants(), dockerCredentialsApi.list()])
+  if (tab.value === 'access') await grantList.load()
+  else if (tab.value === 'users') await userList.load()
 }
-async function loadAudit() { auditLogs.value = await managedHostsApi.audit({ limit: 200 }) }
+async function loadAudit() { await auditPanel.value?.load() }
 async function load() {
   loading.value = true
   try {
@@ -625,10 +593,10 @@ async function runCommand(useSudo = false) {
   operating.value = true
   try { const result = await managedHostsApi.execute(consoleHost.value.id, { command: command.value, timeout: 30, use_sudo: useSudo }); commandOutput.value = [`exit_code=${result.exit_code}`, result.stdout, result.stderr].filter(Boolean).join('\n') } catch (e) { commandOutput.value = e.message } finally { operating.value = false; loadAudit() }
 }
-async function openDocker(host) { dockerHost.value = host; await loadContainers() }
+async function openDocker(host) { dockerHost.value = host; containerList.pagination.page = 1; await loadContainers() }
 async function loadContainers() {
   operating.value = true
-  try { containers.value = (await managedHostsApi.containers(dockerHost.value.id)).containers || [] } catch (e) { alert(e.message) } finally { operating.value = false; loadAudit() }
+  try { await containerList.load() } catch (e) { alert(e.message) } finally { operating.value = false; loadAudit() }
 }
 async function dockerAction(container, action) {
   const name = (container.Names || [container.Id])[0].replace('/', '')
@@ -638,30 +606,31 @@ async function dockerAction(container, action) {
 async function saveDockerCredential() {
   try {
     const created = await dockerCredentialsApi.create({ ...dockerCredForm })
-    dockerCredentials.value = await dockerCredentialsApi.list()
+
     hostForm.docker_credential_id = created.id
     dockerCredentialEditor.value = false
     Object.assign(dockerCredForm, { name: '', auth_type: 'api_key', username: '', password: '', api_key: '', ca_cert: '' })
   } catch (e) { alert(e.message) }
 }
 async function saveGrant() {
+  if (!grantForm.host_id || !grantForm.subject) return alert('请选择主机和授权主体')
   const [subject_type, rawId] = grantForm.subject.split(':')
   try {
     await managedHostsApi.createGrant({ host_id: grantForm.host_id, subject_type, subject_id: Number(rawId), can_connect: grantForm.can_connect, can_execute: grantForm.can_execute, can_manage_docker: grantForm.can_manage_docker })
-    grants.value = await managedHostsApi.grants()
+    await grantList.load()
   } catch (e) { alert(e.message) }
 }
-async function removeGrant(grant) { if (confirm('确定撤销该授权？')) { try { await managedHostsApi.removeGrant(grant.id); grants.value = await managedHostsApi.grants() } catch (e) { alert(e.message) } } }
+async function removeGrant(grant) { if (confirm('确定撤销该授权？')) { try { await managedHostsApi.removeGrant(grant.id); await grantList.load() } catch (e) { alert(e.message) } } }
 async function createUser() {
-  try { await managedHostsApi.createUser({ ...userForm, ssh_public_key: userForm.ssh_public_key || null }); Object.assign(userForm, { username: '', password: '', role: 'user', ssh_public_key: '' }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
+  try { await managedHostsApi.createUser({ ...userForm, ssh_public_key: userForm.ssh_public_key || null }); Object.assign(userForm, { username: '', password: '', role: 'user', ssh_public_key: '' }); await userList.load() } catch (e) { alert(e.message) }
 }
 async function toggleUser(user) {
-  try { await managedHostsApi.updateUser(user.id, { is_active: !user.is_active }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
+  try { await managedHostsApi.updateUser(user.id, { is_active: !user.is_active }); await userList.load() } catch (e) { alert(e.message) }
 }
 async function setUserPublicKey(user) {
   const value = prompt(`设置 ${user.name} 的 OpenSSH 公钥；留空并确认将删除现有证书。`, '')
   if (value === null) return
-  try { await managedHostsApi.updateUser(user.id, { ssh_public_key: value.trim() || null }); subjects.value = await managedHostsApi.subjects() } catch (e) { alert(e.message) }
+  try { await managedHostsApi.updateUser(user.id, { ssh_public_key: value.trim() || null }); await userList.load() } catch (e) { alert(e.message) }
 }
 function grantPermissions(g) { return [g.can_connect && '连接', g.can_execute && 'SSH 命令', g.can_manage_docker && 'Docker'].filter(Boolean).join('、') || '无' }
 function hasUrlScheme(value) { return /^https?:\/\//i.test(value || '') }
@@ -671,7 +640,6 @@ function hostAddress(host) {
 }
 function statusDot(s) { return s === 'online' ? 'bg-emerald-500' : s === 'offline' || s === 'error' ? 'bg-red-500' : 'bg-gray-300' }
 function formatDate(value) { return value ? new Date(value).toLocaleString('zh-CN') : '-' }
-function actionLabel(value) { return ({ rdp_file_downloaded: '下载 RDP 连接', rdp_desktop_connected: 'RDP 桌面已连接', rdp_ticket_issued: '签发 RDP 连接', rdp_gateway_authorized: 'RDP 网关授权', rdp_gateway_closed: 'RDP 网关断开', connection_test: '连接测试', execute_command: '执行命令', execute_sudo_command: '提权执行', ssh_gateway_session: 'SSH 跳板会话', docker_gateway_request: 'Docker 网关请求', docker_list: '查询容器', docker_start: '启动容器', docker_stop: '停止容器', docker_restart: '重启容器' })[value] || value }
 function shellQuote(value) { return `'${String(value).replaceAll("'", "'\\''")}'` }
 function buildConnectionInfo(host) {
   const gatewayHost = window.location.hostname || '平台地址'
@@ -735,6 +703,6 @@ for (const [visible, close] of [
   [dockerHost, () => { dockerHost.value = null }]
 ]) useModal(visible, close)
 
-watch(tab, value => { if (value === 'audit') loadAudit() })
+watch(tab, value => { if (value === 'hosts') loadHosts(); else if (value !== 'audit') loadAdminData() })
 onMounted(load)
 </script>

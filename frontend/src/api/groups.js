@@ -7,8 +7,8 @@ export const groupApi = {
   },
   
   // 获取所有分组名称列表（用于下拉选择）
-  getGroupsList(frpsServerId = null) {
-    const params = {}
+  getGroupsList(frpsServerId = null, options = {}) {
+    const params = { ...options }
     if (frpsServerId) {
       params.frps_server_id = frpsServerId
     }
@@ -32,14 +32,11 @@ export const groupApi = {
   },
 
   // 删除分组
-  deleteGroup(groupName, frpsServerId, reassignGroup = '') {
-    // 对应后端: DELETE /api/groups/{group_name}?frps_server_id=...
-    return api.delete(`/groups/${encodeURIComponent(groupName)}`, {
-      params: {
-        frps_server_id: frpsServerId,
-        reassign_group: reassignGroup || undefined
-      }
-    })
+  previewDelete(groupName, serverId) {
+    return api.get(`/groups/${encodeURIComponent(groupName)}/delete-preview`, { params: { frps_server_id: serverId } })
+  },
+  deleteGroup(groupName, serverId, options = {}) {
+    return api.delete(`/groups/${encodeURIComponent(groupName)}`, { params: { frps_server_id: serverId, ...options } })
   },
 
   // 自动分析分组

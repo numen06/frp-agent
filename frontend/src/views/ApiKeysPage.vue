@@ -16,6 +16,8 @@
           </button>
         </div>
       </div>
+      <form class="flex gap-2 border-b border-gray-200 p-4" @submit.prevent="apiKeysStore.loadKeys(1)"><input v-model="apiKeysStore.search" aria-label="搜索列表" placeholder="输入名称或关键词搜索" class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"><button class="btn btn-md btn-outline">搜索</button></form>
+      <p v-if="apiKeysStore.error" role="alert" class="px-4 py-2 text-sm text-red-600">{{ apiKeysStore.error }}</p>
       <div v-if="loading" class="p-5">
         <div class="flex items-center justify-center gap-2 py-4 text-center text-sm text-gray-600">
           <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" role="status" aria-label="加载中"></span>
@@ -203,6 +205,10 @@
         </ul>
       </div>
       </template>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-4">
+      <TablePagination :total="apiKeysStore.pagination.total" :page="apiKeysStore.pagination.page" :page-size="apiKeysStore.pagination.page_size" @page-change="page => apiKeysStore.loadKeys(page)" @page-size-change="apiKeysStore.resize" />
     </div>
 
     <Teleport to="body">
@@ -410,6 +416,7 @@
 </template>
 
 <script setup>
+import TablePagination from '@/components/TablePagination.vue'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { apiKeysApi } from '@/api/apiKeys'
 import { useApiKeysStore } from '@/stores/apiKeys'

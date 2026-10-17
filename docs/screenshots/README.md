@@ -17,6 +17,7 @@ npm run preview -- --host 127.0.0.1 --port 4173
 python -m pip install playwright==1.58.0
 python -m playwright install chromium
 python frontend/scripts/capture_screenshots.py
+python frontend/scripts/check_credentials.py
 ```
 
 除桌面截图外，脚本检查 320 / 390 / 768 / 1280px 页面宽度、手机导航、主要弹窗的滚动与关闭，以及 420px 可视高度下的操作按钮可达性。移动端验证图片输出到被 Git 忽略的 `data/ui-review`。

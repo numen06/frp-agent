@@ -7,7 +7,7 @@ export const useGroupsStore = defineStore('groups', {
     loading: false,
     pagination: {
       page: 1,
-      page_size: 10,
+      page_size: 20,
       total: 0
     },
     filters: {
@@ -35,6 +35,10 @@ export const useGroupsStore = defineStore('groups', {
 
         if (requestId !== this._loadRequestId) {
           return
+        }
+
+        if (response.items !== undefined && page > Math.max(1, Math.ceil(response.total / page_size))) {
+          return await this.loadGroups(frpsServerId, { ...params, page: Math.max(1, Math.ceil(response.total / page_size)) })
         }
 
         if (response.items !== undefined) {
@@ -86,12 +90,12 @@ export const useGroupsStore = defineStore('groups', {
     },
 
     // 删除分组
-    async deleteGroup(groupName, reassignGroup, frpsServerId) {
+    async deleteGroup(groupName, options, frpsServerId) {
       const serverId = Number(frpsServerId)
       if (!serverId || isNaN(serverId)) {
         throw new Error('服务器ID无效')
       }
-      await groupApi.deleteGroup(groupName, serverId, reassignGroup)
+      return await groupApi.deleteGroup(groupName, serverId, options)
     },
     
     // 自动分析分组

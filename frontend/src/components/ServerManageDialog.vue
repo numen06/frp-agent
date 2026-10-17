@@ -131,6 +131,7 @@
             </ul>
           </div>
         </div>
+  <div class="app-dialog-footer border-t border-gray-200 p-4"><TablePagination :total="serversStore.pagination.total" :page="serversStore.pagination.page" :page-size="serversStore.pagination.page_size" @page-change="page => serversStore.loadServers(page)" @page-size-change="serversStore.resize" /></div>
       </div>
     </div>
   </Teleport>
@@ -205,6 +206,7 @@
 </template>
 
 <script setup>
+import TablePagination from '@/components/TablePagination.vue'
 import { ref, reactive, watch } from 'vue'
 import { useServersStore } from '@/stores/servers'
 import { useModal } from '@/composables/useModal'

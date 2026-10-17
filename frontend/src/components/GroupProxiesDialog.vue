@@ -370,7 +370,7 @@ const filters = reactive({
 
 const pagination = reactive({
   page: 1,
-  page_size: 10,
+  page_size: 20,
   total: 0
 })
 
@@ -556,7 +556,7 @@ const resetState = () => {
   filters.status = ''
   proxies.value = []
   pagination.page = 1
-  pagination.page_size = 10
+  pagination.page_size = 20
   pagination.total = 0
   showEditProxyDialog.value = false
   showAddProxyDialog.value = false

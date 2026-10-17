@@ -14,15 +14,20 @@ const isValidFullKey = (value, id) => {
 export const useApiKeysStore = defineStore('apiKeys', {
   state: () => ({
     keys: [],
+    pagination: { page: 1, page_size: 20, total: 0 },
+    search: '',
+    selectedRecord: null,
+    _request: 0,
     selectedKeyId: null,
+    error: '',
     loading: false
   }),
 
   getters: {
-    availableKeys: (state) => (state.keys || []).filter((k) => k.is_active && !k.is_expired),
+    availableKeys: state => [...state.keys, ...(state.selectedRecord && !state.keys.some(key => key.id === state.selectedRecord.id) ? [state.selectedRecord] : [])].filter(key => key.is_active && !key.is_expired),
     selectedKey(state) {
       if (!state.selectedKeyId) return null
-      return (state.keys || []).find((k) => k.id === state.selectedKeyId) || null
+      return (state.keys || []).find((k) => k.id === state.selectedKeyId) || state.selectedRecord
     }
   },
 
@@ -45,27 +50,39 @@ export const useApiKeysStore = defineStore('apiKeys', {
       localStorage.setItem(DEFAULT_KEY_STORAGE, String(parsed))
     },
 
-    ensureSelectedKey() {
-      const current = this.availableKeys.find((k) => k.id === this.selectedKeyId)
-      if (current) return
-      const fallback = this.availableKeys[0]
-      this.setDefaultKey(fallback ? fallback.id : null)
+    async ensureSelectedKey() {
+      const request = this._request
+      const selectedId = this.selectedKeyId
+      const isCurrent = () => request === this._request && selectedId === this.selectedKeyId
+      if (selectedId) {
+        try {
+          const item = await apiKeysApi.get(selectedId)
+          if (!isCurrent()) return
+          if (item.is_active && !item.is_expired) { this.selectedRecord = item; return }
+        } catch { if (!isCurrent()) return }
+      }
+      const data = await apiKeysApi.list({ page: 1, page_size: 1, available_only: true })
+      if (!isCurrent()) return
+      this.selectedRecord = data.items[0] || null
+      this.setDefaultKey(this.selectedRecord?.id)
     },
 
-    async loadKeys() {
+    async loadKeys(page = this.pagination.page) {
+      const request = ++this._request
+      this.error = ''
       this.loading = true
       try {
-        const data = await apiKeysApi.list()
-        this.keys = Array.isArray(data) ? data : []
-        this.ensureSelectedKey()
-      } catch (error) {
-        console.warn('获取 API Key 列表失败', error)
-        this.keys = []
-        this.setDefaultKey(null)
-      } finally {
-        this.loading = false
-      }
+        const data = await apiKeysApi.list({ page, page_size: this.pagination.page_size, search: this.search || undefined })
+        if (request !== this._request) return
+        const lastPage = Math.max(1, Math.ceil(data.total / this.pagination.page_size))
+        if (page > lastPage) return await this.loadKeys(lastPage)
+        this.keys = data.items
+        Object.assign(this.pagination, { page: data.page, page_size: data.page_size, total: data.total })
+        await this.ensureSelectedKey()
+      } catch (error) { if (request === this._request) this.error = error.message || '加载失败，请重试' }
+      finally { if (request === this._request) this.loading = false }
     },
+    async resize(size) { this.pagination.page_size = size; await this.loadKeys(1) },
 
     async init() {
       this.selectedKeyId = this.getStoredDefaultId()

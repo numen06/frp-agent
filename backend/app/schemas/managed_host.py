@@ -275,3 +275,20 @@ class DockerCredentialResponse(BaseModel):
     has_ca_cert: bool
     created_at: datetime
     updated_at: datetime
+
+
+class HostAuditDeleteRequest(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=100)
+
+    @field_validator("ids")
+    @classmethod
+    def validate_ids(cls, values):
+        if any(value <= 0 for value in values):
+            raise ValueError("日志 ID 必须为正整数")
+        return list(set(values))
+
+
+class HostAuditCleanupRequest(BaseModel):
+    keep_days: int = Field(90, ge=1, le=3650)
+    host_id: Optional[int] = Field(None, gt=0)
+    dry_run: bool = True
