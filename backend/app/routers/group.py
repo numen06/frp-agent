@@ -1014,7 +1014,7 @@ def _generate_default_proxies(group_name, frps_server_id, db):
             continue
         
         # 自动分配远端端口（端口范围会自动根据现有端口扩展）
-        remote_port = port_service.get_next_available_port(frps_server_id, 6000, 7000)
+        remote_port = port_service.get_next_available_port(frps_server_id)
         if remote_port is None:
             raise HTTPException(
                 status_code=500,
@@ -1117,6 +1117,8 @@ def regenerate_group_ports(
     # 设置合理的端口范围：从6000开始，到最大端口+1000或65535（取较小值）
     start_port = 6000
     end_port = min(max_port + 1000, 65535)
+    if bounds := port_service.builtin_bounds(frps_server_id):
+        start_port, end_port = bounds
     
     # 先释放所有旧端口（但不更新代理记录，等新端口分配成功后再更新）
     for proxy in proxies_to_regenerate:
@@ -1713,8 +1715,11 @@ def _do_import_config(db: Session, frps_server_id: int, group_name: str,
                 else:
                     allocated_remote_port = None
 
+                bounds = port_service.builtin_bounds(frps_server_id)
+                if allocated_remote_port and bounds and not port_service.is_allowed_port(frps_server_id, allocated_remote_port):
+                    allocated_remote_port = None
                 if not allocated_remote_port:
-                    allocated_remote_port = port_service.get_next_available_port(frps_server_id, 6000, 65535)
+                    allocated_remote_port = port_service.get_next_available_port(frps_server_id, end_port=65535)
                     if allocated_remote_port is None:
                         skipped_count += 1
                         details.append({"name": full_proxy_name, "action": "skipped", "reason": "无法分配端口"})

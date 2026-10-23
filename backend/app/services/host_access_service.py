@@ -283,6 +283,8 @@ def _docker_request(
             exit_code=0 if ok else 1,
             stdout=text_content if ok else "",
             stderr="" if ok else f"HTTP {status_code}: {text_content}",
+            bytes_sent=0,
+            bytes_received=len(content),
         ),
         duration_ms,
     )
@@ -294,7 +296,7 @@ def test_docker_connection(host: ManagedHost, timeout: int = 20):
     )
 
 
-def get_docker_version_info(host: ManagedHost, timeout: int = 20):
+def get_docker_version_info(host: ManagedHost, timeout: int = 20, traffic: Optional[dict] = None):
     """读取 Endpoint 对应 Docker Engine 的版本信息。"""
     result, duration_ms = _docker_request(
         host,
@@ -302,6 +304,8 @@ def get_docker_version_info(host: ManagedHost, timeout: int = 20):
         f"/api/endpoints/{host.docker_endpoint_id}/docker/version",
         timeout,
     )
+    if traffic is not None:
+        traffic.update(bytes_sent=result.bytes_sent, bytes_received=result.bytes_received)
     if result.exit_code != 0:
         return None, duration_ms
     try:
@@ -338,7 +342,7 @@ def list_docker_containers(host: ManagedHost, timeout: int = 30):
         try:
             containers = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            result = CommandResult(1, "", f"Docker 返回了无效 JSON: {exc}")
+            result = CommandResult(1, "", f"Docker 返回了无效 JSON: {exc}", result.bytes_sent, result.bytes_received)
     return result, duration_ms, containers
 
 
@@ -367,6 +371,8 @@ def add_audit_log(
     result: Optional[CommandResult] = None,
     duration_ms: Optional[int] = None,
     error: Optional[str] = None,
+    bytes_sent: Optional[int] = None,
+    bytes_received: Optional[int] = None,
 ) -> HostAuditLog:
     actor_type, actor_id, actor_name = actor_identity(user)
     log = HostAuditLog(
@@ -385,6 +391,8 @@ def add_audit_log(
         ),
         client_ip=client_ip,
         duration_ms=duration_ms,
+        bytes_sent=bytes_sent if bytes_sent is not None else getattr(result, "bytes_sent", None),
+        bytes_received=bytes_received if bytes_received is not None else getattr(result, "bytes_received", None),
     )
     db.add(log)
     db.commit()

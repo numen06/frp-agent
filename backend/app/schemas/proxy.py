@@ -40,6 +40,10 @@ class ProxyResponse(BaseModel):
     local_port: int
     client_name: Optional[str]
     client_version: Optional[str] = None
+    today_traffic_in: Optional[int] = None
+    today_traffic_out: Optional[int] = None
+    cur_conns: Optional[int] = None
+    traffic_updated_at: Optional[datetime] = None
     status: str
     created_at: datetime
     updated_at: datetime

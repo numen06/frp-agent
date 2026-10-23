@@ -23,6 +23,7 @@ export const managedHostsApi = {
   updateGrant: (id, data) => api.put(`/managed-hosts/access/grants/${id}`, data),
   removeGrant: (id) => api.delete(`/managed-hosts/access/grants/${id}`),
   auditDetail: (id) => api.get(`/managed-hosts/audit/logs/${id}`),
+  traffic: (params) => api.get('/managed-hosts/audit/traffic', { params }),
   deleteAudit: (ids) => api.post('/managed-hosts/audit/delete', { ids }),
   cleanupAudit: (data) => api.post('/managed-hosts/audit/cleanup', data),
   audit: (params) => api.get('/managed-hosts/audit/logs', { params })

@@ -1,5 +1,9 @@
 """frpc 配置生成服务"""
 from typing import List, Dict, Any
+import json
+from app.models.builtin_frps import BuiltinFrpsConfig
+from app.services.credential_encryption import decrypt_secret
+from app.services.builtin_frps_config import at, parse_document
 from sqlalchemy.orm import Session
 from app.models.proxy import Proxy
 from app.models.frps_server import FrpsServer
@@ -10,6 +14,28 @@ class FrpcConfigService:
     
     def __init__(self, db: Session):
         self.db = db
+
+    def _builtin_auth_options(self, lines, server, format):
+        if not server.is_builtin:
+            return
+        config = self.db.get(BuiltinFrpsConfig, 1)
+        document = {}
+        if config and config.raw_config_encrypted:
+            content = decrypt_secret(config.raw_config_encrypted)
+            if not content:
+                raise ValueError("内置 FRP 安全配置无法解密")
+            document = parse_document(content)
+        scopes = at(document, ("auth", "additionalScopes"), [])
+        if format == "toml":
+            lines.append("transport.tls.enable = true")
+            if scopes:
+                lines.append(f"auth.additionalScopes = {json.dumps(scopes)}")
+        else:
+            lines.append("tls_enable = true")
+            if "HeartBeats" in scopes:
+                lines.append("authenticate_heartbeats = true")
+            if "NewWorkConns" in scopes:
+                lines.append("authenticate_new_work_conns = true")
     
     def generate_config_for_group(
         self,
@@ -126,6 +152,7 @@ class FrpcConfigService:
         # 认证配置 - 优先使用 auth_token
         if server.auth_token:
             config_lines.append(f"auth_token = {server.auth_token}")
+            self._builtin_auth_options(config_lines, server, "ini")
         elif server.auth_username and server.auth_password:
             config_lines.append(f"# 使用用户名密码认证")
             config_lines.append(f"user = {server.auth_username}")
@@ -180,7 +207,8 @@ class FrpcConfigService:
         
         # 认证配置 - 优先使用 auth_token
         if server.auth_token:
-            config_lines.append(f"auth.token = \"{server.auth_token}\"")
+            config_lines.append(f"auth.token = {json.dumps(server.auth_token, ensure_ascii=False)}")
+            self._builtin_auth_options(config_lines, server, "toml")
         elif server.auth_username and server.auth_password:
             config_lines.append(f"# 使用用户名密码认证（新版本推荐使用 token）")
             config_lines.append(f"# auth.method = \"token\"")

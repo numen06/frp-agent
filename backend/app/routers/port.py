@@ -1,5 +1,5 @@
 """端口管理路由"""
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -65,8 +65,8 @@ def release_port(
 @router.get("/available", response_model=dict)
 def get_available_port(
     frps_server_id: int = Query(..., description="frps 服务器 ID"),
-    start_port: int = Query(6000, description="起始端口"),
-    end_port: int = Query(7000, description="结束端口"),
+    start_port: Optional[int] = Query(None, ge=1, le=65535, description="起始端口；默认使用服务器端口池"),
+    end_port: Optional[int] = Query(None, ge=1, le=65535, description="结束端口；默认使用服务器端口池"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

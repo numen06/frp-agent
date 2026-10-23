@@ -169,19 +169,20 @@
                   <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">本地端口</th>
                   <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">远程端口</th>
                   <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">frpc 版本</th>
+                  <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">FRP 流量快照</th>
                   <th class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">状态</th>
                   <th class="w-[1%] whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="loading">
-                  <td colspan="8" class="py-4 text-center">
+                  <td colspan="9" class="py-4 text-center">
                     <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中" />
                     <span class="ml-2 align-middle text-gray-600">加载中...</span>
                   </td>
                 </tr>
                 <tr v-else-if="proxies.length === 0">
-                  <td colspan="8" class="py-4 text-center text-gray-500">当前分组暂无代理</td>
+                  <td colspan="9" class="py-4 text-center text-gray-500">当前分组暂无代理</td>
                 </tr>
                 <tr v-else v-for="proxy in proxies" :key="proxy.id">
                   <td class="border-b border-gray-100 px-4 py-3 align-middle">
@@ -194,6 +195,7 @@
                   <td class="border-b border-gray-100 px-4 py-3 align-middle">{{ proxy.local_port || '-' }}</td>
                   <td class="border-b border-gray-100 px-4 py-3 align-middle">{{ proxy.remote_port || '-' }}</td>
                   <td class="border-b border-gray-100 px-4 py-3 align-middle text-gray-600">{{ proxy.client_version || '未知' }}</td>
+                  <td class="border-b border-gray-100 px-4 py-3 align-middle"><ProxyTraffic :proxy="proxy" /></td>
                   <td class="border-b border-gray-100 px-4 py-3 align-middle">
                     <span
                       class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
@@ -265,6 +267,7 @@
                   <div><dt class="inline">本地 </dt><dd class="inline break-all text-gray-700">{{ proxy.local_ip }}:{{ proxy.local_port || '-' }}</dd></div>
                   <div><dt class="inline">远程 </dt><dd class="inline text-gray-700">{{ proxy.remote_port || '-' }}</dd></div>
                   <div class="col-span-2"><dt class="inline">frpc </dt><dd class="inline text-gray-600">{{ proxy.client_version || '未知' }}</dd></div>
+                  <div class="col-span-2"><dt>FRP 流量快照</dt><dd class="mt-1"><ProxyTraffic :proxy="proxy" /></dd></div>
                 </dl>
                 <div class="mt-3 flex gap-2">
                   <button
@@ -329,6 +332,7 @@
 </template>
 
 <script setup>
+import ProxyTraffic from '@/components/ProxyTraffic.vue'
 import { reactive, ref, watch } from 'vue'
 import { proxyApi } from '@/api/proxies'
 import { groupApi } from '@/api/groups'

@@ -102,6 +102,7 @@ async def sync_server(db: Session, server: FrpsServer):
             if proxy_info.get("remote_port") is not None:
                 db_proxy.remote_port = proxy_info["remote_port"]
             apply_proxy_version(db_proxy, proxy_info)
+            db_proxy.update_traffic(proxy_info)
 
             # 如果分组信息为空，自动设置分组
             if not db_proxy.group_name:
@@ -132,6 +133,7 @@ async def sync_server(db: Session, server: FrpsServer):
                 group_name=group_name,
                 client_version=proxy_info.get("client_version"),
             )
+            new_proxy.update_traffic(proxy_info)
             db.add(new_proxy)
             
             history = ProxyHistory(

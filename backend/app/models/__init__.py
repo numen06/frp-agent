@@ -13,6 +13,7 @@ from app.models.client_upgrade_job import ClientUpgradeJob
 from app.models.package_sync_job import PackageSyncJob
 from app.models.managed_host import ManagedHost, HostAccessGrant, HostAuditLog
 from app.models.docker_credential import DockerCredential
+from app.models.builtin_frps import BuiltinFrpsConfig
 
 __all__ = [
     "User",
@@ -31,5 +32,6 @@ __all__ = [
     "HostAccessGrant",
     "HostAuditLog",
     "DockerCredential",
+    "BuiltinFrpsConfig",
 ]
 

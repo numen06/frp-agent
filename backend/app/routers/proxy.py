@@ -232,6 +232,7 @@ async def get_proxies(
                     frps_proxy = frps_proxy_map.get(db_proxy.name)
                     if frps_proxy:
                         apply_proxy_version(db_proxy, frps_proxy)
+                        db_proxy.update_traffic(frps_proxy)
 
                 # 更新本地代理状态（更新所有匹配的代理，不仅仅是当前页）
                 for db_proxy in all_matching_proxies:
@@ -296,6 +297,7 @@ async def get_proxies(
                             group_name=parsed_group_name,
                             client_version=frps_proxy.get("client_version"),
                         )
+                        new_proxy.update_traffic(frps_proxy)
                         db.add(new_proxy)
 
                         # only_in_frps 反馈按当前页面筛选口径展示，避免“反馈对不上”

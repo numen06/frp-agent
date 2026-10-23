@@ -71,7 +71,7 @@
                   <td class="px-4 py-3 border-b border-gray-100 align-middle text-sm text-gray-700">{{ server.server_version || '未知' }}</td>
                   <td class="px-4 py-3 border-b border-gray-100 align-middle">
                     <div class="inline-flex items-center gap-2">
-                      <button class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
+                      <button v-if="!server.is_builtin" class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -79,7 +79,7 @@
                           <path d="M16 5l3 3" />
                         </svg>
                       </button>
-                      <button class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
+                      <button v-if="!server.is_builtin" class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M4 7l16 0" />
@@ -108,7 +108,7 @@
                 <p class="mt-0.5 break-all text-xs text-gray-500">{{ server.api_base_url }}</p>
                 <p class="mt-1 text-xs text-gray-600">frps: {{ server.server_version || '未知' }}</p>
                 <div class="mt-3 flex gap-2">
-                  <button class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
+                  <button v-if="!server.is_builtin" class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -116,7 +116,7 @@
                       <path d="M16 5l3 3" />
                     </svg>
                   </button>
-                  <button class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
+                  <button v-if="!server.is_builtin" class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M4 7l16 0" />

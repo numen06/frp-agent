@@ -183,9 +183,9 @@ class FrpsClient:
             "remote_port": conf.get("remotePort") if conf else None,
             "local_ip": conf.get("localIP", "127.0.0.1") if conf else "127.0.0.1",
             "client_version": proxy_data.get("clientVersion"),
-            "today_traffic_in": proxy_data.get("todayTrafficIn", 0),
-            "today_traffic_out": proxy_data.get("todayTrafficOut", 0),
-            "cur_conns": proxy_data.get("curConns", 0),
+            "today_traffic_in": proxy_data.get("todayTrafficIn"),
+            "today_traffic_out": proxy_data.get("todayTrafficOut"),
+            "cur_conns": proxy_data.get("curConns"),
             "last_start_time": proxy_data.get("lastStartTime"),
             "last_close_time": proxy_data.get("lastCloseTime"),
         }

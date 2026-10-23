@@ -75,6 +75,8 @@ def update_server(
         raise HTTPException(status_code=404, detail="服务器不存在")
     
     # 更新字段
+    if server.is_builtin:
+        raise HTTPException(status_code=409, detail="请在内置 FRP 面板修改运行配置")
     update_data = server_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(server, key, value)
@@ -95,6 +97,8 @@ def delete_server(
     if not server:
         raise HTTPException(status_code=404, detail="服务器不存在")
     
+    if server.is_builtin:
+        raise HTTPException(status_code=409, detail="内置 FRP 记录由系统维护，请在内置 FRP 面板关闭服务")
     db.delete(server)
     db.commit()
     return None

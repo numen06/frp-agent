@@ -199,6 +199,8 @@ def test_portainer_api_key_uses_endpoint_proxy(db, monkeypatch):
     result, _, containers = list_docker_containers(docker_host)
     assert result.exit_code == 0
     assert containers[0]["Names"] == ["/web"]
+    assert result.bytes_sent == 0
+    assert result.bytes_received == len(result.stdout.encode("utf-8"))
     assert _FakeHttpClient.default_headers == {"X-API-Key": "ptr_test"}
     assert _FakeHttpClient.last_base_url == "http://portainer.example.test/docker/"
     assert _FakeHttpClient.calls[-1][1] == (

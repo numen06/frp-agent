@@ -244,6 +244,8 @@ class HostAuditResponse(BaseModel):
     stderr: Optional[str]
     client_ip: Optional[str]
     duration_ms: Optional[int]
+    bytes_sent: Optional[int] = None
+    bytes_received: Optional[int] = None
     created_at: datetime
 
 

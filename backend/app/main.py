@@ -29,11 +29,13 @@ from app.routers import (
     client_upgrade,
     managed_host,
     docker_credential,
+    builtin_frps,
 )
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.services.ssh_gateway_service import ssh_gateway_service
 from app.services.docker_gateway_service import docker_gateway_service
 from app.services.rdp_gateway_service import rdp_gateway_service
+from app.services.builtin_frps_service import builtin_frps_service
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -78,6 +80,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("主机管理表迁移跳过或失败: %s", e)
     
+    from app.migrations.add_traffic_fields import upgrade as traffic_upgrade
+    traffic_upgrade()
+    from app.migrations.add_builtin_frps_field import upgrade as builtin_frps_upgrade
+    builtin_frps_upgrade()
+
     # 创建默认用户和 API Key（如果不存在）
     logger.info("检查并创建默认用户和 API Key...")
     db = SessionLocal()
@@ -89,6 +96,9 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     
+    with SessionLocal() as db:
+        builtin_frps_service.restore(db)
+
     # 启动定时任务
     logger.info("启动定时同步任务...")
     await start_scheduler()
@@ -112,6 +122,7 @@ async def lifespan(app: FastAPI):
     rdp_gateway_service.stop()
     docker_gateway_service.stop()
     ssh_gateway_service.stop()
+    builtin_frps_service.stop()
     shutdown_scheduler()
 
 
@@ -158,6 +169,7 @@ app.include_router(ssh_credential.router)
 app.include_router(client_upgrade.router)
 app.include_router(managed_host.router)
 app.include_router(docker_credential.router)
+app.include_router(builtin_frps.router)
 
 
 @app.get("/api/public/version")

@@ -124,19 +124,20 @@
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">本地端口</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">远程端口</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">frpc 版本</th>
+                <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">FRP 流量快照</th>
                 <th class="px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">状态</th>
                 <th class="w-[1%] whitespace-nowrap px-4 py-3 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="proxiesStore.loading">
-                <td colspan="10" class="py-4 text-center text-sm text-gray-600">
+                <td colspan="11" class="py-4 text-center text-sm text-gray-600">
                   <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 align-middle" role="status" aria-label="加载中"></span>
                   <span class="ml-2 align-middle">加载中...</span>
                 </td>
               </tr>
               <tr v-else-if="proxiesStore.proxies.length === 0">
-                <td colspan="10" class="py-4 text-center text-sm text-gray-500">
+                <td colspan="11" class="py-4 text-center text-sm text-gray-500">
                   暂无代理数据，请先添加代理或导入配置
                 </td>
               </tr>
@@ -169,6 +170,7 @@
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.local_port || '-' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">{{ proxy.remote_port || '-' }}</td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle text-gray-600">{{ proxy.client_version || '未知' }}</td>
+                <td class="px-4 py-3 border-b border-gray-100 align-middle"><ProxyTraffic :proxy="proxy" /></td>
                 <td class="px-4 py-3 border-b border-gray-100 align-middle">
                   <span
                     class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -306,6 +308,7 @@
                     <dt class="shrink-0 text-gray-500">frpc</dt>
                     <dd class="truncate text-gray-800" :title="proxy.client_version || '未知'">{{ proxy.client_version || '未知' }}</dd>
                   </div>
+                  <div><dt class="mb-1 text-gray-500">FRP 流量快照</dt><dd><ProxyTraffic :proxy="proxy" /></dd></div>
                 </dl>
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button
@@ -487,6 +490,7 @@
 </template>
 
 <script setup>
+import ProxyTraffic from '@/components/ProxyTraffic.vue'
 import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

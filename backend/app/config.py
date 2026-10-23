@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     default_frps_auth_username: str = "admin"
     default_frps_auth_password: str = "admin"
 
+    # 镜像预装 frps；开关及运行配置由管理页面保存在数据库。
+    builtin_frps_binary: str = "frps"
+    builtin_frps_dir: str = "data/builtin_frps"
+
     # 同步任务配置
     sync_interval_seconds: int = 1800  # 30分钟
 

@@ -36,6 +36,7 @@ class FrpsServerResponse(BaseModel):
     auth_username: str
     auth_token: Optional[str] = None
     is_active: bool
+    is_builtin: bool = False
     last_test_status: str = "unknown"
     last_test_time: Optional[datetime] = None
     last_test_message: Optional[str] = None

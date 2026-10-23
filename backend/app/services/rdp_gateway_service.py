@@ -360,6 +360,7 @@ class RDPGatewayService:
         relay = None
         port = None
         stage = "connect"
+        bytes_sent = bytes_received = 0
         try:
             upstream = socket.create_connection(("127.0.0.1", proxy_port), timeout=3)
             port = upstream.getsockname()[1]
@@ -374,10 +375,12 @@ class RDPGatewayService:
             # here with the complete configured chain; authenticate the private
             # loopback TLS hop against that exact configured certificate.
             request = self._tpkt(client)
+            bytes_sent += len(request)
             if request[5] != 0xE0:
                 return
             upstream.sendall(request)
             response = self._tpkt(upstream)
+            bytes_received += len(response)
             if response[5] != 0xD0 or response[-8] != 2 or int.from_bytes(response[-4:], "little") not in {1, 2, 8}:
                 return
             client.sendall(response)
@@ -413,6 +416,10 @@ class RDPGatewayService:
                         source.settimeout(3)
                     if not chunk:
                         return
+                    if source is client:
+                        bytes_sent += len(chunk)
+                    else:
+                        bytes_received += len(chunk)
                     (upstream if source is client else client).sendall(chunk)
         except (OSError, ValueError, HTTPException) as exc:
             logger.info("RDP connection closed: stage=%s error=%s", stage, type(exc).__name__)
@@ -440,7 +447,8 @@ class RDPGatewayService:
                         if host:
                             actor = User(id=relay.uid, username=relay.actor_name, role="user")
                             add_audit_log(db, host, actor, "rdp_gateway_closed", "success", ip,
-                                          target=relay.target, duration_ms=min(28800000, int((time.monotonic()-relay.created)*1000)))
+                                          target=relay.target, duration_ms=min(28800000, int((time.monotonic()-relay.created)*1000)),
+                                          bytes_sent=bytes_sent, bytes_received=bytes_received)
                 except Exception:
                     logger.error("RDP disconnect audit could not be written")
 

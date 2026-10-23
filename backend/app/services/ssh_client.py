@@ -18,6 +18,8 @@ class CommandResult:
     exit_code: int
     stdout: str
     stderr: str
+    bytes_sent: Optional[int] = None
+    bytes_received: Optional[int] = None
 
 
 class SSHClientProtocol(Protocol):
@@ -152,9 +154,15 @@ class ParamikoSSHClient:
             stdin.flush()
             stdin.channel.shutdown_write()
         exit_code = stdout.channel.recv_exit_status()
-        out = stdout.read().decode("utf-8", errors="replace").strip()
-        err = stderr.read().decode("utf-8", errors="replace").strip()
-        return CommandResult(exit_code=exit_code, stdout=out, stderr=err)
+        raw_out = stdout.read()
+        raw_err = stderr.read()
+        return CommandResult(
+            exit_code=exit_code,
+            stdout=raw_out.decode("utf-8", errors="replace").strip(),
+            stderr=raw_err.decode("utf-8", errors="replace").strip(),
+            bytes_sent=len(command.encode("utf-8")) + len((stdin_data or "").encode("utf-8")),
+            bytes_received=len(raw_out) + len(raw_err),
+        )
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
         if not self._sftp:

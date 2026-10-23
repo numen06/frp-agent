@@ -271,7 +271,7 @@ def get_config_by_group_quick(
             for config in default_configs:
                 if config["name"] not in existing_names:
                     # 自动分配远端端口（端口范围会自动根据现有端口扩展）
-                    remote_port = port_service.get_next_available_port(server_id, 6000, 7000)
+                    remote_port = port_service.get_next_available_port(server_id)
                     if remote_port is None:
                         raise HTTPException(
                             status_code=500,

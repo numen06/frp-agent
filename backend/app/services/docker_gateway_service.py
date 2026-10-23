@@ -274,6 +274,7 @@ class DockerGatewayHandler(BaseHTTPRequestHandler):
         error_message = None
         status_code = 502
         response_started = False
+        bytes_sent = bytes_received = None
         try:
             host = (
                 db.query(ManagedHost)
@@ -301,6 +302,8 @@ class DockerGatewayHandler(BaseHTTPRequestHandler):
                     request_headers=forward_headers,
                 )
             )
+            bytes_received = len(content)
+            bytes_sent = len(body or b"")
             response_started = True
             self.send_response(status_code)
             for name, value in response_headers.items():
@@ -320,6 +323,8 @@ class DockerGatewayHandler(BaseHTTPRequestHandler):
                 target=f"{self.command} {docker_path}",
                 duration_ms=duration_ms,
                 error=None if 200 <= status_code < 400 else f"HTTP {status_code}",
+                bytes_sent=bytes_sent,
+                bytes_received=bytes_received,
             )
         except Exception as exc:
             error_message = str(exc)
@@ -341,6 +346,8 @@ class DockerGatewayHandler(BaseHTTPRequestHandler):
                         target=f"{self.command} {docker_path}",
                         duration_ms=int((time.monotonic() - started) * 1000),
                         error=error_message,
+                        bytes_sent=bytes_sent,
+                        bytes_received=bytes_received,
                     )
                 except Exception:
                     logger.exception("写入 Docker 网关审计失败")

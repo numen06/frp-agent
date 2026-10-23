@@ -212,13 +212,23 @@ def test_tls_control_records_do_not_block_the_opposite_rdp_direction(setup,monke
     if buffered_graphics:upstream.pending=lambda:1
     db,user,host,grant,service=setup
     service._sessions.clear()
-    service._tls_server=service._tls_proxy=SimpleNamespace(wrap_socket=lambda sock,**kw:sock)
+    uid,hid,actor_name=user.id,host.id,user.username
+    def wrap(sock,**kw):
+        relay=service._sessions[23456]
+        relay.authorized=True;relay.uid=uid;relay.hid=hid;relay.actor_name=actor_name
+        return sock
+    service._tls_server=service._tls_proxy=SimpleNamespace(wrap_socket=wrap)
+    monkeypatch.setattr(module,'SessionLocal',sessionmaker(bind=db.bind))
+    monkeypatch.setattr(service,'_validate',lambda *a:None)
     monkeypatch.setattr(module.socket,'create_connection',lambda *a,**kw:upstream)
     monkeypatch.setattr(module.select,'select',lambda *a:([client,upstream],[],[]))
     assert service._admit('198.51.100.10')
     service._relay(client,'198.51.100.10',50000)
     assert client.sent==[response,b'server-rdp']
     assert upstream.sent==[request,b'client-rdp']
+    log=db.query(HostAuditLog).filter(HostAuditLog.action=='rdp_gateway_closed').one()
+    assert log.bytes_sent==len(request)+len(b'client-rdp')
+    assert log.bytes_received==len(response)+len(b'server-rdp')
     for sock in (client,upstream):
         assert (module.socket.IPPROTO_TCP,module.socket.TCP_NODELAY,1) in sock.options
     assert service._active==0 and not service._sessions

@@ -9,7 +9,7 @@ import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import literal, func, insert, select, cast, String
+from sqlalchemy import literal, func, insert, select, cast, String, case
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user, get_password_hash
@@ -502,8 +502,13 @@ def test_host(
             result, duration_ms = test_docker_connection(host, 20)
             fingerprint = None
             if result.exit_code == 0:
-                version_info, version_duration_ms = get_docker_version_info(host, 20)
+                version_traffic = {}
+                version_info, version_duration_ms = get_docker_version_info(host, 20, version_traffic)
                 duration_ms += version_duration_ms
+                if result.bytes_sent is not None and version_traffic.get("bytes_sent") is not None:
+                    result.bytes_sent += version_traffic["bytes_sent"]
+                if result.bytes_received is not None and version_traffic.get("bytes_received") is not None:
+                    result.bytes_received += version_traffic["bytes_received"]
         success = result.exit_code == 0
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
@@ -917,7 +922,31 @@ def _audit_response(row):
         action=row.action, target=row.target, command=row.command, status=row.status,
         exit_code=row.exit_code, stdout=row.stdout, stderr=row.stderr, client_ip=row.client_ip,
         duration_ms=row.duration_ms, created_at=row.created_at,
+        bytes_sent=row.bytes_sent, bytes_received=row.bytes_received,
     )
+
+
+@router.get("/audit/traffic")
+def get_host_traffic(
+    host_id: Optional[int] = Query(None, gt=0),
+    search: str = Query("", max_length=200),
+    action: Optional[str] = Query(None, max_length=50),
+    status_filter: Optional[str] = Query(None, alias="status", max_length=20),
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """汇总保留审计记录中的应用层字节；普通用户/API Key 仅统计自己的访问。"""
+    query = _audit_query(db, current_user, host_id, search, action, status_filter, start_time, end_time)
+    measured = HostAuditLog.bytes_sent.isnot(None) | HostAuditLog.bytes_received.isnot(None)
+    row = query.with_entities(
+        func.coalesce(func.sum(HostAuditLog.bytes_sent), 0),
+        func.coalesce(func.sum(HostAuditLog.bytes_received), 0),
+        func.coalesce(func.sum(case((measured, 1), else_=0)), 0),
+        func.count(HostAuditLog.id),
+    ).one()
+    return {"bytes_sent": row[0], "bytes_received": row[1], "measured_count": row[2], "record_count": row[3]}
 
 
 @router.get("/audit/logs", response_model=List[HostAuditResponse] | Page[HostAuditResponse])

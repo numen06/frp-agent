@@ -73,6 +73,7 @@ async def compare_proxies(
             if proxy_info.get("remote_port") is not None:
                 db_proxy.remote_port = proxy_info["remote_port"]
             apply_proxy_version(db_proxy, proxy_info)
+            db_proxy.update_traffic(proxy_info)
 
             # 如果状态改变，记录历史
             if old_status != proxy_info["status"]:
@@ -101,6 +102,7 @@ async def compare_proxies(
                     status=proxy_info["status"],
                     client_version=proxy_info.get("client_version"),
                 )
+                new_proxy.update_traffic(proxy_info)
                 db.add(new_proxy)
                 
                 # 记录历史

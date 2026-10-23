@@ -60,6 +60,7 @@
           </dl>
           <div v-if="host.tags" class="mt-3 text-xs text-gray-400">{{ host.tags }}</div>
           <div class="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <button class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="auditHostId = host.id; tab = 'audit'">流量统计</button>
             <button v-if="host.permissions.includes('connect')" class="btn btn-sm btn-outline min-h-11 touch-manipulation sm:min-h-8" @click="testHost(host)">连接测试</button>
             <button v-if="host.permissions.includes('connect')" class="btn btn-sm btn-outline-primary min-h-11 touch-manipulation sm:min-h-8" @click="openConnectionDetails(host)">
               连接凭证
@@ -169,7 +170,7 @@
       </div>
     </section>
 
-    <HostAuditPanel v-else-if="tab === 'audit'" ref="auditPanel" :is-admin="context.is_admin" />
+    <HostAuditPanel v-else-if="tab === 'audit'" ref="auditPanel" :is-admin="context.is_admin" :host-id="auditHostId" />
 
     <section v-else-if="tab === 'guide'" class="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-5">
       <h2 class="font-semibold text-gray-900">统一网关访问</h2>
@@ -421,6 +422,7 @@ const grantList = usePagedList(managedHostsApi.grants)
 const userList = usePagedList(params => managedHostsApi.subjects({ ...params, subject_type: 'user' }))
 const hosts = hostList.items
 const auditPanel = ref(null)
+const auditHostId = ref('')
 const context = reactive({ is_admin: false, actor_type: 'user', actor_name: '' })
 const gatewayInfo = ref({})
 const grants = grantList.items
@@ -445,7 +447,7 @@ const origin = window.location.origin
 const tabs = computed(() => [
   { key: 'hosts', label: '主机列表' },
   ...(context.is_admin ? [{ key: 'credentials', label: '凭证管理' }, { key: 'access', label: '访问授权' }, { key: 'users', label: '系统用户' }] : []),
-  { key: 'audit', label: '访问审计' },
+  { key: 'audit', label: '审计与流量' },
   { key: 'guide', label: 'API 访问' }
 ])
 const userSubjects = userList.items

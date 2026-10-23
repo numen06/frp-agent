@@ -387,13 +387,18 @@ class GatewayServerInterface(paramiko.ServerInterface):
         return True
 
 
-def _bridge_channels(inbound: paramiko.Channel, upstream: paramiko.Channel):
+def _bridge_channels(inbound: paramiko.Channel, upstream: paramiko.Channel, traffic=None):
+    traffic = traffic if traffic is not None else {"bytes_sent": 0, "bytes_received": 0}
+    traffic_lock = threading.Lock()
+
     def pump(source, target):
         try:
             while True:
                 data = source.recv(32768)
                 if not data:
                     break
+                with traffic_lock:
+                    traffic["bytes_sent" if source is inbound else "bytes_received"] += len(data)
                 target.sendall(data)
         except Exception:
             logger.debug("SSH 通道转发结束", exc_info=True)
@@ -415,7 +420,13 @@ def _bridge_channels(inbound: paramiko.Channel, upstream: paramiko.Channel):
                 data = upstream.recv_stderr(32768)
                 if not data:
                     break
-                inbound.send_stderr(data)
+                with traffic_lock:
+                    traffic["bytes_received"] += len(data)
+                while data:
+                    sent = inbound.send_stderr(data)
+                    if not sent:
+                        raise EOFError("SSH stderr 通道已关闭")
+                    data = data[sent:]
         except Exception:
             logger.debug("SSH stderr 转发结束", exc_info=True)
 
@@ -427,6 +438,9 @@ def _bridge_channels(inbound: paramiko.Channel, upstream: paramiko.Channel):
     inbound_to_upstream.start()
     stderr_thread.start()
     pump(upstream, inbound)
+    # Host output has ended; stop blocked readers before the session is accounted.
+    inbound.shutdown_read()
+    upstream.shutdown_read()
     inbound_to_upstream.join(timeout=2)
     stderr_thread.join(timeout=2)
 
@@ -694,6 +708,7 @@ class SSHGatewayService:
         upstream = None
         started = time.monotonic()
         error_message = None
+        traffic = {"bytes_sent": 0, "bytes_received": 0}
         try:
             if not request.event.wait(15):
                 raise TimeoutError("等待 shell/exec 请求超时")
@@ -732,6 +747,7 @@ class SSHGatewayService:
                         width=request.pty_width,
                         height=request.pty_height,
                     )
+                    traffic["bytes_sent"] += len(upstream_command.encode("utf-8"))
                     if sudo_password:
                         upstream.sendall(f"{sudo_password}\n".encode("utf-8"))
                         sudo_password = None
@@ -768,7 +784,7 @@ class SSHGatewayService:
             finally:
                 db.close()
 
-            _bridge_channels(inbound, upstream)
+            _bridge_channels(inbound, upstream, traffic)
             if request.request_type == "exec" and upstream.exit_status_ready():
                 try:
                     inbound.send_exit_status(upstream.recv_exit_status())
@@ -815,6 +831,7 @@ class SSHGatewayService:
                             ),
                             duration_ms=duration_ms,
                             error=error_message,
+                            **traffic,
                         )
                 except Exception:
                     logger.exception("写入 SSH 网关审计失败")

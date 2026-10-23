@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    BigInteger,
     Column,
     DateTime,
     ForeignKey,
@@ -111,6 +112,8 @@ class HostAuditLog(Base):
     stderr = Column(Text, nullable=True)
     client_ip = Column(String(100), nullable=True)
     duration_ms = Column(Integer, nullable=True)
+    bytes_sent = Column(BigInteger, nullable=True)
+    bytes_received = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
 
     host = relationship("ManagedHost", back_populates="audit_logs")

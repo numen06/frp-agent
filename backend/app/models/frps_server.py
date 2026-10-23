@@ -18,6 +18,7 @@ class FrpsServer(Base):
     auth_password = Column(String(255), nullable=False)
     auth_token = Column(String(255), nullable=True)  # FRP 认证 token
     is_active = Column(Boolean, default=True, nullable=False)
+    is_builtin = Column(Boolean, default=False, nullable=False, server_default="0")
     last_test_status = Column(String(20), default="unknown", nullable=False)  # online, offline, unknown
     last_test_time = Column(DateTime, nullable=True)
     last_test_message = Column(String(500), nullable=True)

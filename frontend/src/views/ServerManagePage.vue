@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <div class="space-y-4">
+    <BuiltinFrpsPanel @changed="serversStore.loadServers(1)" />
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div class="flex flex-col gap-3 border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-2">
         <h3 class="text-base font-semibold text-gray-900">服务器管理</h3>
@@ -74,7 +75,7 @@
                       <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
                     </svg>
                   </button>
-                  <button class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
+                  <button v-if="!server.is_builtin" class="btn btn-icon-sm btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -89,7 +90,7 @@
                       <path d="M12 5l7 7" />
                     </svg>
                   </button>
-                  <button class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
+                  <button v-if="!server.is_builtin" class="btn btn-icon-sm btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                       <path d="M4 7l16 0" />
@@ -142,7 +143,7 @@
                   <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
                 </svg>
               </button>
-              <button class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
+              <button v-if="!server.is_builtin" class="btn btn-icon-md btn-icon-muted" @click="editServer(server)" title="编辑" aria-label="编辑">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" />
@@ -157,7 +158,7 @@
                   <path d="M12 5l7 7" />
                 </svg>
               </button>
-              <button class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
+              <button v-if="!server.is_builtin" class="btn btn-icon-md btn-icon-danger" @click="deleteServer(server)" title="删除" aria-label="删除">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M4 7l16 0" />
@@ -303,6 +304,7 @@
 </template>
 
 <script setup>
+import BuiltinFrpsPanel from '@/components/BuiltinFrpsPanel.vue'
 import TablePagination from '@/components/TablePagination.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useServersStore } from '@/stores/servers'

@@ -1,5 +1,6 @@
 """端口管理服务"""
 from typing import List, Optional
+from itertools import chain
 from sqlalchemy.orm import Session
 from datetime import datetime
 import json
@@ -7,6 +8,10 @@ import json
 from app.models.port import PortAllocation
 from app.models.proxy import Proxy
 from app.models.history import ProxyHistory
+from app.models.frps_server import FrpsServer
+from app.models.builtin_frps import BuiltinFrpsConfig
+from app.services.builtin_frps_config import allowed_ranges, parse_document
+from app.services.credential_encryption import decrypt_secret
 
 
 class PortService:
@@ -14,6 +19,27 @@ class PortService:
     
     def __init__(self, db: Session):
         self.db = db
+
+    def builtin_ranges(self, server_id):
+        server = self.db.get(FrpsServer, server_id)
+        if server and server.is_builtin:
+            config = self.db.get(BuiltinFrpsConfig, 1)
+            if config:
+                if config.raw_config_encrypted:
+                    content = decrypt_secret(config.raw_config_encrypted)
+                    if not content:
+                        raise ValueError("内置 FRP 端口配置无法解密")
+                    return allowed_ranges(parse_document(content))
+                return [(config.proxy_port_start, config.proxy_port_end)]
+        return None
+
+    def builtin_bounds(self, server_id):
+        ranges = self.builtin_ranges(server_id)
+        return (min(start for start, _ in ranges), max(end for _, end in ranges)) if ranges else None
+
+    def is_allowed_port(self, server_id, port):
+        ranges = self.builtin_ranges(server_id)
+        return ranges is None or any(start <= port <= end for start, end in ranges)
     
     def allocate_port(
         self,
@@ -32,6 +58,9 @@ class PortService:
         Returns:
             端口分配记录
         """
+        bounds = self.builtin_bounds(frps_server_id)
+        if bounds and not self.is_allowed_port(frps_server_id, port):
+            raise ValueError(f"内置 FRP 只允许代理端口 {bounds[0]}–{bounds[1]}")
         # 检查端口是否已分配
         existing = self.db.query(PortAllocation).filter(
             PortAllocation.frps_server_id == frps_server_id,
@@ -129,6 +158,9 @@ class PortService:
         Returns:
             端口是否可用
         """
+        bounds = self.builtin_bounds(frps_server_id)
+        if bounds and not self.is_allowed_port(frps_server_id, port):
+            return False
         # 检查PortAllocation表中是否已分配
         allocation = self.db.query(PortAllocation).filter(
             PortAllocation.frps_server_id == frps_server_id,
@@ -231,8 +263,8 @@ class PortService:
     def get_next_available_port(
         self,
         frps_server_id: int,
-        start_port: int = 6000,
-        end_port: int = 7000,
+        start_port: Optional[int] = None,
+        end_port: Optional[int] = None,
         exclude_proxy_names: List[str] = None
     ) -> Optional[int]:
         """获取下一个可用端口
@@ -250,6 +282,11 @@ class PortService:
         Returns:
             可用端口号，如果没有可用端口返回 None
         """
+        bounds = self.builtin_bounds(frps_server_id)
+        start_port = start_port if start_port is not None else (bounds[0] if bounds else 6000)
+        end_port = end_port if end_port is not None else (bounds[1] if bounds else 7000)
+        if bounds:
+            start_port, end_port = max(start_port, bounds[0]), min(end_port, bounds[1])
         # 获取PortAllocation表中已分配的端口
         allocated_ports = set(
             alloc.port for alloc in self.get_allocated_ports(frps_server_id)
@@ -271,6 +308,18 @@ class PortService:
         for (port,) in proxy_ports:
             if port is not None:
                 allocated_ports.add(port)
+
+        if bounds:
+            # The configured allowPorts is a hard boundary, including when the pool is full.
+            ranges = self.builtin_ranges(frps_server_id)
+            used = {port for port in allocated_ports if start_port <= port <= end_port and any(a <= port <= b for a, b in ranges)}
+            next_port = max(used, default=start_port - 1) + 1
+            suffix = (range(max(next_port, start), min(end_port, end) + 1) for start, end in ranges)
+            holes = (range(max(start_port, start), min(next_port - 1, end_port, end) + 1) for start, end in ranges)
+            for candidate in chain(chain.from_iterable(suffix), chain.from_iterable(holes)):
+                if candidate not in used:
+                    return candidate
+            return None
         
         # 如果没有已使用的端口，从start_port开始
         if not allocated_ports:

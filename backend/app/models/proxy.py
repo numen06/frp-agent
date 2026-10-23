@@ -1,6 +1,6 @@
 """代理记录模型"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -23,12 +23,23 @@ class Proxy(Base):
     local_port = Column(Integer, nullable=False)
     client_name = Column(String(100), nullable=True)  # 客户端名称
     client_version = Column(String(50), nullable=True)  # frpc 上报版本
+    today_traffic_in = Column(BigInteger, nullable=True)
+    today_traffic_out = Column(BigInteger, nullable=True)
+    cur_conns = Column(Integer, nullable=True)
+    traffic_updated_at = Column(DateTime, nullable=True)
     status = Column(String(20), default="offline")  # online, offline
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # 关系
     frps_server = relationship("FrpsServer", back_populates="proxies")
+
+    def update_traffic(self, info: dict):
+        """保存 frps 当前日计数快照；不累加，避免重复同步或重启造成重复计费。"""
+        for key in ("today_traffic_in", "today_traffic_out", "cur_conns"):
+            value = info.get(key)
+            setattr(self, key, max(0, int(value)) if value is not None else None)
+        self.traffic_updated_at = datetime.utcnow()
     
     @staticmethod
     def parse_group_name(proxy_name: str) -> str:

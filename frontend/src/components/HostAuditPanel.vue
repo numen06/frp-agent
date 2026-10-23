@@ -1,7 +1,7 @@
 <template>
   <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
-      <h2 class="font-semibold">访问审计</h2>
+      <h2 class="font-semibold">访问审计与流量统计</h2>
       <div class="flex flex-wrap gap-2">
         <button type="button" class="btn btn-sm btn-outline" :disabled="list.loading.value" @click="reload">刷新</button>
         <button v-if="isAdmin" type="button" class="btn btn-sm btn-outline text-red-600" :disabled="!selected.length || maintaining" @click="removeSelected">删除所选（{{ selected.length }}）</button>
@@ -17,6 +17,14 @@
       <label class="min-w-0 text-xs text-gray-500">结束时间<input v-model="filters.end_time" type="datetime-local" aria-label="审计结束时间" class="mt-1 block w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2"></label>
       <div class="flex items-end gap-2"><button type="submit" class="btn btn-md btn-primary" :disabled="list.loading.value">查询</button><button type="button" class="btn btn-md btn-outline" @click="resetFilters">重置</button></div>
     </form>
+    <div v-if="summary" class="border-b border-gray-200 p-4">
+      <dl class="grid gap-3 text-sm sm:grid-cols-3">
+        <div class="rounded-lg bg-blue-50 p-3"><dt class="text-xs text-gray-500">发送到主机</dt><dd class="mt-1 text-lg font-semibold">{{ formatBytes(summary.bytes_sent) }}</dd></div>
+        <div class="rounded-lg bg-emerald-50 p-3"><dt class="text-xs text-gray-500">从主机接收</dt><dd class="mt-1 text-lg font-semibold">{{ formatBytes(summary.bytes_received) }}</dd></div>
+        <div class="rounded-lg bg-gray-50 p-3"><dt class="text-xs text-gray-500">已采集的访问 / 操作</dt><dd class="mt-1 text-lg font-semibold">{{ summary.measured_count }} 次</dd></div>
+      </dl>
+      <p class="mt-3 text-xs leading-5 text-gray-500">累计当前筛选条件下所有保留记录，连接或操作结束后入账；清理日志会同步减少统计。发送/接收按平台到主机方向，SSH/RDP 统计应用数据（不含加密开销），Docker 统计请求/响应正文。旧记录及未采集的操作显示“未采集”。</p>
+    </div>
     <p v-if="list.error.value || error" role="alert" class="p-4 text-sm text-red-600">{{ list.error.value || error }}</p>
     <p v-if="notice" role="status" class="px-4 py-2 text-sm text-emerald-700">{{ notice }}</p>
     <p v-if="list.loading.value" role="status" class="p-6 text-center text-sm text-gray-500">正在加载日志…</p>
@@ -25,13 +33,13 @@
         <table class="w-full min-w-[1000px] text-left text-sm">
           <thead class="bg-gray-50 text-xs text-gray-500"><tr>
             <th v-if="isAdmin" class="px-4 py-3"><input type="checkbox" aria-label="选择本页日志" :checked="allSelected" @change="toggleAll"></th>
-            <th class="px-4 py-3">时间</th><th class="px-4 py-3">操作者</th><th class="px-4 py-3">主机</th><th class="px-4 py-3">动作</th><th class="px-4 py-3">目标/命令</th><th class="px-4 py-3">结果</th><th class="px-4 py-3">来源 IP</th><th class="px-4 py-3">详情</th>
+            <th class="px-4 py-3">时间</th><th class="px-4 py-3">操作者</th><th class="px-4 py-3">主机</th><th class="px-4 py-3">动作</th><th class="px-4 py-3">目标/命令</th><th class="px-4 py-3">结果</th><th class="px-4 py-3">发送 / 接收</th><th class="px-4 py-3">来源 IP</th><th class="px-4 py-3">详情</th>
           </tr></thead>
           <tbody><tr v-for="log in list.items.value" :key="log.id" class="border-t border-gray-100">
             <td v-if="isAdmin" class="px-4 py-3"><input v-model="selected" type="checkbox" :value="log.id" :aria-label="`选择日志 ${log.id}`"></td>
             <td class="whitespace-nowrap px-4 py-3 text-xs">{{ date(log.created_at) }}</td><td class="px-4 py-3">{{ log.actor_name }}</td><td class="px-4 py-3">{{ log.host_name }}</td><td class="px-4 py-3">{{ actions[log.action] || log.action }}</td>
             <td class="max-w-xs truncate px-4 py-3 font-mono text-xs" :title="log.command || log.target">{{ log.command || log.target || '-' }}</td>
-            <td class="px-4 py-3" :class="log.status === 'success' ? 'text-emerald-600' : 'text-red-600'">{{ log.status }}</td><td class="px-4 py-3 text-xs">{{ log.client_ip || '-' }}</td>
+            <td class="px-4 py-3" :class="log.status === 'success' ? 'text-emerald-600' : 'text-red-600'">{{ log.status }}</td><td class="whitespace-nowrap px-4 py-3 text-xs">{{ formatBytes(log.bytes_sent) }} / {{ formatBytes(log.bytes_received) }}</td><td class="px-4 py-3 text-xs">{{ log.client_ip || '-' }}</td>
             <td class="px-4 py-3"><button type="button" class="btn btn-sm btn-outline" @click="showDetail(log.id)">详情</button></td>
           </tr></tbody>
         </table>
@@ -41,6 +49,7 @@
           <div class="flex items-start justify-between gap-2"><label class="flex min-w-0 items-center gap-2"><input v-if="isAdmin" v-model="selected" type="checkbox" :value="log.id" :aria-label="`选择日志 ${log.id}`"><span class="break-all font-medium">{{ log.host_name }}</span></label><span class="shrink-0 text-sm" :class="log.status === 'success' ? 'text-emerald-600' : 'text-red-600'">{{ log.status }}</span></div>
           <p class="text-xs text-gray-500">{{ log.actor_name }} · {{ date(log.created_at) }}</p>
           <p class="text-sm">{{ actions[log.action] || log.action }}</p>
+          <p class="text-xs text-gray-600">发送 {{ formatBytes(log.bytes_sent) }} · 接收 {{ formatBytes(log.bytes_received) }}</p>
           <pre v-if="log.command || log.target" class="overflow-auto rounded-lg bg-gray-50 p-2 text-xs">{{ log.command || log.target }}</pre>
           <div class="flex flex-wrap items-center justify-between gap-2"><span class="break-all text-xs text-gray-500">来源：{{ log.client_ip || '-' }}</span><button type="button" class="btn btn-sm btn-outline" @click="showDetail(log.id)">详情</button></div>
         </article>
@@ -54,6 +63,7 @@
     <template v-else>
       <dl class="grid grid-cols-[auto_1fr] gap-3 text-sm"><dt>时间</dt><dd>{{ date(detail.created_at) }}</dd><dt>主机</dt><dd class="break-all">{{ detail.host_name }}</dd><dt>操作者</dt><dd>{{ detail.actor_name }}（{{ detail.actor_type }}）</dd><dt>动作</dt><dd>{{ actions[detail.action] || detail.action }}</dd><dt>来源 IP</dt><dd>{{ detail.client_ip || '-' }}</dd><dt>结果</dt><dd>{{ detail.status }} · 退出码 {{ detail.exit_code ?? '-' }} · {{ detail.duration_ms ?? '-' }}ms</dd></dl>
       <div v-for="field in detailFields" :key="field.key" class="mt-4"><h3 class="mb-1 text-sm font-medium">{{ field.label }}</h3><pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-50 p-3 text-xs">{{ detail[field.key] || '-' }}</pre></div>
+      <p class="mt-4 text-sm">发送到主机 {{ formatBytes(detail.bytes_sent) }} · 从主机接收 {{ formatBytes(detail.bytes_received) }}</p>
     </template>
     <template #footer><button type="button" class="btn btn-md btn-outline" @click="detailOpen = false">关闭详情</button></template>
   </AppDialog>
@@ -74,10 +84,20 @@ import RemoteSelect from './RemoteSelect.vue'
 import TablePagination from './TablePagination.vue'
 import { managedHostsApi } from '@/api/managedHosts'
 import { usePagedList } from '@/composables/usePagedList'
-defineProps({ isAdmin: Boolean })
-const filters = reactive({ host_id: '', action: '', status: '', start_time: '', end_time: '' })
-let applied = {}
-const list = usePagedList(params => managedHostsApi.audit({ ...params, ...applied }))
+import { formatBytes } from '@/utils/traffic'
+const props = defineProps({ isAdmin: Boolean, hostId: { type: [Number, String], default: '' } })
+const filters = reactive({ host_id: props.hostId, action: '', status: '', start_time: '', end_time: '' })
+let applied = props.hostId ? { host_id: props.hostId } : {}
+const summary = ref(null)
+let requestId = 0
+const list = usePagedList(async params => {
+  const id = ++requestId
+  summary.value = null
+  const query = { ...params, ...applied }
+  const [data, traffic] = await Promise.all([managedHostsApi.audit(query), managedHostsApi.traffic(query)])
+  if (id === requestId) summary.value = traffic
+  return data
+})
 const selected = ref([]), error = ref(''), notice = ref(''), maintaining = ref(false)
 const detailOpen = ref(false), detail = ref(null), cleanupOpen = ref(false), keepDays = ref(90), preview = ref(null)
 const detailFields = [{ key: 'target', label: '目标' }, { key: 'command', label: '命令' }, { key: 'stdout', label: '标准输出' }, { key: 'stderr', label: '错误输出' }]
@@ -117,5 +137,6 @@ async function cleanup() {
   try { const result = await managedHostsApi.cleanupAudit({ keep_days: keepDays.value, host_id: filters.host_id || undefined, dry_run: false }); notice.value = `已清理 ${result.deleted} 条旧日志`; cleanupOpen.value = false; selected.value = []; await list.load() } catch (e) { error.value = e.message } finally { maintaining.value = false }
 }
 defineExpose({ load: reload })
+watch(() => props.hostId, value => { filters.host_id = value; applyFilters() })
 onMounted(() => list.load(1))
 </script>

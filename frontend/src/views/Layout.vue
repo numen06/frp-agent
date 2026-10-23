@@ -177,6 +177,8 @@
       </div>
     </footer>
 
+    <BuiltinFrpsIntro v-if="currentUserRole === 'admin'" :blocked="showUserManageDialog || showVersionModal" />
+
     <!-- 新版本提示 -->
     <Transition name="toast">
       <div
@@ -356,6 +358,7 @@
 </template>
 
 <script setup>
+import BuiltinFrpsIntro from '@/components/BuiltinFrpsIntro.vue'
 import { apiKeysApi } from '@/api/apiKeys'
 import RemoteSelect from '@/components/RemoteSelect.vue'
 import { ref, watch, onMounted, computed } from 'vue'
