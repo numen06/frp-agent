@@ -225,6 +225,27 @@ def test_raw_configuration_preserves_plugins_and_non_contiguous_port_pools(setup
     with pytest.raises(ValueError): ports.allocate_port(server.id, 18001, 'gap')
 
 
+def test_raw_import_preserves_legacy_credentials_but_new_form_tokens_stay_strong(setup, monkeypatch):
+    db, service = setup
+    monkeypatch.setattr(service, '_write_config', lambda *a, **kw: None)
+    document = tomllib.loads(service.raw_document(db)['content'])
+    document['auth']['token'] = 'oldtoken'
+    document['webServer']['password'] = 'oldpasswd'
+    content = toml.dumps(document)
+    service.apply(db, BuiltinFrpsRawUpdate(content=content))
+    service.apply(db, BuiltinFrpsUpdate(log_level='warn'))
+    values = runtime_config(db.get(BuiltinFrpsConfig, 1))
+    assert values['auth_token'] == 'oldtoken' and values['dashboard_password'] == 'oldpasswd'
+    assert tomllib.loads(service.raw_document(db)['content'])['log']['level'] == 'warn'
+    with pytest.raises(ValidationError):
+        BuiltinFrpsUpdate(auth_token='newshort')
+    for path, value in [('token', ''), ('token', 'bad\nvalue'), ('password', '')]:
+        invalid = tomllib.loads(content)
+        invalid['auth' if path == 'token' else 'webServer'][path] = value
+        with pytest.raises(ValueError):
+            service.apply(db, BuiltinFrpsRawUpdate(content=toml.dumps(invalid)))
+
+
 def test_raw_api_is_admin_only_and_does_not_cache_secrets(setup, monkeypatch):
     from app.routers import builtin_frps as router
     db, service = setup

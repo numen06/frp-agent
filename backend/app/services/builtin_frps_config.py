@@ -90,12 +90,18 @@ def validate_document(content, enabled=False, public_addr=""):
         raise ValueError("请保留有效的 webServer.port 供平台内部管理使用")
     if not isinstance(web.get("user"), str) or not 1 <= len(web["user"]) <= 100:
         raise ValueError("webServer.user 必须为 1–100 个字符")
-    if not isinstance(web.get("password"), str) or not 16 <= len(web["password"]) <= 255:
-        raise ValueError("webServer.password 至少 16 个字符；建议保留系统自动生成的密码")
-    if not isinstance(at(document, ("auth", "token")), str) or not at(document, ("auth", "token")):
-        raise ValueError("auth.token 不能为空；可在安全设置中使用系统自动生成的 Token")
-    form = BuiltinFrpsUpdate(**form_from_document(document), enabled=enabled, public_addr=public_addr)
-    return {**form.model_dump(), "dashboard_username": web["user"], "dashboard_password": web["password"],
+    if not isinstance(web.get("password"), str) or not 1 <= len(web["password"]) <= 255:
+        raise ValueError("webServer.password 必须为 1–255 个字符；建议使用系统自动生成的密码")
+    token = at(document, ("auth", "token"))
+    if not isinstance(token, str) or not 1 <= len(token) <= 255:
+        raise ValueError("auth.token 必须为 1–255 个字符；可使用系统自动生成的 Token")
+    BuiltinFrpsUpdate.validate_token(token)
+    # Raw imports retain legacy credentials so existing clients can reconnect.
+    # Basic form changes still require new tokens to contain at least 16 characters.
+    values = form_from_document(document)
+    values.pop("auth_token")
+    form = BuiltinFrpsUpdate(**values, enabled=enabled, public_addr=public_addr)
+    return {**form.model_dump(), "auth_token": token, "dashboard_username": web["user"], "dashboard_password": web["password"],
             "raw_config": content, "_raw_exact": True}
 
 
