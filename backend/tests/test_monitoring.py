@@ -21,6 +21,8 @@ from app.models.proxy import Proxy
 from app.models.history import ProxyHistory
 from app.models.runtime import RuntimeSample, ServerSyncState, ProxyProbe
 from app.models.user import User
+from app.models.managed_host import ManagedHost, HostAuditLog
+from app.models.ssh_credential import SshCredential
 from app.services import monitoring_service, runtime_service
 from app.services.rdp_gateway_service import RDPGatewayService
 
@@ -209,8 +211,42 @@ def test_runtime_overview_is_admin_only_and_marks_stale_data(db):
         assert result['probes'][0]['status'] == 'stale'
         assert result['history'][0]['cpu_percent'] is None
         assert 'not-logged' not in response.text
+        assert result['vnc']['total'] == 0 and result['vnc']['connected'] == 0
     finally:
         app.dependency_overrides.clear()
+
+
+def test_vnc_overview_uses_shared_audit_without_double_counting_or_secrets(db):
+    from app.routers.runtime import overview
+    from fastapi import Response
+    now = datetime.utcnow()
+    credential = SshCredential(name='private', username='private-user', auth_type='password', password_encrypted='secret-ciphertext')
+    db.add(credential); db.flush()
+    ssh = ManagedHost(name='Mac SSH', address='mac.internal', host_type='ssh', credential_id=credential.id, host_key_fingerprint='SHA256:pin')
+    db.add(ssh); db.flush()
+    host = ManagedHost(name='Mac VNC', address='127.0.0.1', host_type='vnc', credential_id=credential.id, vnc_ssh_host_id=ssh.id,
+                       last_status='online', last_checked_at=now-timedelta(days=2))
+    broken = ManagedHost(name='Broken VNC', address='127.0.0.1', host_type='vnc')
+    disabled = ManagedHost(name='Disabled VNC', address='127.0.0.1', host_type='vnc', is_active=False)
+    db.add_all([host, broken, disabled]); db.flush()
+    def log(action, status, sent, received, at=now):
+        return HostAuditLog(host_id=host.id, actor_type='user', actor_id=1, actor_name='private-user', action=action,
+                            status=status, bytes_sent=sent, bytes_received=received, stderr='secret-error', created_at=at)
+    db.add_all([log('vnc_connected', 'success', 100, 200), log('vnc_session', 'success', 100, 200),
+                log('vnc_session', 'failed', 10, 20), log('ssh_session', 'success', 999, 999),
+                log('vnc_connected', 'success', 999, 999, now-timedelta(days=2))]); db.commit()
+    result = overview(Response(), db, User(id=1, role='admin'))['vnc']
+    assert (result['total'], result['enabled'], result['needs_attention']) == (3, 2, 1)
+    assert (result['connected'], result['ended'], result['failed']) == (1, 2, 1)
+    assert (result['bytes_sent'], result['bytes_received']) == (110, 220)
+    row = next(row for row in result['hosts'] if row['id'] == host.id)
+    assert row['issues'] == [] and row['check_status'] == 'online' and row['checked_at'].endswith('Z')
+    assert len(result['failures']) == 1 and result['failures'][0]['host_id'] == host.id
+    assert not any(secret in str(result) for secret in ['secret-ciphertext', 'secret-error', 'private-user', 'mac.internal', 'SHA256:pin'])
+    ssh.is_active = False; ssh.host_key_fingerprint = None; db.commit()
+    result = overview(Response(), db, User(id=1, role='admin'))['vnc']
+    row = next(row for row in result['hosts'] if row['id'] == host.id)
+    assert result['needs_attention'] == 2 and 'SSH 指纹尚未固定' in row['issues']
 
 
 def test_rdp_upstream_outage_does_not_ban_clients(monkeypatch):

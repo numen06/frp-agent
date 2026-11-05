@@ -350,6 +350,9 @@
               </p>
             </div></TabsContent
           >
+          <TabsContent v-if="activeTab === 'vnc'" value="vnc">
+            <VncProtectionPanel :snapshot="data?.vnc" />
+          </TabsContent>
           <TabsContent v-if="activeTab === 'ssh'" value="ssh"
             ><SshProtectionPanel
           /></TabsContent></div
@@ -362,6 +365,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import SshProtectionPanel from "@/components/SshProtectionPanel.vue";
+import VncProtectionPanel from "@/components/VncProtectionPanel.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import api from "@/api";
@@ -377,6 +381,7 @@ const tabs = [
   { key: "connections", label: "连接检查" },
   { key: "rdp", label: "RDP 防护" },
   { key: "ssh", label: "SSH 防护" },
+  { key: "vnc", label: "VNC 防护" },
 ];
 const activeTab = computed({
   get: () =>
@@ -405,6 +410,7 @@ const attention = computed(
     data.value?.servers.some((s) => s.status !== "success") ||
     rdp.value?.blocked_sources ||
     (rdp.value?.enabled && !rdp.value.running) ||
+    data.value?.vnc?.needs_attention ||
     cards.value.some((c) => c.percent >= 90),
 );
 const healthText = computed(() =>

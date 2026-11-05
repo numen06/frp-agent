@@ -1,7 +1,8 @@
 """Administrator-only runtime overview; all timestamps explicitly use UTC."""
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Response
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user
 from app.config import get_settings
@@ -11,6 +12,7 @@ from app.models.history import ProxyHistory
 from app.models.proxy import Proxy
 from app.models.runtime import ProxyProbe, RuntimeSample, ServerSyncState
 from app.models.user import User
+from app.models.managed_host import HostAuditLog, ManagedHost
 from app.services.host_access_service import require_admin
 from app.services.monitoring_service import SAMPLE_SECONDS, PROBE_SECONDS, RETENTION_DAYS
 
@@ -19,6 +21,59 @@ router = APIRouter(prefix='/api/system', tags=['运行监控'])
 
 def utc(value):
     return value.isoformat() + 'Z' if value else None
+
+
+def vnc_overview(db, now):
+    """Shared audit data works across the HTTP and WebSocket worker processes."""
+    hosts = db.query(ManagedHost).options(joinedload(ManagedHost.credential)).filter_by(host_type='vnc').order_by(ManagedHost.name).all()
+    ssh_ids = {host.vnc_ssh_host_id for host in hosts if host.vnc_ssh_host_id}
+    ssh_hosts = {host.id: host for host in db.query(ManagedHost).options(joinedload(ManagedHost.credential)).filter(ManagedHost.id.in_(ssh_ids)).all()}
+    rows = []
+    for host in hosts:
+        ssh = ssh_hosts.get(host.vnc_ssh_host_id)
+        issues = []
+        if host.address != '127.0.0.1':
+            issues.append('目标必须为 Mac 回环地址')
+        if not host.credential or host.credential.auth_type != 'password' or not host.credential.password_encrypted:
+            issues.append('缺少 VNC 密码凭据')
+        if not ssh or ssh.host_type != 'ssh':
+            issues.append('关联的 SSH 主机不可用')
+        else:
+            if not ssh.is_active:
+                issues.append('关联的 SSH 主机已停用')
+            if not ssh.credential or not (
+                    ssh.credential.auth_type == 'password' and ssh.credential.password_encrypted or
+                    ssh.credential.auth_type == 'private_key' and ssh.credential.private_key_encrypted):
+                issues.append('SSH 主机缺少凭据')
+            if not ssh.host_key_fingerprint:
+                issues.append('SSH 指纹尚未固定')
+        # A previous successful manual check is not a continuous health probe.
+        rows.append(dict(id=host.id, name=host.name, enabled=host.is_active,
+                         ssh_name=ssh.name if ssh else None, issues=issues,
+                         checked_at=utc(host.last_checked_at),
+                         check_status=host.last_status if host.last_checked_at else 'unknown'))
+    audit = db.query(HostAuditLog).filter(HostAuditLog.created_at >= now - timedelta(hours=24),
+                                        HostAuditLog.action.in_(['vnc_connected', 'vnc_session']))
+    connected = ended = failed = sent = received = 0
+    for action, status, count, upload, download in audit.with_entities(
+            HostAuditLog.action, HostAuditLog.status, func.count(HostAuditLog.id),
+            func.sum(HostAuditLog.bytes_sent), func.sum(HostAuditLog.bytes_received)).group_by(
+                HostAuditLog.action, HostAuditLog.status).all():
+        if action == 'vnc_connected' and status == 'success':
+            connected += count
+        if action == 'vnc_session':
+            ended += count
+            failed += count if status == 'failed' else 0
+            sent += upload or 0
+            received += download or 0
+    failures = [dict(host_id=log.host_id, name=name, at=utc(log.created_at))
+                for log, name in audit.join(ManagedHost, ManagedHost.id == HostAuditLog.host_id).with_entities(
+                    HostAuditLog, ManagedHost.name).filter(HostAuditLog.action == 'vnc_session', HostAuditLog.status == 'failed').order_by(
+                    HostAuditLog.created_at.desc(), HostAuditLog.id.desc()).limit(8)]
+    return dict(collected_at=utc(now), total=len(rows), enabled=sum(row['enabled'] for row in rows),
+                needs_attention=sum(row['enabled'] and bool(row['issues']) for row in rows),
+                connected=connected, ended=ended, failed=failed, bytes_sent=sent, bytes_received=received,
+                hosts=rows[:100], truncated=len(rows) > 100, failures=failures)
 
 
 @router.get('/overview')
@@ -66,4 +121,4 @@ def overview(response: Response, db: Session = Depends(get_db), current_user: Us
                 latest=latest.metrics if latest else None,
                 sample_stale=not latest or (now - latest.collected_at).total_seconds() > SAMPLE_SECONDS * 3,
                 servers=servers, probes=sorted(probes, key=lambda p: (p['status'] == 'healthy', p['name'])),
-                history=list(buckets.values()), events=events)
+                history=list(buckets.values()), events=events, vnc=vnc_overview(db, now))
