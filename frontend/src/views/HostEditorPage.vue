@@ -22,7 +22,7 @@
         type="submit"
         form="host-editor-form"
         :disabled="
-          savingHost || fetchingRdpFingerprint || savingDockerCredential
+          savingHost || fetchingRdpFingerprint || savingDockerCredential || testingVncSsh
         "
         variant="default"
         size="default"
@@ -58,7 +58,7 @@
       >
         此主机尚未激活。保存凭据等配置后，请返回主机列表进行连接测试，通过后自动启用。
       </p>
-      <fieldset :disabled="savingHost" class="min-w-0 space-y-5">
+      <fieldset :disabled="savingHost || testingVncSsh" class="min-w-0 space-y-5">
         <Card
           ><CardHeader
             ><h2 class="text-base font-semibold">基本信息</h2></CardHeader
@@ -95,6 +95,7 @@
               ><label class="text-sm"
                 >连接地址<Input
                   v-model.trim="hostForm.address"
+                  :readonly="hostForm.host_type === 'vnc'"
                   class="mt-1 w-full"
                   :placeholder="
                     hostForm.host_type === 'docker'
@@ -249,18 +250,26 @@
                     (params) =>
                       managedHostsApi.list({ ...params, host_type: 'ssh' })
                   "
-                  :resolve-option="
-                    async (id) =>
-                      (
-                        await managedHostsApi.list({
-                          host_id: id,
-                          page: 1,
-                          page_size: 1,
-                        })
-                      ).items[0]
-                  "
+                  :resolve-option="resolveVncSsh"
+                  @select="selectVncSsh"
                 />
               </label>
+              <div v-if="vncSshHost" class="space-y-3 rounded-lg border p-3">
+                <p v-if="!vncSshHost.is_active" class="text-sm text-amber-700">关联 SSH 主机已停用，请先启用并配置凭据。</p>
+                <p v-else-if="!vncSshHost.credential_id" class="text-sm text-amber-700">关联 SSH 主机尚未配置凭据，请先完成配置。</p>
+                <p v-else class="text-sm text-muted-foreground">{{ vncSshHost.host_key_fingerprint ? '已记录 SSH 指纹；连接时会严格校验。' : '尚未记录 SSH 指纹，点击下方检测，无需手动输入。' }}</p>
+                <code v-if="vncSshHost.host_key_fingerprint" class="block break-all text-xs">{{ vncSshHost.host_key_fingerprint }}</code>
+                <div class="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" :disabled="testingVncSsh || !vncSshHost.is_active || !vncSshHost.credential_id" @click="testVncSsh">
+                    {{ testingVncSsh ? 'SSH 检测中…' : vncSshHost.host_key_fingerprint ? '重新检测 SSH' : '检测并记录 SSH 指纹' }}
+                  </Button>
+                  <Button as-child variant="outline"><router-link :to="`/hosts/${vncSshHost.id}/edit`">配置 SSH 主机</router-link></Button>
+                </div>
+                <p class="text-xs leading-5 text-muted-foreground">检测使用这台 SSH 主机已有的凭据。首次成功连接会记录指纹，请与 Mac 本机核对一次；已有指纹不匹配时会拒绝连接，不会覆盖。</p>
+                <p v-if="vncSshMessage" role="status" class="text-sm text-emerald-700">{{ vncSshMessage }}</p>
+                <p v-if="vncSshError" role="alert" class="break-words text-sm text-destructive">{{ vncSshError }}</p>
+              </div>
+              <p v-else class="text-xs text-muted-foreground">先选择对应 Mac 的 SSH 主机；可在此检测并记录指纹，再保存 VNC 主机。</p>
               <SshCredentialForm
                 v-model="hostForm.credential_id"
                 password-only
@@ -354,7 +363,7 @@
         ><Button
           type="submit"
           :disabled="
-            savingHost || fetchingRdpFingerprint || savingDockerCredential
+            savingHost || fetchingRdpFingerprint || savingDockerCredential || testingVncSsh
           "
           variant="default"
           size="default"
@@ -439,6 +448,7 @@ const loading = ref(true),
   fetchingRdpFingerprint = ref(false);
 const dockerCredentialEditor = ref(false),
   savingDockerCredential = ref(false);
+const vncSshHost = ref(null), testingVncSsh = ref(false), vncSshMessage = ref(''), vncSshError = ref('');
 const dockerCredForm = reactive({
   name: "",
   auth_type: "api_key",
@@ -487,6 +497,7 @@ async function load() {
 }
 function setHostType(type) {
   if (hostForm.host_type === type) return;
+  selectVncSsh(null);
   Object.assign(hostForm, {
     host_type: type,
     address:
@@ -506,7 +517,8 @@ async function saveHost() {
   if (
     savingHost.value ||
     fetchingRdpFingerprint.value ||
-    savingDockerCredential.value
+    savingDockerCredential.value ||
+    testingVncSsh.value
   )
     return;
   error.value = "";
@@ -539,6 +551,39 @@ async function saveHost() {
     error.value = e.message;
   } finally {
     savingHost.value = false;
+  }
+}
+function selectVncSsh(host) {
+  vncSshHost.value = host;
+  vncSshMessage.value = '';
+  vncSshError.value = '';
+}
+async function resolveVncSsh(id) {
+  const host = (await managedHostsApi.list({ host_id: id, page: 1, page_size: 1 })).items[0];
+  if (!disposed && hostForm.vnc_ssh_host_id === id) selectVncSsh(host);
+  return host;
+}
+async function testVncSsh() {
+  if (testingVncSsh.value || !hostForm.vnc_ssh_host_id) return;
+  const id = hostForm.vnc_ssh_host_id;
+  testingVncSsh.value = true;
+  error.value = '';
+  vncSshMessage.value = '';
+  vncSshError.value = '';
+  try {
+    const result = await managedHostsApi.test(id);
+    if (disposed || hostForm.vnc_ssh_host_id !== id) return;
+    if (!result.success) throw new Error(result.stderr || 'SSH 检测失败，请检查连接及凭据');
+    await resolveVncSsh(id);
+    if (!disposed && hostForm.vnc_ssh_host_id === id) {
+      if (!vncSshHost.value?.is_active || !vncSshHost.value?.credential_id || !vncSshHost.value?.host_key_fingerprint) throw new Error('SSH 主机配置已变化，请核对启用状态、凭据和指纹后重试');
+      vncSshMessage.value = 'SSH 检测通过，可保存 VNC 主机。';
+      error.value = '';
+    }
+  } catch (e) {
+    if (!disposed && hostForm.vnc_ssh_host_id === id) vncSshError.value = e.message || 'SSH 检测失败，请重试';
+  } finally {
+    testingVncSsh.value = false;
   }
 }
 async function fetchRdpFingerprint() {

@@ -113,18 +113,31 @@ class DesktopFixture:
     def transport(self, sock):
         fixture = self
         class Server(paramiko.ServerInterface):
+            forwarded = set()
             def check_auth_password(self, username, password):
                 return paramiko.AUTH_SUCCESSFUL if username == 'fixture' and password == fixture.ssh_password else paramiko.AUTH_FAILED
             def get_allowed_auths(self, username): return 'password'
+            def check_channel_request(self, kind, chanid):
+                return paramiko.OPEN_SUCCEEDED if kind == 'session' else paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+            def check_channel_exec_request(self, channel, command):
+                def reply():
+                    time.sleep(.05)
+                    channel.sendall(b'Darwin | Kernel fixture | arm64\n')
+                    channel.send_exit_status(0)
+                    channel.close()
+                background(reply)
+                return True
             def check_channel_direct_tcpip_request(self, chanid, origin, destination):
+                self.forwarded.add(chanid)
                 return paramiko.OPEN_SUCCEEDED if destination == ('127.0.0.1',fixture.rfb.getsockname()[1]) else paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
         transport = paramiko.Transport(sock)
         transport.add_server_key(self.key)
         try:
-            transport.start_server(server=Server())
+            server = Server()
+            transport.start_server(server=server)
             while transport.is_active():
                 channel = transport.accept(1)
-                if channel is not None: background(self.forward,channel)
+                if channel is not None and channel.get_id() in server.forwarded: background(self.forward,channel)
         except (EOFError,OSError,paramiko.SSHException):
             pass
         finally:
