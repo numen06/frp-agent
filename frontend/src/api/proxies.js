@@ -1,65 +1,65 @@
-import api from './index'
+import api from "./index";
 
 export const proxyApi = {
   // 获取代理列表
   getProxies(params = {}) {
-    return api.get('/proxies', { params })
+    return api.get("/proxies", { params });
   },
 
   // 获取 Dashboard 统计数据（兼容：单次返回汇总 + 各服务器）
   getDashboardStats() {
-    return api.get('/proxies/dashboard-stats')
+    return api.get("/proxies/dashboard-stats");
   },
 
   /** Dashboard 全局汇总（首屏优先） */
   getDashboardSummary() {
-    return api.get('/proxies/dashboard-stats/summary')
+    return api.get("/proxies/dashboard-stats/summary");
   },
 
   /** Dashboard 各服务器统计（可与 summary 分开发起） */
   getDashboardServerStats(serverIds = []) {
-    const params = new URLSearchParams()
-    serverIds.forEach(id => params.append('server_ids', id))
-    return api.get('/proxies/dashboard-stats/server-stats', { params })
+    const params = new URLSearchParams();
+    serverIds.forEach((id) => params.append("server_ids", id));
+    return api.get("/proxies/dashboard-stats/server-stats", { params });
   },
-  
+
   // 获取代理详情
   getProxy(id) {
-    return api.get(`/proxies/${id}`)
+    return api.get(`/proxies/${id}`);
   },
-  
+
   // 创建代理
   createProxy(data) {
-    return api.post('/proxies', data)
+    return api.post("/proxies", data);
   },
-  
+
   // 更新代理
   updateProxy(id, data) {
-    return api.put(`/proxies/${id}`, data)
+    return api.put(`/proxies/${id}`, data);
   },
-  
+
   // 批量更新代理分组
   async bulkUpdateGroup(proxyIds, groupName) {
     // 逐个更新代理分组
-    const promises = proxyIds.map(id => 
-      api.put(`/proxies/${id}`, { group_name: groupName })
-    )
-    return Promise.all(promises)
+    const promises = proxyIds.map((id) =>
+      api.put(`/proxies/${id}`, { group_name: groupName }),
+    );
+    return Promise.all(promises);
   },
-  
+
   // 删除代理
   deleteProxy(id) {
-    return api.delete(`/proxies/${id}`)
+    return api.delete(`/proxies/${id}`);
   },
-  
+
   // 批量识别端口
   batchDetectPorts(proxyIds) {
-    return api.post('/proxies/batch-detect-ports', { proxy_ids: proxyIds })
+    return api.post("/proxies/batch-detect-ports", { proxy_ids: proxyIds });
   },
 
   // 清理重复代理（同一服务器下同名代理只保留一条）
   cleanDuplicates(frpsServerId = null) {
-    const params = frpsServerId ? { frps_server_id: frpsServerId } : {}
-    return api.post('/proxies/clean-duplicates', null, { params })
-  }
-}
+    const params = frpsServerId ? { frps_server_id: frpsServerId } : {};
+    return api.post("/proxies/clean-duplicates", null, { params });
+  },
+};

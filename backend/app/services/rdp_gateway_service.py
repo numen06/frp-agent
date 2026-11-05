@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import dataclass, field
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
@@ -91,12 +91,12 @@ def rdp_target(host):
     return f"[{address}]:{host.port}" if ":" in address else f"{address}:{host.port}"
 
 
-def probe_rdp_fingerprint(address, port):
+def probe_rdp_fingerprint(address, port, timeout=8):
     """Inspect the target certificate without sending any Windows credentials."""
     address = validate_rdp_address(address.strip())
     if not 1 <= port <= 65535:
         raise HTTPException(status_code=400, detail="RDP 端口无效")
-    deadline = time.monotonic() + 8
+    deadline = time.monotonic() + timeout
 
     def remaining():
         seconds = deadline - time.monotonic()
@@ -115,7 +115,7 @@ def probe_rdp_fingerprint(address, port):
         return data
 
     try:
-        with socket.create_connection((address, port), timeout=5) as sock:
+        with socket.create_connection((address, port), timeout=min(5, remaining())) as sock:
             sock.sendall(bytes.fromhex("030000130ee000000000000100080003000000"))
             header = read(sock, 4)
             size = int.from_bytes(header[2:], "big")
@@ -137,7 +137,9 @@ def probe_rdp_fingerprint(address, port):
                     raise ValueError("目标未提供 RDP 证书")
                 return "SHA256:" + hashlib.sha256(certificate).hexdigest()
     except (OSError, ValueError) as exc:
-        reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+        reason = ("目标 RDP 端口拒绝连接，请检查 Windows 远程桌面服务及代理的转发地址和端口" if isinstance(exc, ConnectionRefusedError)
+                  else "目标 RDP 响应超时，请检查代理到 Windows 主机的网络和远程桌面服务" if isinstance(exc, TimeoutError)
+                  else str(exc) if isinstance(exc, ValueError) else "RDP 握手或 TLS 连接失败，请检查目标服务和网络")
         raise HTTPException(status_code=502, detail=f"无法获取 RDP 证书：{reason}") from exc
 
 
@@ -181,6 +183,7 @@ class Relay:
     connected: bool = False
     ended: bool = False
     ntlm_requested: bool = False
+    failure_recorded: bool = False
 
 
 class RDPGatewayService:
@@ -195,6 +198,47 @@ class RDPGatewayService:
         self._active = 0
         self._tls_server = None
         self._tls_proxy = None
+        self._metrics = Counter()
+        self._last_logged = Counter()
+        self._native_thread = None
+
+    def metrics(self, flush=False):
+        with self._lock:
+            counts = dict(self._metrics)
+            result = dict(enabled=get_settings().rdp_gateway_enabled, running=self.running,
+                          active=self._active, blocked_sources=sum(s['blocked'] > time.monotonic() for s in self._ips.values()),
+                          counts=counts)
+            delta = Counter(counts) - self._last_logged
+            if flush:
+                self._last_logged = Counter(counts)
+        if flush and (delta['handshake_failures'] or delta['auth_failures'] or delta['rejected'] or delta['native_error_lines'] or delta['upstream_errors']):
+            logger.warning('RDP 网关采样周期汇总: 握手失败=%s 认证失败=%s 拦截=%s 上游异常=%s 原生日志错误行=%s',
+                           delta['handshake_failures'], delta['auth_failures'], delta['rejected'], delta['upstream_errors'], delta['native_error_lines'])
+        return result
+
+    def _drain_native_logs(self, stream):
+        # Drain continuously so a full pipe never blocks FreeRDP. Never retain credentials/output.
+        try:
+            for line in stream:
+                if '[ERROR]' in line:
+                    with self._lock:
+                        self._metrics['native_error_lines'] += 1
+        finally:
+            stream.close()
+
+    def _record_failure(self, ip, kind):
+        with self._lock:
+            self._metrics[kind] += 1
+            state = self._ips.get(ip)
+            if not state:
+                return
+            now = time.monotonic()
+            if now - state['since'] > 300:
+                state.update(since=now, attempts=0, failures=0)
+            state['failures'] += 1
+            if state['failures'] >= 10 and state['blocked'] <= now:
+                state['blocked'] = now + 1800
+                self._metrics['bans'] += 1
 
     @property
     def running(self):
@@ -264,6 +308,7 @@ class RDPGatewayService:
                     raise HTTPException(status_code=403, detail="RDP 连接状态无效")
                 user, host = self._validate(db, relay)
                 relay.connected = True
+                self._metrics['desktop_connected'] += 1
                 add_audit_log(db, host, user, "rdp_desktop_connected", "success", relay.ip, target=relay.target)
                 return {}
             if relay.authorized or time.monotonic() - relay.created > 20:
@@ -284,9 +329,8 @@ class RDPGatewayService:
             context = authenticate_gateway_resource(db, username, password, host_type="rdp", permission="connect")
             if not context:
                 if state and not relay.ntlm_requested:
-                    state["failures"] += 1
-                    if state["failures"] >= 10:
-                        state["blocked"] = time.monotonic() + 1800
+                    self._record_failure(relay.ip, 'auth_failures')
+                    relay.failure_recorded = True
                 raise HTTPException(status_code=403, detail="平台认证或主机授权失败")
             host = db.get(ManagedHost, context.host_id)
             result = rdp_credential(host)
@@ -294,6 +338,9 @@ class RDPGatewayService:
             relay.uid, relay.hid = user.id, host.id
             relay.stamp = self._stamp(host, platform_stamp)
             relay.actor_name, relay.target, relay.authorized = user.username, rdp_target(host), True
+            self._metrics['authorized'] += 1
+            if state:
+                state['failures'] = 0
             add_audit_log(db, host, user, "rdp_gateway_authorized", "success", relay.ip, target=relay.target)
             return result
 
@@ -314,15 +361,18 @@ class RDPGatewayService:
             state = self._ips.get(ip)
             if state is None:
                 if len(self._ips) >= 4096:
+                    self._metrics['rejected'] += 1
                     return False
                 state = self._ips[ip] = dict(since=now, attempts=0, failures=0, blocked=0, active=0)
             if now - state["since"] > 300:
                 state.update(since=now, attempts=0, failures=0)
             state["attempts"] += 1
             if self._active >= 128 or state["active"] >= 8 or state["attempts"] > 60 or state["blocked"] > now:
+                self._metrics['rejected'] += 1
                 return False
             self._active += 1
             state["active"] += 1
+            self._metrics['accepted'] += 1
             return True
 
     def _accept(self, listener, proxy_port):
@@ -337,7 +387,14 @@ class RDPGatewayService:
             if not self._admit(ip):
                 client.close()
                 continue
-            threading.Thread(target=self._relay, args=(client, ip, proxy_port), daemon=True).start()
+            try:
+                threading.Thread(target=self._relay, args=(client, ip, proxy_port), daemon=True).start()
+            except Exception:
+                client.close()
+                with self._lock:
+                    self._active -= 1
+                    self._ips[ip]['active'] -= 1
+                    self._metrics['upstream_errors'] += 1
 
     @staticmethod
     def _tpkt(sock):
@@ -374,10 +431,12 @@ class RDPGatewayService:
             # FreeRDP 3.15 sends only the leaf certificate. Terminate public TLS
             # here with the complete configured chain; authenticate the private
             # loopback TLS hop against that exact configured certificate.
+            stage = 'client_negotiation'
             request = self._tpkt(client)
             bytes_sent += len(request)
             if request[5] != 0xE0:
                 return
+            stage = 'upstream_negotiation'
             upstream.sendall(request)
             response = self._tpkt(upstream)
             bytes_received += len(response)
@@ -422,18 +481,22 @@ class RDPGatewayService:
                         bytes_received += len(chunk)
                     (upstream if source is client else client).sendall(chunk)
         except (OSError, ValueError, HTTPException) as exc:
-            logger.info("RDP connection closed: stage=%s error=%s", stage, type(exc).__name__)
+            with self._lock:
+                self._metrics['transport_errors'] += 1
+                if stage in {'connect', 'upstream_negotiation', 'upstream_tls'}:
+                    self._metrics['upstream_errors'] += 1
         except Exception:
-            logger.error("RDP relay closed because authorization or transport failed")
+            with self._lock:
+                self._metrics['upstream_errors'] += 1
         finally:
             with self._lock:
                 if relay:
                     relay.ended = True
-                    if relay.ntlm_requested and not relay.authorized:
-                        state = self._ips[ip]
-                        state["failures"] += 1
-                        if state["failures"] >= 10:
-                            state["blocked"] = time.monotonic() + 1800
+                    if not relay.authorized and not relay.failure_recorded:
+                        if stage in {'client_negotiation', 'client_tls'}:
+                            self._record_failure(ip, 'handshake_failures')
+                        elif stage == 'relay':
+                            self._record_failure(ip, 'auth_failures')
                 self._sessions.pop(port, None)
                 self._active -= 1
                 self._ips[ip]["active"] -= 1
@@ -518,7 +581,12 @@ PrivateKeyFile={os.path.abspath(settings.rdp_gateway_tls_key_path)}
         env = {**os.environ, "FRP_RDP_AUTH_URL": f"http://127.0.0.1:{settings.app_port}/api/managed-hosts/gateway/rdp/authorize",
                "FRP_RDP_INTERNAL_SECRET": self.internal_secret, "WLOG_LEVEL": "ERROR"}
         try:
-            self._process = subprocess.Popen([binary, config_path], env=env, stdin=subprocess.DEVNULL)
+            self._process = subprocess.Popen([binary, config_path], env=env, stdin=subprocess.DEVNULL,
+                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                             encoding='utf-8', errors='replace')
+            self._native_thread = threading.Thread(target=self._drain_native_logs, args=(self._process.stdout,),
+                                                   daemon=True, name='rdp-native-logs')
+            self._native_thread.start()
             for _ in range(50):
                 if self._process.poll() is not None:
                     raise RuntimeError("FreeRDP 代理启动失败（检查必需认证模块和 TLS 配置）")
@@ -558,6 +626,9 @@ PrivateKeyFile={os.path.abspath(settings.rdp_gateway_tls_key_path)}
                 self._process.kill()
                 self._process.wait()
         self._process = None
+        if self._native_thread:
+            self._native_thread.join(timeout=2)
+            self._native_thread = None
         if self._config_dir:
             self._config_dir.cleanup()
             self._config_dir = None

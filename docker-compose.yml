@@ -1,6 +1,6 @@
 services:
   frp-agent:
-    image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+    image: ${FRP_AGENT_IMAGE:-registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.3.3}
     container_name: frp-agent
     restart: always
     ports:
@@ -32,4 +32,4 @@ services:
       - RDP_GATEWAY_TLS_KEY_PATH=/app/data/rdp_gateway_key.pem
       - RDP_GATEWAY_TRUSTED_PROXIES=${RDP_GATEWAY_TRUSTED_PROXIES:-}
       - APP_DEBUG=false
-      - SYNC_INTERVAL_SECONDS=30
+      - SYNC_INTERVAL_SECONDS=${SYNC_INTERVAL_SECONDS:-60}

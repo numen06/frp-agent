@@ -26,7 +26,8 @@ class ManagedHost(Base):
     name = Column(String(100), unique=True, nullable=False, index=True)
     address = Column(String(255), nullable=False)
     port = Column(Integer, nullable=False, default=22)
-    host_type = Column(String(20), nullable=False, default="ssh")  # ssh | docker | rdp
+    host_type = Column(String(20), nullable=False, default="ssh")  # ssh | docker | rdp | vnc
+    vnc_ssh_host_id = Column(Integer, nullable=True)
     credential_id = Column(Integer, ForeignKey("ssh_credentials.id"), nullable=True)
     docker_credential_id = Column(
         Integer, ForeignKey("docker_credentials.id"), nullable=True
@@ -56,6 +57,15 @@ class ManagedHost(Base):
     audit_logs = relationship(
         "HostAuditLog", back_populates="host", cascade="all, delete-orphan"
     )
+
+
+class HostProxySource(Base):
+    """Discovery provenance; pending hosts remain unavailable until a successful test."""
+
+    __tablename__ = "host_proxy_sources"
+    host_id = Column(Integer, ForeignKey("managed_hosts.id", ondelete="CASCADE"), primary_key=True)
+    proxy_id = Column(Integer, ForeignKey("proxies.id", ondelete="CASCADE"), unique=True, nullable=False)
+    activation_pending = Column(Boolean, nullable=False, default=True)
 
 
 class HostAccessGrant(Base):

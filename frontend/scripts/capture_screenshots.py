@@ -1,3 +1,4 @@
+import sys
 """Capture the built UI with isolated demo responses; never connects to a backend.
 
 Install playwright==1.58.0 and its Chromium, then run with Vite preview on port 4173.
@@ -7,7 +8,7 @@ import base64
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'docs' / 'screenshots'
@@ -32,6 +33,8 @@ GROUPS = [dict(group_name=name, total_count=count, online_count=online,
                offline_count=count-online) for name, count, online in
           [('office', 3, 3), ('production', 2, 2), ('staging', 3, 2)]]
 HOSTS = [dict(id=i, name=name, host_type=kind, address=f'{kind}-{i}.example.com', port=port,
+              credential_id=2 if kind == 'rdp' else 1 if kind == 'ssh' else None,
+              docker_credential_id=1 if kind == 'docker' else None, docker_verify_tls=True,
               credential_name='演示凭据', credential_username=user, can_manage=True,
               permissions=['connect', 'execute', 'docker'], is_active=True,
               last_status='online', last_message='连接正常', tags=tag,
@@ -70,6 +73,7 @@ GRANTS = [dict(id=h['id'], host_id=h['id'], host_name=h['name'], subject_type='u
                can_execute=h['host_type']=='ssh', can_manage_docker=h['host_type']=='docker',
                is_active=True, is_expired=False) for h in HOSTS]
 AUDIT = [dict(id=i, created_at=DATE, actor_name='operator', host_name=host,
+              host_id=next(h['id'] for h in HOSTS if h['name'] == host),
               action=action, command=command, target='', status='success', exit_code=None,
               client_ip='192.0.2.10') for i, host, action, command in [
                   (1, 'office-windows', 'rdp_desktop_connected', ''),
@@ -85,6 +89,7 @@ def paginated(items):
 
 
 RESPONSES = {
+    '/api/builtin-frps': dict(available=True, enabled=False, running=False, onboarding_seen=True),
     '/api/servers': SERVERS,
     '/api/settings/user': dict(username='demo-admin', role='admin'),
     '/api/settings/check-password': dict(require_password_change=False),
@@ -110,6 +115,7 @@ RESPONSES = {
     '/api/managed-hosts/access/subjects': SUBJECTS,
     '/api/managed-hosts/access/grants': GRANTS,
     '/api/managed-hosts/audit/logs': AUDIT,
+    '/api/managed-hosts/audit/traffic': dict(bytes_sent=2048, bytes_received=4096, measured_count=4, record_count=6),
     '/api/managed-hosts/2/docker/containers': dict(containers=[]),
     '/api/docker-credentials': DOCKER_CREDENTIALS,
     '/api/ssh-credentials': SSH_CREDENTIALS,
@@ -161,6 +167,21 @@ def demo_response(url):
     if query.get('search'):
         term = query['search'][0].lower()
         rows = [row for row in rows if term in str(row).lower()]
+    if path == '/api/managed-hosts':
+        if query.get('host_type'):
+            rows = [row for row in rows if row['host_type'] == query['host_type'][0]]
+        if query.get('host_status'):
+            status = query['host_status'][0]
+            rows = [row for row in rows if (not row['is_active'] if status == 'disabled' else
+                row['is_active'] and (row['last_status'] == 'online' if status == 'online' else
+                row['last_status'] in ['offline', 'error'] if status == 'abnormal' else
+                row['last_status'] not in ['online', 'offline', 'error']))]
+    if path == '/api/packages':
+        for field in ['version','platform','source']:
+            if query.get(field): rows = [row for row in rows if row[field] == query[field][0]]
+    if path == '/api/proxies':
+        if query.get('group_name'):rows=[row for row in rows if row['group_name']==query['group_name'][0]]
+        if query.get('status_filter'):rows=[row for row in rows if row['status']==query['status_filter'][0]]
     if query.get('available_only') == ['true']:
         rows = [row for row in rows if row.get('is_active') and not row.get('is_expired')]
     if 'page' not in query and isinstance(data, list):
@@ -175,6 +196,8 @@ def demo_response(url):
 
 
 def main():
+    from check_runtime import fixture
+    RESPONSES['/api/system/overview'] = fixture()
     OUTPUT.mkdir(parents=True, exist_ok=True)
     errors = []
     with sync_playwright() as p:
@@ -207,7 +230,7 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('console', lambda msg: errors.append(msg.text) if msg.type == 'error' else None)
         page.on('dialog', lambda dialog: (errors.append(dialog.message), dialog.dismiss()))
-        routes = ['dashboard', 'servers', 'proxies', 'groups', 'hosts', 'packages', 'api-keys', 'converter']
+        routes = ['dashboard', 'operations', 'servers', 'builtin-service', 'proxies', 'groups', 'hosts', 'packages', 'api-keys', 'converter']
         review = ROOT / 'data' / 'ui-review'
         review.mkdir(parents=True, exist_ok=True)
 
@@ -217,63 +240,76 @@ def main():
             assert page.locator('main').is_visible()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), page.url
             if page.viewport_size['width'] < 768:
-                for select in page.locator('.app-select-native:visible').all():
+                for select in page.locator('[data-slot=select-trigger]:visible').all():
                     assert select.evaluate('(el) => parseFloat(getComputedStyle(el).fontSize) >= 16')
                     assert select.bounding_box()['height'] >= 44
 
-        for route in routes:
+        for route in ([] if '--dialogs-only' in sys.argv else routes):
             page.goto(f'{BASE}/{route}')
             settle()
             page.screenshot(path=str(OUTPUT / f'{route}.png'), animations='disabled')
             print(f'Captured {route}: 1920x1080')
             if route == 'hosts':
-                for label, filename in [('凭证管理', 'host-credentials'), ('访问授权', 'host-access'), ('访问审计', 'host-audit')]:
-                    page.get_by_role('button', name=label, exact=True).click()
+                for label, filename in [('凭证管理', 'host-credentials'), ('访问授权', 'host-access'), ('审计与流量', 'host-audit')]:
+                    page.get_by_role('tab', name=label, exact=True).click()
                     settle()
                     page.screenshot(path=str(OUTPUT / f'{filename}.png'), animations='disabled')
+                page.goto(f'{BASE}/hosts/1')
+                settle()
+                page.screenshot(path=str(OUTPUT / 'host-detail.png'), animations='disabled')
+                page.get_by_role('tab', name='日志与流量', exact=True).click()
+                settle()
+                page.screenshot(path=str(OUTPUT / 'host-logs.png'), animations='disabled')
 
+        if '--screenshots-only' in sys.argv:
+            browser.close()
+            assert not errors, '\n'.join(errors)
+            print('Updated main-page screenshots and host subpages; no runtime errors.')
+            return
         # Responsive smoke check uses the same real pages and demo responses.
-        for width in [320, 390, 768, 1280]:
+        for width in ([] if '--dialogs-only' in sys.argv else [320, 390, 768, 1280]):
             page.set_viewport_size(dict(width=width, height=844))
-            for route in routes:
+            for route in ([] if '--dialogs-only' in sys.argv else routes):
                 page.goto(f'{BASE}/{route}')
                 settle()
                 if width == 390:
                     page.screenshot(path=str(review / f'mobile-{route}.png'), animations='disabled')
             if width == 390:
-                page.get_by_role('button', name='打开导航菜单').click()
+                page.get_by_role('button', name='切换导航菜单').click()
                 page.get_by_role('navigation', name='主导航').get_by_role('link', name='主机资源').click()
                 page.wait_for_url('**/hosts')
                 settle()
                 assert page.url.endswith('/hosts')
-                assert not page.get_by_role('navigation', name='主导航').is_visible()
+                expect(page.get_by_role('navigation', name='主导航')).not_to_be_visible()
             print(f'Responsive check passed: {width}px, {len(routes)} routes')
 
         def check_dialog(name):
-            dialog = page.locator('.app-dialog:visible').last
+            dialog = page.locator('[data-slot=dialog-content]:visible').last
             dialog.wait_for()
             page.wait_for_load_state('networkidle')
-            panel = dialog.locator('.app-dialog-panel').first
+            for button in dialog.locator('button:visible').all():
+                if button.inner_text().strip():
+                    assert button.evaluate('el=>el.scrollWidth<=el.clientWidth+1 && el.scrollHeight<=el.clientHeight+1'), f'{name}: button text overflows: {button.inner_text()}'
+            panel = dialog
             for height in [844, 420]:
                 page.set_viewport_size(dict(width=390, height=height))
-                page.wait_for_function('Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-viewport-height")) - innerHeight) < 2')
+                expect(panel).to_have_css('height', f'{height}px')
                 rect = panel.bounding_box()
                 assert rect and abs(rect['y']) < 2 and abs(rect['height'] - height) < 2, (name, rect)
                 assert panel.evaluate('(el) => el.scrollWidth <= el.clientWidth'), name
-                body = dialog.locator('.app-dialog-body').first
+                body = dialog.locator('[data-slot=dialog-body]').first
                 assert body.bounding_box()['height'] > 60, f'{name}: body collapsed'
                 body.evaluate('(el) => { el.scrollTop = el.scrollHeight }')
-                for button in dialog.locator('.app-dialog-footer button:visible').all():
+                for button in dialog.locator('[data-slot=dialog-footer] button:visible').all():
                     if button.is_enabled():
                         button.click(trial=True)
                 close = dialog.get_by_role('button', name='关闭', exact=True).first
                 close.click(trial=True)
             page.screenshot(path=str(review / f'dialog-{name}-keyboard.png'), animations='disabled')
             page.set_viewport_size(dict(width=390, height=844))
-            page.wait_for_function('parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-viewport-height")) > 800')
             page.screenshot(path=str(review / f'dialog-{name}.png'), animations='disabled')
             close.click()
-            assert page.locator('.app-dialog:visible').count() == 0, name
+            assert page.locator('[data-slot=dialog-content]:visible').count() == 0, name
             assert page.evaluate('document.body.style.overflow') != 'hidden', name
             print(f'Dialog touch/scroll/close check passed: {name}')
 
@@ -281,33 +317,37 @@ def main():
         for route, label in [('servers', '添加服务器'), ('api-keys', '创建密钥'),
                              ('groups', '新增分组'), ('groups', '导入/整理'), ('groups', '查看代理'),
                              ('packages', '手动上传'), ('packages', 'GitHub 同步'),
-                             ('packages', '脚本生成'), ('hosts', '添加主机'),
-                             ('hosts', 'AI / curl 添加提示词'), ('hosts', '连接凭证'),
-                             ('hosts', '命令终端'), ('hosts', '容器管理'), ('proxies', '客户端升级')]:
+                             ('packages', '脚本生成'),
+                             ('hosts', 'AI / curl 添加提示词'), ('hosts', '连接详情'),
+                             ('hosts', '容器管理'), ('proxies', '客户端升级')]:
             page.goto(f'{BASE}/{route}')
             settle()
-            page.get_by_role('button', name=label, exact=True).first.click()
+            if route == 'proxies' and label == '客户端升级':
+                page.get_by_role('button', name='代理操作', exact=True).first.click()
+                page.get_by_role('menuitem', name=label, exact=True).click()
+            else:
+                page.get_by_role('button', name=label, exact=True).first.click()
             check_dialog(label.replace(' / ', '-'))
 
-        for host_type in ['Docker 主机', 'RDP 主机']:
-            page.goto(f'{BASE}/hosts')
+        for host_type, host_id in [('Docker 主机', 2), ('RDP 主机', 3)]:
+            page.goto(f'{BASE}/hosts/{host_id}/edit')
             settle()
-            page.get_by_role('button', name='添加主机', exact=True).click()
-            page.get_by_role('button', name=host_type, exact=True).click()
-            check_dialog(host_type)
+            assert page.locator('form#host-editor-form').is_visible()
+            assert page.locator('[data-slot=dialog-content]:visible').count() == 0
+            page.screenshot(path=str(review / f'host-editor-{host_type}.png'), animations='disabled')
 
         for label in ['生成配置', '客户端升级', '重命名']:
             page.goto(f'{BASE}/groups')
             settle()
             page.get_by_role('button', name='更多操作', exact=True).first.click()
-            page.get_by_role('button', name=label, exact=True).click()
+            page.get_by_role('menuitem', name=label, exact=True).click()
             check_dialog(f'分组-{label}')
 
         for label in ['添加代理', '导入配置']:
             page.goto(f'{BASE}/proxies')
             settle()
             page.get_by_role('button', name='添加菜单', exact=True).click()
-            page.get_by_role('link', name=label, exact=True).click()
+            page.get_by_role('menuitem', name=label, exact=True).click()
             check_dialog(label)
 
         page.goto(f'{BASE}/dashboard')

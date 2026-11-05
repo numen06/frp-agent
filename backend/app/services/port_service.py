@@ -199,7 +199,8 @@ class PortService:
     def detect_conflicts(
         self,
         frps_server_id: int,
-        active_proxies: List[dict]
+        active_proxies: List[dict],
+        collected_types=None,
     ) -> List[dict]:
         """检测端口冲突
         
@@ -241,6 +242,8 @@ class PortService:
         
         # 检测数据库记录与实际运行不一致
         for db_proxy in db_proxies:
+            if collected_types is not None and db_proxy.proxy_type not in collected_types:
+                continue
             if db_proxy.status == "online":
                 # 检查是否真的在线
                 found = False

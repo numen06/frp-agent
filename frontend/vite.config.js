@@ -12,6 +12,7 @@ export default defineConfig({
     }
   },
   build: {
+    target: "es2022", // noVNC 1.7 probes browser codec support with top-level await.
     outDir: '../dist',
     emptyOutDir: true
   },
@@ -20,7 +21,8 @@ export default defineConfig({
     proxy: {
       '^/api/.*': {
         target: 'http://127.0.0.1:8000',
-        changeOrigin: true
+        ws: true,
+        changeOrigin: false // Preserve Host for WebSocket same-origin validation.
       }
     }
   }

@@ -97,8 +97,8 @@ def update_credential(
     if next_type == "private_key":
         from app.models.managed_host import ManagedHost
 
-        if db.query(ManagedHost.id).filter(ManagedHost.credential_id == credential_id, ManagedHost.host_type == "rdp").first():
-            raise HTTPException(status_code=409, detail="该凭据正被 RDP 主机使用，不能切换为私钥认证，请先更换主机凭据")
+        if db.query(ManagedHost.id).filter(ManagedHost.credential_id == credential_id, ManagedHost.host_type.in_(["rdp", "vnc"])).first():
+            raise HTTPException(status_code=409, detail="该凭据正被 RDP/VNC 主机使用，不能切换为私钥认证，请先更换主机凭据")
 
     if body.name is not None:
         cred.name = body.name

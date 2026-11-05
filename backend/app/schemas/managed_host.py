@@ -28,7 +28,8 @@ class ManagedHostCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     address: str = Field(..., min_length=1, max_length=255)
     port: int = Field(22, ge=1, le=65535)
-    host_type: Literal["ssh", "docker", "rdp"] = "ssh"
+    host_type: Literal["ssh", "docker", "rdp", "vnc"] = "ssh"
+    vnc_ssh_host_id: Optional[int] = Field(None, gt=0)
     credential_id: Optional[int] = Field(None, gt=0)
     docker_credential_id: Optional[int] = Field(None, gt=0)
     docker_use_tls: bool = True
@@ -43,6 +44,8 @@ class ManagedHostCreate(BaseModel):
     def default_rdp_port(self):
         if self.host_type == "rdp" and "port" not in self.model_fields_set:
             self.port = 3389
+        if self.host_type == "vnc" and "port" not in self.model_fields_set:
+            self.port = 5900
         return self
 
     @field_validator("name", "address")
@@ -68,7 +71,8 @@ class ManagedHostUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     address: Optional[str] = Field(None, min_length=1, max_length=255)
     port: Optional[int] = Field(None, ge=1, le=65535)
-    host_type: Optional[Literal["ssh", "docker", "rdp"]] = None
+    host_type: Optional[Literal["ssh", "docker", "rdp", "vnc"]] = None
+    vnc_ssh_host_id: Optional[int] = Field(None, gt=0)
     credential_id: Optional[int] = Field(None, gt=0)
     docker_credential_id: Optional[int] = Field(None, gt=0)
     docker_use_tls: Optional[bool] = None
@@ -81,11 +85,14 @@ class ManagedHostUpdate(BaseModel):
 
 
 class ManagedHostResponse(BaseModel):
+    activation_pending: bool = False
+    source_proxy_id: Optional[int] = None
     id: int
     name: str
     address: str
     port: int
     host_type: str
+    vnc_ssh_host_id: Optional[int] = None
     credential_id: Optional[int]
     docker_credential_id: Optional[int]
     credential_name: str

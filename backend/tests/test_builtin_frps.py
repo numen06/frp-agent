@@ -295,6 +295,14 @@ def test_real_frps_enable_restart_protect_registration_and_disable(setup, monkey
         assert client.put(f'/api/servers/{server.id}', json={'server_port': 1234}).status_code == 409
         assert client.delete(f'/api/servers/{server.id}').status_code == 409
         assert client.post('/api/builtin-frps/restart').status_code == 200
+        saved_token = db.query(FrpsServer).one().auth_token
+        # The explicit power buttons send state only; saved ports and secrets survive.
+        stopped = client.put('/api/builtin-frps', json={'enabled': False})
+        assert stopped.status_code == 200 and not stopped.json()['running']
+        started = client.put('/api/builtin-frps', json={'enabled': True, 'public_addr': data.public_addr})
+        assert started.status_code == 200 and started.json()['running']
+        assert started.json()['bind_port'] == ports[0]
+        assert db.query(FrpsServer).one().auth_token == saved_token
     finally:
         client.close()
     result = service.apply(db, data.model_copy(update={'enabled': False}))

@@ -14,6 +14,7 @@ from app.models.history import ProxyHistory
 from app.frps_client import FrpsClient
 from app.services.port_service import PortService
 from app.services.frp_version_service import apply_proxy_version
+from app.services.monitoring_service import collect_proxy_snapshot
 
 router = APIRouter(prefix="/api/analysis", tags=["数据分析"])
 
@@ -39,7 +40,7 @@ async def compare_proxies(
     client = FrpsClient(server)
     
     # 获取所有代理
-    all_proxies_data = await client.get_all_proxies()
+    all_proxies_data = await collect_proxy_snapshot(db, server, client)
     
     # 合并所有类型的代理
     all_proxies = []
@@ -119,7 +120,7 @@ async def compare_proxies(
     
     # 标记不在活跃列表中的代理为离线
     for proxy_name, db_proxy in db_proxy_map.items():
-        if proxy_name not in active_proxy_names and db_proxy.status == "online":
+        if proxy_name not in active_proxy_names and db_proxy.status == "online" and db_proxy.proxy_type in all_proxies_data:
             db_proxy.status = "offline"
             
             # 记录历史
@@ -136,7 +137,7 @@ async def compare_proxies(
     
     # 检测冲突
     port_service = PortService(db)
-    conflicts = port_service.detect_conflicts(frps_server_id, all_proxies)
+    conflicts = port_service.detect_conflicts(frps_server_id, all_proxies, collected_types=all_proxies_data)
     
     # 记录冲突
     for conflict in conflicts:

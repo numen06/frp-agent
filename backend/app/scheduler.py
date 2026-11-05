@@ -4,7 +4,7 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import json
 
 from app.database import SessionLocal
@@ -15,6 +15,8 @@ from app.models.history import ProxyHistory
 from app.frps_client import FrpsClient
 from app.services.port_service import PortService
 from app.services.frp_version_service import refresh_server_version, apply_proxy_version
+from app.services.monitoring_service import collect_proxy_snapshot, sample_runtime, probe_connections
+from app.services.runtime_service import resource_sampler
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -41,6 +43,7 @@ async def sync_all_servers():
             try:
                 await sync_server(db, server)
             except Exception as e:
+                db.rollback()
                 logger.error(f"同步服务器 {server.name} 失败: {e}")
         
         logger.info("所有服务器同步完成")
@@ -71,7 +74,7 @@ async def sync_server(db: Session, server: FrpsServer):
         logger.warning(f"服务器 {server.name} 版本检查失败: {e}")
 
     # 获取所有代理
-    all_proxies_data = await client.get_all_proxies()
+    all_proxies_data = await collect_proxy_snapshot(db, server, client)
     
     # 合并所有类型的代理
     all_proxies = []
@@ -108,17 +111,17 @@ async def sync_server(db: Session, server: FrpsServer):
             if not db_proxy.group_name:
                 db_proxy.group_name = Proxy.parse_group_name(proxy_name)
             
-            # 如果状态从离线变为在线，记录历史
-            if old_status == "offline" and proxy_info["status"] == "online":
+            # Both transitions matter; frps may retain an explicitly offline row.
+            if old_status != proxy_info["status"]:
                 history = ProxyHistory(
                     frps_server_id=server.id,
                     proxy_name=proxy_name,
-                    action="online",
+                    action=proxy_info["status"],
                     timestamp=datetime.utcnow(),
                     details=json.dumps(proxy_info)
                 )
                 db.add(history)
-                logger.info(f"代理 {proxy_name} 上线")
+                logger.info("代理 %s 状态变为 %s", proxy_name, proxy_info["status"])
         else:
             # 发现新代理
             group_name = Proxy.parse_group_name(proxy_name)
@@ -148,7 +151,7 @@ async def sync_server(db: Session, server: FrpsServer):
     
     # 标记不在活跃列表中的代理为离线
     for proxy_name, db_proxy in db_proxy_map.items():
-        if proxy_name not in active_proxy_names and db_proxy.status == "online":
+        if proxy_name not in active_proxy_names and db_proxy.status == "online" and db_proxy.proxy_type in all_proxies_data:
             db_proxy.status = "offline"
             
             history = ProxyHistory(
@@ -163,7 +166,7 @@ async def sync_server(db: Session, server: FrpsServer):
     
     # 检测冲突
     port_service = PortService(db)
-    conflicts = port_service.detect_conflicts(server.id, all_proxies)
+    conflicts = port_service.detect_conflicts(server.id, all_proxies, collected_types=all_proxies_data)
     
     if conflicts:
         logger.warning(f"检测到 {len(conflicts)} 个端口冲突")
@@ -210,6 +213,11 @@ async def start_scheduler():
     global scheduler
     
     scheduler = AsyncIOScheduler()
+
+    scheduler.add_job(sample_runtime, 'interval', seconds=60, id='runtime_samples', max_instances=1, coalesce=True)
+    scheduler.add_job(probe_connections, 'interval', seconds=300, id='ssh_probes', max_instances=1,
+                      coalesce=True, next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10))
+    await asyncio.to_thread(resource_sampler.sample)
     
     # 添加定时同步任务
     scheduler.add_job(

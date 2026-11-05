@@ -14,6 +14,7 @@ from app.models.package_sync_job import PackageSyncJob
 from app.models.managed_host import ManagedHost, HostAccessGrant, HostAuditLog
 from app.models.docker_credential import DockerCredential
 from app.models.builtin_frps import BuiltinFrpsConfig
+from app.models.runtime import RuntimeSample, ServerSyncState, ProxyProbe
 
 __all__ = [
     "User",
@@ -33,5 +34,8 @@ __all__ = [
     "HostAuditLog",
     "DockerCredential",
     "BuiltinFrpsConfig",
+    "RuntimeSample",
+    "ServerSyncState",
+    "ProxyProbe",
 ]
 

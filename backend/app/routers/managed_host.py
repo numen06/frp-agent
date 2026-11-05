@@ -1,7 +1,7 @@
 """主机管理、授权、远程操作与审计 API。"""
 from datetime import datetime, timedelta, timezone
 import hmac
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 import os
@@ -17,7 +17,7 @@ from app.database import get_db
 from app.pagination import Page, PageParams, paginate, search_query
 from app.models.api_key import ApiKey
 from app.models.docker_credential import DockerCredential
-from app.models.managed_host import HostAccessGrant, HostAuditLog, ManagedHost
+from app.models.managed_host import HostAccessGrant, HostAuditLog, ManagedHost, HostProxySource
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
 from app.schemas.managed_host import (
@@ -100,6 +100,8 @@ def _get_docker_credential(db: Session, credential_id: int) -> DockerCredential:
 
 
 def _validate_host_credentials(db: Session, values: dict) -> None:
+    if values["host_type"] != "vnc":
+        values["vnc_ssh_host_id"] = None
     if values["host_type"] == "ssh":
         if not values.get("credential_id"):
             raise HTTPException(status_code=400, detail="SSH 主机必须配置 SSH 凭据")
@@ -144,6 +146,9 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
                 status_code=400,
                 detail="Portainer 含路径时请填写完整 URL，例如 http://host/docker/",
             )
+    elif values["host_type"] == "vnc":
+        from app.services.vnc_service import validate_vnc_values
+        validate_vnc_values(db, values)
     elif values["host_type"] == "rdp":
         values["address"] = validate_rdp_address(values["address"])
         if not values.get("credential_id"):
@@ -168,18 +173,22 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
 def _host_response(
     db: Session, host: ManagedHost, current_user: User
 ) -> ManagedHostResponse:
-    credential = host.credential if host.host_type in {"ssh", "rdp"} else host.docker_credential
+    credential = host.credential if host.host_type in {"ssh", "rdp", "vnc"} else host.docker_credential
+    source = db.get(HostProxySource, host.id)
     return ManagedHostResponse(
+        activation_pending=bool(source and source.activation_pending),
+        source_proxy_id=source.proxy_id if source else None,
         id=host.id,
         name=host.name,
         address=host.address,
         port=host.port,
         host_type=host.host_type,
+        vnc_ssh_host_id=host.vnc_ssh_host_id,
         credential_id=host.credential_id,
         docker_credential_id=host.docker_credential_id,
         credential_name=credential.name if credential else "未配置凭据",
         credential_username=(credential.username or "") if credential else "",
-        credential_kind={"ssh": "SSH", "docker": "Docker", "rdp": "RDP"}[host.host_type],
+        credential_kind={"ssh": "SSH", "docker": "Docker", "rdp": "RDP", "vnc": "VNC"}[host.host_type],
         docker_use_tls=host.docker_use_tls,
         docker_verify_tls=host.docker_verify_tls,
         docker_endpoint_id=host.docker_endpoint_id,
@@ -267,9 +276,12 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
 @router.post("/rdp/fingerprint")
 def get_rdp_fingerprint(
     body: RdpFingerprintRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_admin(current_user)
+    from app.services.host_discovery import check_upstream
+    check_upstream(db, ManagedHost(id=-1, address=body.address, port=body.port))
     return Response(json.dumps({"fingerprint": probe_rdp_fingerprint(body.address, body.port)}),
                     media_type="application/json", headers={"Cache-Control": "no-store"})
 
@@ -300,6 +312,8 @@ def download_rdp_file(
 ):
     host = require_host_access(db, current_user, host_id, "connect")
     require_secure_rdp_download(request)
+    from app.services.host_discovery import check_upstream
+    check_upstream(db, host)
     content = rdp_gateway_service.issue_file(db, current_user, host, rdp_client_ip(request))
     return Response(content, media_type="application/x-rdp", headers={
         "Content-Disposition": f'attachment; filename="frp-agent-rdp-{host.id}.rdp"',
@@ -349,6 +363,8 @@ def get_docker_client_certificate(
 def list_hosts(
     paging: PageParams = Depends(),
     host_id: Optional[int] = Query(None, gt=0),
+    host_type: Optional[Literal['ssh', 'rdp', 'docker', 'vnc']] = None,
+    host_status: Optional[Literal['online', 'abnormal', 'unknown', 'disabled', 'pending']] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -364,6 +380,21 @@ def list_hosts(
         query = query.filter(ManagedHost.id.in_(allowed), ManagedHost.is_active.is_(True))
     if host_id:
         query = query.filter(ManagedHost.id == host_id)
+    if host_type:
+        query = query.filter(ManagedHost.host_type == host_type)
+    pending_ids = db.query(HostProxySource.host_id).filter(HostProxySource.activation_pending.is_(True))
+    if host_status == 'pending':
+        query = query.filter(ManagedHost.id.in_(pending_ids))
+    elif host_status == 'disabled':
+        query = query.filter(ManagedHost.is_active.is_(False), ~ManagedHost.id.in_(pending_ids))
+    elif host_status:
+        query = query.filter(ManagedHost.is_active.is_(True))
+        if host_status == 'online':
+            query = query.filter(ManagedHost.last_status == 'online')
+        elif host_status == 'abnormal':
+            query = query.filter(ManagedHost.last_status.in_(['offline', 'error']))
+        else:
+            query = query.filter(ManagedHost.last_status.is_(None) | ManagedHost.last_status.notin_(['online', 'offline', 'error']))
     query = search_query(query, paging.search, ManagedHost.name, ManagedHost.address, ManagedHost.tags)
     return paginate(query, paging, lambda row: _host_response(db, row, current_user))
 
@@ -403,8 +434,12 @@ def update_host(
     if not host:
         raise HTTPException(status_code=404, detail="主机不存在")
     values = body.model_dump(exclude_unset=True)
+    source = db.get(HostProxySource, host.id)
+    if source and source.activation_pending:
+        values["is_active"] = False
     effective = {
         "host_type": values.get("host_type", host.host_type),
+        "vnc_ssh_host_id": values.get("vnc_ssh_host_id", host.vnc_ssh_host_id),
         "credential_id": values.get("credential_id", host.credential_id),
         "docker_credential_id": values.get(
             "docker_credential_id", host.docker_credential_id
@@ -425,9 +460,14 @@ def update_host(
     if (host.host_type == effective["host_type"] == "rdp" and host.host_key_fingerprint
             and not effective["host_key_fingerprint"]):
         effective["host_key_fingerprint"] = host.host_key_fingerprint
+    if effective["host_type"] == "vnc" and effective.get("vnc_ssh_host_id") == host.id:
+        raise HTTPException(400, "VNC 不能关联自身作为 SSH 通道")
+    if effective["host_type"] != "ssh" and db.query(ManagedHost.id).filter(ManagedHost.vnc_ssh_host_id == host.id).first():
+        raise HTTPException(409, "该 SSH 主机被 VNC 使用，不能更改类型")
     _validate_host_credentials(db, effective)
     values.update(
         {
+            "vnc_ssh_host_id": effective.get("vnc_ssh_host_id"),
             "credential_id": effective["credential_id"],
             "docker_credential_id": effective["docker_credential_id"],
             "host_key_fingerprint": effective["host_key_fingerprint"],
@@ -463,6 +503,11 @@ def delete_host(
     host = db.query(ManagedHost).filter(ManagedHost.id == host_id).first()
     if not host:
         raise HTTPException(status_code=404, detail="主机不存在")
+    source = db.get(HostProxySource, host.id)
+    if source:
+        db.delete(source)
+    if db.query(ManagedHost.id).filter(ManagedHost.vnc_ssh_host_id == host.id).first():
+        raise HTTPException(409, "该 SSH 主机被 VNC 使用，请先更换 VNC 的 SSH 通道")
     db.delete(host)
     db.commit()
 
@@ -479,6 +524,13 @@ def test_host(
 ):
     host = require_host_access(db, current_user, host_id, "connect")
     try:
+        from app.services.host_discovery import check_upstream
+        check_upstream(db, host)
+        source = db.get(HostProxySource, host.id)
+        if source and source.activation_pending:
+            values = {key: getattr(host, key) for key in ManagedHostCreate.model_fields}
+            _validate_host_credentials(db, values)
+            host.host_key_fingerprint = values.get("host_key_fingerprint")
         version_info = None
         if host.host_type == "ssh":
             result, duration_ms, fingerprint = run_host_command(
@@ -495,6 +547,10 @@ def test_host(
             )
             if result.exit_code == 0:
                 version_info = " ".join(result.stdout.split())[:500] or None
+        elif host.host_type == "vnc":
+            from app.services.vnc_service import test_vnc_connection
+            result, duration_ms = test_vnc_connection(db, host)
+            fingerprint = None
         elif host.host_type == "rdp":
             result, duration_ms = test_rdp_connection(host)
             fingerprint = None
@@ -510,10 +566,13 @@ def test_host(
                 if result.bytes_received is not None and version_traffic.get("bytes_received") is not None:
                     result.bytes_received += version_traffic["bytes_received"]
         success = result.exit_code == 0
+        if success and source and source.activation_pending:
+            source.activation_pending = False
+            host.is_active = True
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
         host.last_message = (
-            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书'}[host.host_type]} 连接成功"
+            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书', 'vnc': 'VNC SSH/密码认证'}[host.host_type]} 连接成功"
             if success
             else (result.stderr or "连接成功，但测试失败")
         )[:500]
@@ -550,7 +609,8 @@ def test_host(
         db.rollback()
         host.last_status = "offline"
         host.last_checked_at = datetime.utcnow()
-        host.last_message = str(exc)[:500]
+        message = str(exc.detail) if isinstance(exc, HTTPException) else str(exc)
+        host.last_message = message[:500]
         db.commit()
         add_audit_log(
             db,
@@ -561,6 +621,8 @@ def test_host(
             _client_ip(request),
             error=str(exc),
         )
+        if isinstance(exc, HTTPException):
+            raise exc
         raise HTTPException(status_code=502, detail=f"主机连接失败: {exc}")
 
 
