@@ -11,6 +11,7 @@ from app.database import get_db
 from app.auth import get_current_user
 from app.models.user import User
 from app.models.proxy import Proxy
+from app.models.history import ProxyHistory
 from app.models.frps_server import FrpsServer
 from app.schemas.proxy import ProxyCreate, ProxyUpdate, ProxyResponse
 from app.schemas.ssh_upgrade import SshUpgradeRequest, ProxySshStateResponse, VerifyResponse
@@ -174,7 +175,8 @@ async def get_proxies(
             try:
                 # 从frps拉取数据
                 client = FrpsClient(server)
-                all_frps_proxies = await client.get_all_proxies()
+                from app.services.monitoring_service import collect_proxy_snapshot
+                all_frps_proxies = await collect_proxy_snapshot(db, server, client)
 
                 # 合并所有类型的代理
                 frps_proxy_list = []
@@ -247,6 +249,8 @@ async def get_proxies(
                             db_proxy.remote_port = frps_proxy["remote_port"]
 
                         if old_status != new_status:
+                            db.add(ProxyHistory(frps_server_id=server.id, proxy_name=db_proxy.name,
+                                                action=new_status, timestamp=datetime.utcnow()))
                             db_proxy.status = new_status
                             db_proxy.updated_at = datetime.utcnow()
                             analysis["status_changed"].append(
@@ -268,7 +272,9 @@ async def get_proxies(
                             )
                     else:
                         # frps中不存在，可能是frps丢失的数据
-                        if db_proxy.status == "online":
+                        if db_proxy.status == "online" and db_proxy.proxy_type in all_frps_proxies:
+                            db.add(ProxyHistory(frps_server_id=server.id, proxy_name=db_proxy.name,
+                                                action='offline', timestamp=datetime.utcnow()))
                             db_proxy.status = "offline"
                             db_proxy.updated_at = datetime.utcnow()
 
@@ -335,6 +341,7 @@ async def get_proxies(
                     )
 
             except Exception as e:
+                db.rollback()
                 result["analysis"] = {
                     "error": f"从frps拉取数据失败: {str(e)}",
                     "note": "使用本地数据库数据",

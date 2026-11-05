@@ -50,6 +50,7 @@ class ParamikoSSHClient:
 
     def connect(self, host: str, port: int, username: str, timeout: float = 15.0) -> None:
         client = paramiko.SSHClient()
+        self._client = client
         if self._expected_host_key:
             client.set_missing_host_key_policy(
                 FingerprintPolicy(self._expected_host_key)
@@ -85,7 +86,6 @@ class ParamikoSSHClient:
             allow_agent=False,
             look_for_keys=False,
         )
-        self._client = client
         try:
             self._sftp = client.open_sftp()
         except Exception:

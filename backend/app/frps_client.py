@@ -1,7 +1,14 @@
 """frps API 客户端"""
+import asyncio
 import httpx
 from typing import List, Dict, Optional
 from app.models.frps_server import FrpsServer
+
+PROXY_TYPES = ('tcp', 'udp', 'http', 'https', 'stcp', 'sudp', 'xtcp', 'tcpmux')
+
+
+class FrpsCollectionError(RuntimeError):
+    """A failed collection is never an empty successful snapshot."""
 
 
 class FrpsClient:
@@ -17,82 +24,46 @@ class FrpsClient:
         self.base_url = server.api_base_url.rstrip("/")
         self.auth = (server.auth_username, server.auth_password)
     
+    async def _get_proxies(self, proxy_type, client, optional=False):
+        try:
+            response = await client.get(f"{self.base_url}/proxy/{proxy_type}", auth=self.auth)
+            if optional and response.status_code == 404:
+                return None
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, dict) or 'proxies' not in data:
+                raise ValueError('invalid snapshot')
+            rows = data['proxies']
+            if rows is None:
+                rows = []
+            if not isinstance(rows, list) or any(
+                not isinstance(row, dict) or not isinstance(row.get('name'), str)
+                or not row['name'] or row.get('status') not in {'online', 'offline'}
+                or (row.get('conf') is not None and not isinstance(row['conf'], dict))
+                for row in rows
+            ):
+                raise ValueError('invalid proxy rows')
+            return rows
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            reason = f"HTTP {exc.response.status_code}" if isinstance(exc, httpx.HTTPStatusError) else type(exc).__name__
+            raise FrpsCollectionError(f"{proxy_type.upper()} 状态采集失败（{reason}），保留上次状态") from exc
+
+    async def _get_type(self, proxy_type):
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await self._get_proxies(proxy_type, client)
+
     async def get_tcp_proxies(self) -> List[Dict]:
-        """获取 TCP 代理列表
-        
-        Returns:
-            代理列表
-        """
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/proxy/tcp",
-                    auth=self.auth
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("proxies", [])
-        except Exception as e:
-            print(f"获取 TCP 代理失败: {e}")
-            return []
-    
+        return await self._get_type('tcp')
+
     async def get_udp_proxies(self) -> List[Dict]:
-        """获取 UDP 代理列表
-        
-        Returns:
-            代理列表
-        """
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/proxy/udp",
-                    auth=self.auth
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("proxies", [])
-        except Exception as e:
-            print(f"获取 UDP 代理失败: {e}")
-            return []
-    
+        return await self._get_type('udp')
+
     async def get_http_proxies(self) -> List[Dict]:
-        """获取 HTTP 代理列表
-        
-        Returns:
-            代理列表
-        """
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/proxy/http",
-                    auth=self.auth
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("proxies", [])
-        except Exception as e:
-            print(f"获取 HTTP 代理失败: {e}")
-            return []
-    
+        return await self._get_type('http')
+
     async def get_https_proxies(self) -> List[Dict]:
-        """获取 HTTPS 代理列表
-        
-        Returns:
-            代理列表
-        """
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/proxy/https",
-                    auth=self.auth
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("proxies", [])
-        except Exception as e:
-            print(f"获取 HTTPS 代理失败: {e}")
-            return []
-    
+        return await self._get_type('https')
+
     async def get_server_info(self) -> Optional[Dict]:
         """获取 frps 服务端信息
 
@@ -123,49 +94,22 @@ class FrpsClient:
         return None
 
     async def get_all_proxies(self) -> Dict[str, List[Dict]]:
-        """获取所有类型的代理
-        
-        Returns:
-            按类型分组的代理字典
-        """
-        tcp_proxies = await self.get_tcp_proxies()
-        udp_proxies = await self.get_udp_proxies()
-        http_proxies = await self.get_http_proxies()
-        https_proxies = await self.get_https_proxies()
-        
-        return {
-            "tcp": tcp_proxies,
-            "udp": udp_proxies,
-            "http": http_proxies,
-            "https": https_proxies,
-        }
-    
+        # A single pool, bounded eight requests; apply only a complete successful snapshot.
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            results = await asyncio.gather(*(
+                self._get_proxies(kind, client, optional=kind not in PROXY_TYPES[:4])
+                for kind in PROXY_TYPES
+            ), return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        return {kind: rows for kind, rows in zip(PROXY_TYPES, results) if rows is not None}
+
     async def get_proxy_by_name(self, name: str, proxy_type: str = "tcp") -> Optional[Dict]:
-        """根据名称获取代理信息
-        
-        Args:
-            name: 代理名称
-            proxy_type: 代理类型
-            
-        Returns:
-            代理信息，如果不存在返回 None
-        """
-        proxies = []
-        if proxy_type == "tcp":
-            proxies = await self.get_tcp_proxies()
-        elif proxy_type == "udp":
-            proxies = await self.get_udp_proxies()
-        elif proxy_type == "http":
-            proxies = await self.get_http_proxies()
-        elif proxy_type == "https":
-            proxies = await self.get_https_proxies()
-        
-        for proxy in proxies:
-            if proxy.get("name") == name:
-                return proxy
-        
-        return None
-    
+        if proxy_type not in PROXY_TYPES:
+            return None
+        return next((p for p in await self._get_type(proxy_type) if p['name'] == name), None)
+
     def parse_proxy_info(self, proxy_data: Dict) -> Dict:
         """解析代理信息
         

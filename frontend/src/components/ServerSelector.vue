@@ -1,98 +1,120 @@
 <template>
-  <div class="mb-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-    <div class="border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
+  <Card class="gap-0 py-0 mb-5"
+    ><div class="border-b border-gray-200 px-3 py-3 sm:px-5 sm:py-3.5">
       <h3 class="text-base font-semibold text-gray-900">服务器选择</h3>
     </div>
     <div class="p-3 sm:p-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="text-sm font-medium text-gray-700">当前服务器：</label>
         <div class="min-w-0 w-full flex-1 sm:min-w-[12rem] sm:max-w-md">
-          <RemoteSelect v-model="selectedServerId" label="选择服务器" :fetch-options="serverApi.getServers" :resolve-option="serverApi.getServer" @select="handleServerChange" />
+          <ResourceCombobox
+            v-model="selectedServerId"
+            label="选择服务器"
+            :fetch-options="serverApi.getServers"
+            :resolve-option="serverApi.getServer"
+            @select="handleServerChange"
+          />
         </div>
-        <button
+        <Button
           type="button"
-          class="btn btn-sm btn-outline min-h-10 w-full sm:min-h-8 sm:w-auto"
+          class="w-full sm:w-auto"
           @click="handleTestServer"
           :disabled="!selectedServerId || serversStore.loading"
-        >
-          <span
+          variant="outline"
+          size="sm"
+          ><span
             v-if="testing"
             class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"
             role="status"
             aria-label="测试中"
           ></span>
           测试连接
-        </button>
+        </Button>
       </div>
-    </div>
-  </div>
+    </div></Card
+  >
 </template>
 
 <script setup>
-import RemoteSelect from '@/components/RemoteSelect.vue'
-import { serverApi } from '@/api/servers'
-import { ref, watch, onMounted } from 'vue'
-import { useServersStore } from '@/stores/servers'
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { notify } from "@/composables/useFeedback";
+import ResourceCombobox from "@/components/ResourceCombobox.vue";
+import { serverApi } from "@/api/servers";
+import { ref, watch, onMounted } from "vue";
+import { useServersStore } from "@/stores/servers";
 
 const props = defineProps({
   modelValue: {
     type: Number,
-    default: null
-  }
-})
+    default: null,
+  },
+});
 
-const emit = defineEmits(['update:modelValue', 'change', 'test'])
+const emit = defineEmits(["update:modelValue", "change", "test"]);
 
-const serversStore = useServersStore()
-const selectedServerId = ref(props.modelValue)
-const testing = ref(false)
+const serversStore = useServersStore();
+const selectedServerId = ref(props.modelValue);
+const testing = ref(false);
 
-watch(() => serversStore.currentServerId, id => {
-  if (!selectedServerId.value && id) selectedServerId.value = id
-}, { immediate: true })
+watch(
+  () => serversStore.currentServerId,
+  (id) => {
+    if (!selectedServerId.value && id) selectedServerId.value = id;
+  },
+  { immediate: true },
+);
 
-watch(() => props.modelValue, (newVal) => {
-  selectedServerId.value = newVal
-})
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    selectedServerId.value = newVal;
+  },
+);
 
-watch(selectedServerId, (newVal) => {
-  emit('update:modelValue', newVal)
-})
+watch(
+  selectedServerId,
+  (newVal) => {
+    emit("update:modelValue", newVal);
+  },
+  { immediate: true },
+);
 
-const handleServerChange = server => {
-  if (server) serversStore.selectedRecord = server
-  emit('change', selectedServerId.value)
+const handleServerChange = (server) => {
+  if (server) serversStore.selectedRecord = server;
+  emit("change", selectedServerId.value);
   if (selectedServerId.value) {
-    serversStore.setCurrentServer(selectedServerId.value)
+    serversStore.setCurrentServer(selectedServerId.value);
   }
-}
+};
 
 const handleTestServer = async () => {
-  if (!selectedServerId.value) return
+  if (!selectedServerId.value) return;
 
-  testing.value = true
+  testing.value = true;
   try {
-    await serversStore.testServer(selectedServerId.value)
-    emit('test', selectedServerId.value)
+    await serversStore.testServer(selectedServerId.value);
+    emit("test", selectedServerId.value);
   } catch (error) {
-    alert('连接测试失败: ' + error.message)
+    notify("连接测试失败: " + error.message);
   } finally {
-    testing.value = false
+    testing.value = false;
   }
-}
+};
 
 onMounted(async () => {
   try {
-    await serversStore.loadServers()
+    await serversStore.loadServers();
     if (serversStore.servers.length > 0 && !selectedServerId.value) {
-      const defaultId = serversStore.currentServerId || serversStore.servers[0].id
-      selectedServerId.value = defaultId
+      const defaultId =
+        serversStore.currentServerId || serversStore.servers[0].id;
+      selectedServerId.value = defaultId;
       if (defaultId) {
-        serversStore.setCurrentServer(defaultId)
+        serversStore.setCurrentServer(defaultId);
       }
     }
   } catch (error) {
-    console.error('加载服务器列表失败:', error)
+    console.error("加载服务器列表失败:", error);
   }
-})
+});
 </script>

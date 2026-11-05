@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     builtin_frps_dir: str = "data/builtin_frps"
 
     # 同步任务配置
-    sync_interval_seconds: int = 1800  # 30分钟
+    sync_interval_seconds: int = 60
 
     # 安装包配置
     packages_dir: str = "data/packages"

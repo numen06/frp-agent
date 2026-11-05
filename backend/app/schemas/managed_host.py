@@ -81,6 +81,8 @@ class ManagedHostUpdate(BaseModel):
 
 
 class ManagedHostResponse(BaseModel):
+    activation_pending: bool = False
+    source_proxy_id: Optional[int] = None
     id: int
     name: str
     address: str

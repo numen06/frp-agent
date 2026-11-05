@@ -1,44 +1,56 @@
 <template>
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    :class="iconClass" 
-    :width="size" 
-    :height="size" 
-    viewBox="0 0 48 48" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    :class="iconClass"
+    :width="size"
+    :height="size"
+    viewBox="0 0 48 48"
     :style="{ color: color }"
   >
     <!-- 左侧节点 -->
-    <circle cx="8" cy="24" r="4" :fill="color" opacity="0.9"/>
-    <circle cx="8" cy="24" r="6" fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
-    
-    <!-- 右侧节点 -->
-    <circle cx="40" cy="24" r="4" :fill="color" opacity="0.9"/>
-    <circle cx="40" cy="24" r="6" fill="none" :stroke="color" stroke-width="1.5" opacity="0.3"/>
-    
-    <!-- 隧道/连接线 -->
-    <path 
-      d="M 14 24 Q 24 16, 34 24 Q 24 32, 14 24" 
+    <circle cx="8" cy="24" r="4" :fill="color" opacity="0.9" />
+    <circle
+      cx="8"
+      cy="24"
+      r="6"
       fill="none"
-      :stroke="color" 
-      stroke-width="2.5" 
+      :stroke="color"
+      stroke-width="1.5"
+      opacity="0.3"
+    />
+    <!-- 右侧节点 -->
+    <circle cx="40" cy="24" r="4" :fill="color" opacity="0.9" />
+    <circle
+      cx="40"
+      cy="24"
+      r="6"
+      fill="none"
+      :stroke="color"
+      stroke-width="1.5"
+      opacity="0.3"
+    />
+    <!-- 隧道/连接线 -->
+    <path
+      d="M 14 24 Q 24 16, 34 24 Q 24 32, 14 24"
+      fill="none"
+      :stroke="color"
+      stroke-width="2.5"
       stroke-linecap="round"
       opacity="0.8"
     />
-    
     <!-- 数据流动效果 -->
-    <circle 
-      v-if="animated" 
+    <circle
+      v-if="animated"
       class="data-flow"
-      cx="14" 
-      cy="24" 
-      r="2" 
+      cx="14"
+      cy="24"
+      r="2"
       :fill="color"
       opacity="0.9"
     />
-    
     <!-- 装饰性连接点 -->
-    <circle cx="24" cy="20" r="1.5" :fill="color" opacity="0.6"/>
-    <circle cx="24" cy="28" r="1.5" :fill="color" opacity="0.6"/>
+    <circle cx="24" cy="20" r="1.5" :fill="color" opacity="0.6" />
+    <circle cx="24" cy="28" r="1.5" :fill="color" opacity="0.6" />
   </svg>
 </template>
 
@@ -46,21 +58,21 @@
 defineProps({
   size: {
     type: [Number, String],
-    default: 24
+    default: 24,
   },
   color: {
     type: String,
-    default: 'currentColor'
+    default: "currentColor",
   },
   iconClass: {
     type: String,
-    default: 'frp-logo'
+    default: "frp-logo",
   },
   animated: {
     type: Boolean,
-    default: false
-  }
-})
+    default: false,
+  },
+});
 </script>
 
 <style scoped>
@@ -96,4 +108,3 @@ defineProps({
   }
 }
 </style>
-

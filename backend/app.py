@@ -98,6 +98,7 @@ def main():
             host=settings.app_host,
             port=settings.app_port,
             reload=True,
+            ws_max_size=32768,
             reload_dirs=(
                 [current_dir]
                 if current_basename == "backend"
@@ -112,6 +113,7 @@ def main():
             host=settings.app_host,
             port=settings.app_port,
             reload=False,
+            ws_max_size=32768,
             log_level="info",
         )
 

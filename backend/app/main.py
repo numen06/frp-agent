@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import os
+import asyncio
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
@@ -30,18 +31,22 @@ from app.routers import (
     managed_host,
     docker_credential,
     builtin_frps,
+    runtime,
+    webssh,
 )
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.services.ssh_gateway_service import ssh_gateway_service
 from app.services.docker_gateway_service import docker_gateway_service
 from app.services.rdp_gateway_service import rdp_gateway_service
 from app.services.builtin_frps_service import builtin_frps_service
+from app.services.monitoring_service import sample_runtime
 from app.init_db import create_default_api_key, create_default_user
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.version import get_version, check_gitee_update
 from app.auth import get_current_user
 from app.models.user import User
+from app.frps_client import FrpsCollectionError
 
 # 配置日志
 logging.basicConfig(
@@ -114,6 +119,8 @@ async def lifespan(app: FastAPI):
         rdp_gateway_service.start()
     except Exception as e:
         logger.error("RDP 网关启动失败: %s", e)
+
+    await asyncio.to_thread(sample_runtime)
     
     yield
     
@@ -153,6 +160,8 @@ app.add_middleware(
 )
 
 # 注册路由
+from app.routers.host_discovery import router as discovery_router
+app.include_router(discovery_router)
 app.include_router(login.router)
 app.include_router(frps_server.router)
 app.include_router(proxy.router)
@@ -170,6 +179,13 @@ app.include_router(client_upgrade.router)
 app.include_router(managed_host.router)
 app.include_router(docker_credential.router)
 app.include_router(builtin_frps.router)
+app.include_router(runtime.router)
+app.include_router(webssh.router)
+
+
+@app.exception_handler(FrpsCollectionError)
+async def collection_failed(request, exc):
+    return JSONResponse(status_code=502, content={'detail': str(exc)})
 
 
 @app.get("/api/public/version")

@@ -1,319 +1,363 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-if="visible"
-      class="app-dialog fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      @click.self="closeDialog"
-    >
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" @click="closeDialog"></div>
+  <Dialog
+    v-if="visible"
+    :open="true"
+    @update:open="
+      (open) => {
+        if (!open) {
+          closeDialog();
+        }
+      }
+    "
+    ><DialogContent class="sm:max-w-4xl" :aria-describedby="undefined"
+      ><DialogHeader><DialogTitle>一键脚本生成</DialogTitle></DialogHeader>
       <div
-        class="app-dialog-panel relative z-10 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-xl will-change-transform sm:h-auto sm:max-h-[min(92vh,800px)] sm:rounded-xl"
-        @click.stop
+        data-slot="dialog-body"
+        class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
       >
-        <div class="app-dialog-header flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
-          <h2 class="text-lg font-semibold text-gray-900">一键脚本生成</h2>
-          <button
-            type="button"
-            class="btn btn-icon btn-ghost shrink-0"
-            aria-label="关闭"
-            @click="closeDialog"
+        <div class="grid gap-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >安装包</label
+            ><ResourceCombobox
+              v-model="packageId"
+              label="选择安装包"
+              :fetch-options="packagesApi.list"
+              :get-label="
+                (item) =>
+                  `${item.version} / ${item.platform} / ${item.filename}`
+              "
+              :resolve-option="
+                (id) => props.packages.find((item) => item.id === id)
+              "
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >API Key</label
+            ><ResourceCombobox
+              v-model="selectedKeyId"
+              label="选择 API Key"
+              :fetch-options="
+                (params) => apiKeysApi.list({ ...params, available_only: true })
+              "
+              :resolve-option="apiKeysApi.get"
+            /><Input
+              v-if="!selectedKeyId"
+              v-model="manualApiKey"
+              class="block w-full"
+              type="text"
+              placeholder="没有可用的 API Key，请手动输入"
+            ></Input>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >安装路径</label
+            ><Input
+              v-model="installPath"
+              class="block w-full"
+              type="text"
+            ></Input>
+          </div>
+          <div v-if="activeTab === 'install'">
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >配置URL（可选）</label
+            ><Input
+              v-model="configUrl"
+              class="block w-full"
+              type="text"
+              placeholder="http://.../frpc.toml"
+            ></Input>
+          </div>
+          <ToggleGroup
+            type="single"
+            :model-value="activeTab"
+            @update:model-value="
+              (value) => {
+                if (value) activeTab = value;
+              }
+            "
+            variant="outline"
+            class="flex w-full flex-wrap justify-start"
+            ><ToggleGroupItem :disabled="loading" :value="'install'">
+              安装脚本 </ToggleGroupItem
+            ><ToggleGroupItem :disabled="loading" :value="'upgrade'">
+              升级脚本
+            </ToggleGroupItem></ToggleGroup
           >
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div v-if="activeTab === 'install' && script">
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >安装脚本预览</label
+            ><CodeEditor
+              :model-value="script"
+              language="shell"
+              :height="'320px'"
+              :readonly="true"
+            /><Button
+              type="button"
+              class="mt-2"
+              :disabled="!packageId"
+              @click="handleCopyCommand($event)"
+              variant="outline"
+              size="sm"
+            >
+              复制安装命令
+            </Button>
+          </div>
+          <div v-if="activeTab === 'upgrade' && upgradeScript">
+            <label class="mb-1 block text-sm font-medium text-gray-700"
+              >升级脚本预览</label
+            ><CodeEditor
+              :model-value="upgradeScript"
+              language="shell"
+              :height="'320px'"
+              :readonly="true"
+            /><Button
+              type="button"
+              class="mt-2"
+              :disabled="!packageId"
+              @click="handleCopyUpgradeCommand($event)"
+              variant="outline"
+              size="sm"
+            >
+              复制升级命令
+            </Button>
+          </div>
         </div>
-        <div class="app-dialog-body min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm">
-            <div class="grid gap-4">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700">安装包</label>
-                <RemoteSelect v-model="packageId" label="选择安装包" :fetch-options="packagesApi.list" :get-label="item => `${item.version} / ${item.platform} / ${item.filename}`" :resolve-option="id => props.packages.find(item => item.id === id)" />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700">API Key</label>
-                <RemoteSelect v-model="selectedKeyId" label="选择 API Key" :fetch-options="params => apiKeysApi.list({ ...params, available_only: true })" :resolve-option="apiKeysApi.get" />
-                <input
-                  v-if="!selectedKeyId"
-                  v-model="manualApiKey"
-                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  type="text"
-                  placeholder="没有可用的 API Key，请手动输入"
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700">安装路径</label>
-                <input v-model="installPath" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" type="text" />
-              </div>
-              <div v-if="activeTab === 'install'">
-                <label class="mb-1 block text-sm font-medium text-gray-700">配置URL（可选）</label>
-                <input
-                  v-model="configUrl"
-                  class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  type="text"
-                  placeholder="http://.../frpc.toml"
-                />
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  class="btn btn-md"
-                  :class="activeTab === 'install' ? 'btn-primary' : 'btn-outline-primary'"
-                  :disabled="loading"
-                  @click="activeTab = 'install'"
-                >
-                  安装脚本
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-md"
-                  :class="activeTab === 'upgrade' ? 'btn-success' : 'btn-outline-success'"
-                  :disabled="loading"
-                  @click="activeTab = 'upgrade'"
-                >
-                  升级脚本
-                </button>
-              </div>
-              <div v-if="activeTab === 'install' && script">
-                <label class="mb-1 block text-sm font-medium text-gray-700">安装脚本预览</label>
-                <CodeEditor :model-value="script" language="shell" :height="'320px'" :readonly="true" />
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-primary mt-2"
-                  :disabled="!packageId"
-                  @click="handleCopyCommand($event)"
-                >
-                  复制安装命令
-                </button>
-              </div>
-              <div v-if="activeTab === 'upgrade' && upgradeScript">
-                <label class="mb-1 block text-sm font-medium text-gray-700">升级脚本预览</label>
-                <CodeEditor :model-value="upgradeScript" language="shell" :height="'320px'" :readonly="true" />
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-success mt-2"
-                  :disabled="!packageId"
-                  @click="handleCopyUpgradeCommand($event)"
-                >
-                  复制升级命令
-                </button>
-              </div>
-            </div>
-        </div>
-              <div class="app-dialog-footer flex shrink-0 justify-end gap-2 border-t border-gray-200 bg-white p-4">
-                <button
-                  v-if="activeTab === 'install'"
-                  type="button"
-                  class="btn btn-md btn-primary"
-                  :disabled="loading"
-                  @click="submit"
-                >
-                  {{ loading ? '生成中...' : '生成安装脚本' }}
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="btn btn-md btn-success"
-                  :disabled="loading"
-                  @click="submitUpgrade"
-                >
-                  {{ loading ? '生成中...' : '生成升级脚本' }}
-                </button>
-              </div>
       </div>
-    </div>
-  </Teleport>
+      <DialogFooter
+        ><Button
+          v-if="activeTab === 'install'"
+          type="button"
+          :disabled="loading"
+          @click="submit"
+          variant="default"
+          size="default"
+          >{{ loading ? "生成中..." : "生成安装脚本" }}</Button
+        ><Button
+          v-else
+          type="button"
+          :disabled="loading"
+          @click="submitUpgrade"
+          variant="default"
+          size="default"
+          >{{ loading ? "生成中..." : "生成升级脚本" }}</Button
+        ></DialogFooter
+      ></DialogContent
+    ></Dialog
+  >
 </template>
 
 <script setup>
-import { apiKeysApi } from '@/api/apiKeys'
-import RemoteSelect from '@/components/RemoteSelect.vue'
-import { ref, watch, computed } from 'vue'
-import { useModal } from '@/composables/useModal'
-import { useApiKeysStore } from '@/stores/apiKeys'
-import { packagesApi } from '@/api/packages'
-import { copyWithTooltip } from '@/composables/useCopyTooltip'
-import CodeEditor from '@/components/CodeEditor.vue'
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { notify } from "@/composables/useFeedback";
+import { apiKeysApi } from "@/api/apiKeys";
+import ResourceCombobox from "@/components/ResourceCombobox.vue";
+import { ref, watch, computed } from "vue";
+import { useApiKeysStore } from "@/stores/apiKeys";
+import { packagesApi } from "@/api/packages";
+import { copyText } from "@/composables/useClipboard";
+import CodeEditor from "@/components/CodeEditor.vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   packages: { type: Array, default: () => [] },
   /** 与「版本」筛选中的「最新」一致，用于默认选中对应安装包 */
-  latestVersion: { type: String, default: '' },
+  latestVersion: { type: String, default: "" },
   loading: { type: Boolean, default: false },
-  script: { type: String, default: '' },
-  upgradeScript: { type: String, default: '' }
-})
+  script: { type: String, default: "" },
+  upgradeScript: { type: String, default: "" },
+});
 
-const emit = defineEmits(['update:modelValue', 'submit', 'submit-upgrade'])
-const apiKeysStore = useApiKeysStore()
-const visible = ref(false)
-const packageId = ref(0)
-const installPath = ref('/opt/frp')
-const configUrl = ref('')
-const selectedKeyId = ref(0)
-const manualApiKey = ref('')
-const activeTab = ref('install')
+const emit = defineEmits(["update:modelValue", "submit", "submit-upgrade"]);
+const apiKeysStore = useApiKeysStore();
+const visible = ref(false);
+const packageId = ref(0);
+const installPath = ref("/opt/frp");
+const configUrl = ref("");
+const selectedKeyId = ref(0);
+const manualApiKey = ref("");
+const activeTab = ref("install");
 
 const availableKeys = computed(() => {
-  return apiKeysStore.availableKeys
-})
+  return apiKeysStore.availableKeys;
+});
 
 const resolveApiKey = async () => {
   if (availableKeys.value.length === 0) {
-    return manualApiKey.value.trim()
+    return manualApiKey.value.trim();
   }
-  const id = selectedKeyId.value
-  if (!id) return ''
-  const selectedFullKey = await apiKeysStore.resolveFullKey(id)
+  const id = selectedKeyId.value;
+  if (!id) return "";
+  const selectedFullKey = await apiKeysStore.resolveFullKey(id);
   if (selectedFullKey) {
-    return selectedFullKey
+    return selectedFullKey;
   }
 
   // 兜底：若当前选中的默认 Key 无法恢复完整值，则尝试其他可用默认项
-  const fallbackFullKey = await apiKeysStore.resolveDefaultFullKey()
+  const fallbackFullKey = await apiKeysStore.resolveDefaultFullKey();
   if (fallbackFullKey) {
-    selectedKeyId.value = apiKeysStore.selectedKeyId || selectedKeyId.value
-    return fallbackFullKey
+    selectedKeyId.value = apiKeysStore.selectedKeyId || selectedKeyId.value;
+    return fallbackFullKey;
   }
-  return ''
-}
+  return "";
+};
 
 const pickDefaultPackageId = () => {
-  const list = props.packages || []
-  if (!list.length) return 0
-  const lv = (props.latestVersion || '').trim()
+  const list = props.packages || [];
+  if (!list.length) return 0;
+  const lv = (props.latestVersion || "").trim();
   if (lv) {
-    const hit = list.find((p) => p.version === lv)
-    if (hit) return hit.id
+    const hit = list.find((p) => p.version === lv);
+    if (hit) return hit.id;
   }
-  return list[0].id
-}
+  return list[0].id;
+};
 
-watch(() => props.modelValue, async (val) => {
-  visible.value = val
-  if (val) {
-    activeTab.value = 'install'
-    await apiKeysStore.loadKeys()
-    const fallbackId = apiKeysStore.selectedKeyId || (availableKeys.value[0]?.id ?? 0)
-    selectedKeyId.value = fallbackId
-    if (fallbackId) {
-      apiKeysStore.setDefaultKey(fallbackId)
+watch(
+  () => props.modelValue,
+  async (val) => {
+    visible.value = val;
+    if (val) {
+      activeTab.value = "install";
+      await apiKeysStore.loadKeys();
+      const fallbackId =
+        apiKeysStore.selectedKeyId || (availableKeys.value[0]?.id ?? 0);
+      selectedKeyId.value = fallbackId;
+      if (fallbackId) {
+        apiKeysStore.setDefaultKey(fallbackId);
+      }
+      manualApiKey.value = "";
+      packageId.value = pickDefaultPackageId();
     }
-    manualApiKey.value = ''
-    packageId.value = pickDefaultPackageId()
-  }
-})
+  },
+);
 
 watch(
   () => [visible.value, props.packages, props.latestVersion],
   () => {
-    if (!visible.value) return
-    const list = props.packages || []
+    if (!visible.value) return;
+    const list = props.packages || [];
     if (!list.length) {
-      packageId.value = 0
-      return
+      packageId.value = 0;
+      return;
     }
     if (!packageId.value || !list.some((p) => p.id === packageId.value)) {
-      packageId.value = pickDefaultPackageId()
+      packageId.value = pickDefaultPackageId();
     }
   },
-  { deep: true }
-)
+  { deep: true },
+);
 
-watch(visible, (val) => emit('update:modelValue', val))
+watch(visible, (val) => emit("update:modelValue", val));
 watch(selectedKeyId, (id) => {
   if (id) {
-    apiKeysStore.setDefaultKey(id)
+    apiKeysStore.setDefaultKey(id);
   }
-})
+});
 
-const closeDialog = () => { visible.value = false }
-useModal(visible, closeDialog)
+const closeDialog = () => {
+  visible.value = false;
+};
 
 const submit = async () => {
   if (!packageId.value) {
-    alert('请选择安装包')
-    return
+    notify("请选择安装包");
+    return;
   }
   if (availableKeys.value.length > 0 && !selectedKeyId.value) {
-    alert('请选择 API Key')
-    return
+    notify("请选择 API Key");
+    return;
   }
   if (availableKeys.value.length === 0 && !manualApiKey.value.trim()) {
-    alert('请输入 API Key（安装脚本中的下载链接需要 API Key 认证）')
-    return
+    notify("请输入 API Key（安装脚本中的下载链接需要 API Key 认证）");
+    return;
   }
-  const apiKey = await resolveApiKey()
+  const apiKey = await resolveApiKey();
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
-    return
+    notify(
+      '未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试',
+    );
+    return;
   }
-  emit('submit', {
+  emit("submit", {
     package_id: packageId.value,
-    api_key: apiKey || '',
+    api_key: apiKey || "",
     install_path: installPath.value,
-    config_url: configUrl.value
-  })
-}
+    config_url: configUrl.value,
+  });
+};
 
 const handleCopyCommand = async (event) => {
-  if (!packageId.value) return
-  const apiKey = await resolveApiKey()
+  if (!packageId.value) return;
+  const apiKey = await resolveApiKey();
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
-    return
+    notify(
+      '未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试',
+    );
+    return;
   }
   const url = packagesApi.getInstallScriptUrl({
     package_id: packageId.value,
-    api_key: apiKey || '',
+    api_key: apiKey || "",
     install_path: installPath.value,
-    config_url: configUrl.value || undefined
-  })
-  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-  await copyWithTooltip(cmd, event)
-}
+    config_url: configUrl.value || undefined,
+  });
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`;
+  await copyText(cmd, event);
+};
 
 const submitUpgrade = async () => {
   if (!packageId.value) {
-    alert('请选择安装包')
-    return
+    notify("请选择安装包");
+    return;
   }
   if (availableKeys.value.length > 0 && !selectedKeyId.value) {
-    alert('请选择 API Key')
-    return
+    notify("请选择 API Key");
+    return;
   }
   if (availableKeys.value.length === 0 && !manualApiKey.value.trim()) {
-    alert('请输入 API Key（升级脚本中的下载链接需要 API Key 认证）')
-    return
+    notify("请输入 API Key（升级脚本中的下载链接需要 API Key 认证）");
+    return;
   }
-  const apiKey = await resolveApiKey()
+  const apiKey = await resolveApiKey();
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
-    return
+    notify(
+      '未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试',
+    );
+    return;
   }
-  emit('submit-upgrade', {
+  emit("submit-upgrade", {
     package_id: packageId.value,
-    api_key: apiKey || '',
-    install_path: installPath.value
-  })
-}
+    api_key: apiKey || "",
+    install_path: installPath.value,
+  });
+};
 
 const handleCopyUpgradeCommand = async (event) => {
-  if (!packageId.value) return
-  const apiKey = await resolveApiKey()
+  if (!packageId.value) return;
+  const apiKey = await resolveApiKey();
   if (!apiKey) {
-    alert('未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试')
-    return
+    notify(
+      '未能获取有效的 API Key，请到"密钥管理"页重新复制/设置默认 APPKey 后重试',
+    );
+    return;
   }
   const url = packagesApi.getUpgradeScriptUrl({
     package_id: packageId.value,
-    api_key: apiKey || '',
-    install_path: installPath.value
-  })
-  const cmd = `curl -sL "${window.location.origin}${url}" | bash`
-  await copyWithTooltip(cmd, event)
-}
+    api_key: apiKey || "",
+    install_path: installPath.value,
+  });
+  const cmd = `curl -sL "${window.location.origin}${url}" | bash`;
+  await copyText(cmd, event);
+};
 </script>

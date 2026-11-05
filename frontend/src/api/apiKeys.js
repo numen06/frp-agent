@@ -1,32 +1,33 @@
-import api from './index'
+import api from "./index";
 
 export const apiKeysApi = {
   // 获取 API Key 列表
-  list(params = {}) { return api.get('/api-keys', { params }) },
+  list(params = {}) {
+    return api.get("/api-keys", { params });
+  },
 
   // 获取单个 API Key
   get(id, params = {}) {
-    return api.get(`/api-keys/${id}`, { params })
+    return api.get(`/api-keys/${id}`, { params });
   },
 
   // 获取完整密钥
   getFullKey(id) {
-    return api.get(`/api-keys/${id}/full-key`)
+    return api.get(`/api-keys/${id}/full-key`);
   },
 
   // 创建 API Key
   create(data) {
-    return api.post('/api-keys', data)
+    return api.post("/api-keys", data);
   },
 
   // 更新 API Key
   update(id, data) {
-    return api.put(`/api-keys/${id}`, data)
+    return api.put(`/api-keys/${id}`, data);
   },
 
   // 删除 API Key
   delete(id) {
-    return api.delete(`/api-keys/${id}`)
-  }
-}
-
+    return api.delete(`/api-keys/${id}`);
+  },
+};

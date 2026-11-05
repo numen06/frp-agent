@@ -2,9 +2,9 @@
 export function isSshCandidateProxy(proxy) {
   return (
     proxy &&
-    proxy.proxy_type === 'tcp' &&
+    proxy.proxy_type === "tcp" &&
     proxy.local_port === 22 &&
     proxy.remote_port != null &&
-    proxy.status === 'online'
-  )
+    proxy.status === "online"
+  );
 }

@@ -58,6 +58,15 @@ class ManagedHost(Base):
     )
 
 
+class HostProxySource(Base):
+    """Discovery provenance; pending hosts remain unavailable until a successful test."""
+
+    __tablename__ = "host_proxy_sources"
+    host_id = Column(Integer, ForeignKey("managed_hosts.id", ondelete="CASCADE"), primary_key=True)
+    proxy_id = Column(Integer, ForeignKey("proxies.id", ondelete="CASCADE"), unique=True, nullable=False)
+    activation_pending = Column(Boolean, nullable=False, default=True)
+
+
 class HostAccessGrant(Base):
     """用户或 API Key 对单台主机的最小权限授权。"""
 
