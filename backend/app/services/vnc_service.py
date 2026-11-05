@@ -1,6 +1,8 @@
 """VNC password delegation inside a pinned SSH channel to the Mac's loopback only."""
 import struct
 import time
+import socket
+import ipaddress
 from fastapi import HTTPException
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
 try:
@@ -14,9 +16,49 @@ from app.services.host_access_service import build_host_client
 from app.services.ssh_client import CommandResult
 
 
+TRUSTED_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
+    '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10', '::1/128', 'fc00::/7'))
+
+
+def trusted_ip(value):
+    ip = ipaddress.ip_address(value)
+    if getattr(ip, 'ipv4_mapped', None):
+        ip = ip.ipv4_mapped
+    return any(ip in network for network in TRUSTED_NETWORKS)
+
+
+def direct_address(address):
+    address = address.strip()
+    if not address or any(c in address for c in '/@?#\\') or '%' in address:
+        raise HTTPException(400, 'VNC 地址请填写主机名或 IP')
+    try:
+        ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if not trusted_ip(address):
+        raise HTTPException(400, '传统 VNC 直连没有传输加密，请使用可信内网、VPN 或 FRP 的内部/回环入口；公网目标可选 SSH 隧道')
+    return address
+
+
+def open_direct(address, port):
+    rows = socket.getaddrinfo(address, port, type=socket.SOCK_STREAM)
+    if not rows or any(not trusted_ip(row[4][0]) for row in rows):
+        raise HTTPException(400, 'VNC 域名解析到非可信网络地址，已拒绝发送凭据；请使用 VPN、FRP 内部入口或 SSH 隧道')
+    last_error = None
+    for family, kind, protocol, _, endpoint in rows:
+        channel = socket.socket(family, kind, protocol)
+        try:
+            channel.settimeout(10)
+            # Connect the validated numeric address, preventing DNS rebinding.
+            channel.connect(endpoint)
+            return channel
+        except OSError as exc:
+            channel.close()
+            last_error = exc
+    raise last_error
+
+
 def validate_vnc_values(db, values):
-    if values.get('address') != '127.0.0.1':
-        raise HTTPException(400, 'VNC 地址必须为 127.0.0.1，目标通过关联的 Mac SSH 主机确定')
     credential = db.get(SshCredential, values.get('credential_id')) if values.get('credential_id') else None
     if not credential or credential.auth_type != 'password':
         raise HTTPException(400, 'VNC 必须绑定密码凭据')
@@ -24,8 +66,12 @@ def validate_vnc_values(db, values):
     # Classic VNC silently truncates at 8 bytes; reject rather than hide this limitation.
     if not password or not password.isascii() or not 1 <= len(password) <= 8:
         raise HTTPException(400, '传统 VNC 密码必须为 1–8 位 ASCII 字符；请使用专用凭据')
-    ssh = db.get(ManagedHost, values.get('vnc_ssh_host_id')) if values.get('vnc_ssh_host_id') else None
-    validate_ssh(ssh)
+    if values.get('vnc_ssh_host_id'):
+        if values.get('address') != '127.0.0.1':
+            raise HTTPException(400, 'SSH 隧道内的 VNC 目标必须为 127.0.0.1')
+        validate_ssh(db.get(ManagedHost, values['vnc_ssh_host_id']))
+    else:
+        values['address'] = direct_address(values['address'])
     values['docker_credential_id'] = None
     values['docker_endpoint_id'] = None
     values['host_key_fingerprint'] = None
@@ -39,10 +85,12 @@ def validate_ssh(ssh):
 def snapshot(db, host):
     values = {k: getattr(host, k) for k in ('address', 'credential_id', 'vnc_ssh_host_id')}
     validate_vnc_values(db, values)
-    ssh = db.get(ManagedHost, host.vnc_ssh_host_id)
     # Include encrypted values, so changing a credential also revokes an active session.
     def cred(c):
         return (c.id, c.username, c.auth_type, c.password_encrypted, c.private_key_encrypted, c.passphrase_encrypted)
+    if not host.vnc_ssh_host_id:
+        return ('direct', host.address, host.port, cred(host.credential))
+    ssh = db.get(ManagedHost, host.vnc_ssh_host_id)
     return (host.address, host.port, cred(host.credential), ssh.id, ssh.address, ssh.port,
             ssh.host_key_fingerprint, cred(ssh.credential))
 
@@ -95,21 +143,25 @@ def authenticate_vnc(channel, password):
 
 def open_vnc(db, host):
     snapshot(db, host)
-    ssh = db.get(ManagedHost, host.vnc_ssh_host_id)
     from app.services.host_discovery import check_upstream
-    check_upstream(db, ssh)
-    client = build_host_client(ssh, ssh.credential)
-    channel = None
+    client = channel = None
     try:
-        client.connect(ssh.address, ssh.port, ssh.credential.username, 10)
-        channel = client.open_loopback_channel(host.port)
+        if host.vnc_ssh_host_id:
+            ssh = db.get(ManagedHost, host.vnc_ssh_host_id)
+            check_upstream(db, ssh)
+            client = build_host_client(ssh, ssh.credential)
+            client.connect(ssh.address, ssh.port, ssh.credential.username, 10)
+            channel = client.open_loopback_channel(host.port)
+        else:
+            check_upstream(db, host)
+            client = channel = open_direct(host.address, host.port)
         initial = authenticate_vnc(channel, decrypt_secret(host.credential.password_encrypted))
         channel.settimeout(1)
         return client, channel, initial
     except BaseException:
         if channel:
             channel.close()
-        client.close()
+        if client: client.close()
         raise
 
 
@@ -118,4 +170,5 @@ def test_vnc_connection(db, host):
     client, channel, _ = open_vnc(db, host)
     channel.close()
     client.close()
-    return CommandResult(0, 'SSH 指纹、加密通道及 VNC 密码认证通过；桌面显示以实际连接为准', ''), int((time.monotonic()-started)*1000)
+    mode = 'SSH 指纹、加密通道及' if host.vnc_ssh_host_id else '可信网络直连及'
+    return CommandResult(0, mode + ' VNC 密码认证通过；桌面显示以实际连接为准', ''), int((time.monotonic()-started)*1000)

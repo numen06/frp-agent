@@ -159,7 +159,7 @@ def main():
                 card.get_by_role('button',name='删除',exact=True).click();panel=dialog()
                 panel.get_by_role('button',name='取消',exact=True).click()
             page.get_by_role('tab',name='访问授权',exact=True).click();settle()
-            page.get_by_role('button',name='选择主机',exact=True).click();popup('[data-slot=combobox-content]')
+            page.get_by_role('button',name='选择连接服务',exact=True).click();popup('[data-slot=combobox-content]')
             page.keyboard.press('Escape')
             page.get_by_role('button',name='撤销授权',exact=True).first.click();cancel_confirmation()
             page.get_by_role('tab',name='系统用户',exact=True).click();settle()

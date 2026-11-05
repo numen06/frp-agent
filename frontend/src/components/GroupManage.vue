@@ -176,6 +176,7 @@
                     ><ActionMenu
                       label="更多操作"
                       :items="[
+                        { action: 'machines', label: '查看主机' },
                         { action: 'deploy', label: '一键部署' },
                         { action: 'config', label: '生成配置' },
                         { action: 'import', label: '导入配置' },
@@ -265,6 +266,7 @@
                   variant="outline"
                   label="更多操作"
                   :items="[
+                    { action: 'machines', label: '查看主机' },
                     { action: 'deploy', label: '一键部署' },
                     { action: 'config', label: '生成配置' },
                     { action: 'import', label: '导入配置' },
@@ -902,6 +904,9 @@
           }
         "
         ><DialogHeader><DialogTitle>删除分组</DialogTitle></DialogHeader>
+        <p class="px-5 text-sm text-muted-foreground">
+          已纳管主机及连接服务会保留，并移至未分组；不会删除主机凭据或扩大授权。
+        </p>
         <div
           data-slot="dialog-body"
           class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
@@ -984,6 +989,7 @@
 
 <script setup>
 import { copyText } from "@/composables/useClipboard";
+import { useRouter } from "vue-router";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1024,6 +1030,7 @@ import GroupProxiesDialog from "@/components/GroupProxiesDialog.vue";
 import GroupClientUpgradeDialog from "@/components/GroupClientUpgradeDialog.vue";
 
 const emit = defineEmits(["generate-config"]);
+const router = useRouter();
 
 const props = defineProps({
   serverId: {
@@ -1613,6 +1620,12 @@ const openImportOrganizeDialog = async () => {
 
 const runMoreAction = (action, group) => {
   switch (action) {
+    case "machines":
+      router.push({
+        path: "/machines",
+        query: { group_key: `${props.serverId}:${group.group_name}` },
+      });
+      break;
     case "deploy":
       openDeployDialog(group);
       break;

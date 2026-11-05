@@ -100,7 +100,7 @@ def main():
             expect(panel.get_by_text('SSH 指纹尚未固定', exact=True)).to_be_visible()
             expect(panel.get_by_text('上次检查通过', exact=False)).to_be_visible()
             expect(panel.get_by_text('2.0 MiB', exact=True)).to_be_visible()
-            expect(panel.get_by_role('link', name='管理 VNC 主机')).to_have_attribute('href', '/hosts?host_type=vnc')
+            expect(panel.get_by_role('link', name='管理 VNC 连接')).to_have_attribute('href', '/hosts?host_type=vnc')
             expect(panel.get_by_role('link', name='演示 Mac VNC', exact=True)).to_have_attribute('href', '/hosts/9?tab=logs')
             for button in panel.get_by_role('button').all():
                 if button.is_visible() and width < 768:
@@ -134,14 +134,14 @@ def main():
         state['data']['vnc'].update(hosts=[], failures=[], total=0, enabled=0, needs_attention=0)
         page.get_by_role('button', name='刷新运行数据').click(); settle()
         panel.get_by_role('tab', name='VNC 防护').click(); settle()
-        expect(panel.get_by_text('尚未添加 VNC 主机。', exact=True)).to_be_visible()
+        expect(panel.get_by_text('尚未添加 VNC 连接服务。', exact=True)).to_be_visible()
         state['data']['vnc'] = None
         page.get_by_role('button', name='刷新运行数据').click(); settle()
         expect(panel.get_by_text('VNC 运行数据尚不可用，请刷新重试。', exact=True)).to_be_visible()
         state['fail'] = True
         page.reload(); settle()
         expect(panel.get_by_role('alert')).to_contain_text('读取失败')
-        expect(panel.get_by_text('尚未添加 VNC 主机。', exact=True)).to_have_count(0)
+        expect(panel.get_by_text('尚未添加 VNC 连接服务。', exact=True)).to_have_count(0)
         state['fail'] = False
         # Changing routes unmounts the poller, and ordinary users never request metrics.
         state['role'] = 'user'

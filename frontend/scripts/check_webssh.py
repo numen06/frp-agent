@@ -81,9 +81,9 @@ def main():
         state['fail']=False
         page.get_by_role('button',name='重新连接',exact=True).click()
         expect(page.get_by_text('已连接',exact=True)).to_be_visible()
-        page.get_by_role('tab',name='主机信息',exact=True).click()
+        page.get_by_role('tab',name='连接信息',exact=True).click()
         page.get_by_role('button',name='断开并离开',exact=True).click()
-        expect(page.get_by_role('tab',name='主机信息',exact=True)).to_have_attribute('aria-selected','true')
+        expect(page.get_by_role('tab',name='连接信息',exact=True)).to_have_attribute('aria-selected','true')
         expect(page.get_by_role('region',name='SSH 交互终端',exact=True)).to_have_count(0)
         before=len(urls);state['execute']=False
         page.goto(demo.BASE+'/hosts/1?tab=terminal');page.wait_for_load_state('networkidle')

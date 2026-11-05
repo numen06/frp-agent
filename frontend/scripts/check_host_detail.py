@@ -10,7 +10,7 @@ def main():
     state = dict(admin=True, fail_host=False, fail_logs=False)
     errors, queries, cleanup_previews = [], [], []
     hosts = deepcopy(demo.HOSTS)
-    hosts[0]['description'] = '主机运行与应用服务说明'
+    hosts[0]['description'] = '连接与所属主机'
     logs = [dict(id=100+i, host_id=1, host_name=hosts[0]['name'], actor_name='operator' if i % 2 else 'other-admin',
         actor_type='user', created_at=demo.DATE, action='execute_command', command=f'host-one-only-{i}',
         status='success', stdout='DEMO OUTPUT\nSecond line', stderr='DEMO STDERR', exit_code=0,
@@ -81,9 +81,9 @@ def main():
             search.fill(hosts[0]['name']); search.press('Enter'); settle()
             page.get_by_role('link',name=hosts[0]['name'],exact=True).click(); settle()
             expect(page.locator('main h1')).to_have_text(hosts[0]['name'])
-            expect(page.get_by_text('主机运行与应用服务说明',exact=True)).to_be_visible()
+            expect(page.get_by_text('连接与所属主机',exact=True)).to_be_visible()
             expect(page.get_by_text('关联凭据',exact=True)).to_be_visible()
-            page.get_by_role('link',name='← 返回主机列表',exact=True).click(); settle()
+            page.get_by_role('link',name='← 返回连接列表',exact=True).click(); settle()
             expect(page.get_by_role('textbox',name='搜索主机',exact=True)).to_have_value(hosts[0]['name'])
             page.get_by_role('link',name='查看主机日志',exact=True).click(); settle()
             expect(page.get_by_role('tab',name='日志与流量',exact=True)).to_have_attribute('aria-selected','true')
@@ -126,7 +126,7 @@ def main():
         expect(page.get_by_role('button',name='详情',exact=True).first).to_be_visible()
         assert len(queries)>count, (page.url,page.locator('main').inner_text())
         state['admin']=False; page.reload(); settle()
-        expect(page.get_by_role('link',name='编辑主机',exact=True)).to_have_count(0)
+        expect(page.get_by_role('link',name='编辑连接',exact=True)).to_have_count(0)
         expect(page.get_by_role('button',name='清理旧日志',exact=True)).to_have_count(0)
         expect(page.locator('main')).to_contain_text('仅显示你本人的访问与操作记录')
         expect(page.locator('main')).not_to_contain_text('other-admin')

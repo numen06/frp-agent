@@ -99,6 +99,12 @@ def delete_server(
     
     if server.is_builtin:
         raise HTTPException(status_code=409, detail="内置 FRP 记录由系统维护，请在内置 FRP 面板关闭服务")
+    from app.models.host_machine import HostMachine
+    if db.query(HostMachine.id).filter(HostMachine.frps_server_id == server_id).first():
+        from app.services.host_access_service import require_admin
+        require_admin(current_user)
+    db.query(HostMachine).filter(HostMachine.frps_server_id == server_id).update(
+        {HostMachine.frps_server_id: None, HostMachine.group_name: None}, synchronize_session=False)
     db.delete(server)
     db.commit()
     return None

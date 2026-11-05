@@ -20,6 +20,7 @@ from app.models.docker_credential import DockerCredential
 from app.models.managed_host import HostAccessGrant, HostAuditLog, ManagedHost, HostProxySource
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
+from app.models.host_machine import HostMachine
 from app.schemas.managed_host import (
     AccessSubjectResponse,
     DockerActionRequest,
@@ -179,6 +180,8 @@ def _host_response(
         activation_pending=bool(source and source.activation_pending),
         source_proxy_id=source.proxy_id if source else None,
         id=host.id,
+        machine_id=host.machine_id,
+        machine_name=host.machine.name if host.machine else None,
         name=host.name,
         address=host.address,
         port=host.port,
@@ -363,12 +366,13 @@ def get_docker_client_certificate(
 def list_hosts(
     paging: PageParams = Depends(),
     host_id: Optional[int] = Query(None, gt=0),
+    machine_id: Optional[int] = Query(None, gt=0),
     host_type: Optional[Literal['ssh', 'rdp', 'docker', 'vnc']] = None,
     host_status: Optional[Literal['online', 'abnormal', 'unknown', 'disabled', 'pending']] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(ManagedHost).options(joinedload(ManagedHost.credential), joinedload(ManagedHost.docker_credential)).order_by(ManagedHost.id.desc())
+    query = db.query(ManagedHost).options(joinedload(ManagedHost.credential), joinedload(ManagedHost.docker_credential), joinedload(ManagedHost.machine)).order_by(ManagedHost.id.desc())
     if not is_admin(current_user):
         actor_type, actor_id, _ = actor_identity(current_user)
         allowed = db.query(HostAccessGrant.host_id).filter(
@@ -380,6 +384,8 @@ def list_hosts(
         query = query.filter(ManagedHost.id.in_(allowed), ManagedHost.is_active.is_(True))
     if host_id:
         query = query.filter(ManagedHost.id == host_id)
+    if machine_id:
+        query = query.filter(ManagedHost.machine_id == machine_id)
     if host_type:
         query = query.filter(ManagedHost.host_type == host_type)
     pending_ids = db.query(HostProxySource.host_id).filter(HostProxySource.activation_pending.is_(True))
@@ -408,6 +414,13 @@ def create_host(
     require_admin(current_user)
     values = body.model_dump()
     _validate_host_credentials(db, values)
+    if values.get('machine_id'):
+        if not db.get(HostMachine, values['machine_id']):
+            raise HTTPException(400, '所属主机不存在')
+    else:
+        machine = HostMachine(name=values['name'])
+        db.add(machine); db.flush()
+        values['machine_id'] = machine.id
     host = ManagedHost(
         **values,
         created_by_user_id=current_user.id if current_user.id > 0 else None,
@@ -434,6 +447,8 @@ def update_host(
     if not host:
         raise HTTPException(status_code=404, detail="主机不存在")
     values = body.model_dump(exclude_unset=True)
+    if 'machine_id' in values and (not values['machine_id'] or not db.get(HostMachine, values['machine_id'])):
+        raise HTTPException(400, '请选择存在的所属主机')
     source = db.get(HostProxySource, host.id)
     if source and source.activation_pending:
         values["is_active"] = False
@@ -572,7 +587,7 @@ def test_host(
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
         host.last_message = (
-            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书', 'vnc': 'VNC SSH/密码认证'}[host.host_type]} 连接成功"
+            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书', 'vnc': 'VNC 密码认证'}[host.host_type]} 连接成功"
             if success
             else (result.stderr or "连接成功，但测试失败")
         )[:500]

@@ -47,6 +47,7 @@ HOSTS = [dict(id=i, name=name, host_type=kind, address=f'{kind}-{i}.example.com'
              ('staging-linux', 'ssh', 22, 'deploy', '测试环境 / 持续交付', 'Debian 12'),
              ('staging-docker', 'docker', 9443, '', '测试环境 / 容器服务', 'Docker 27.5.1'),
              ('office-build', 'ssh', 22, 'builder', '研发环境 / 构建节点', 'Ubuntu 22.04 LTS')], 1)]
+MACHINES = [dict(id=h['id'], name=h['name'], description='', group_key=None, group_name=None, server_name=None, service_count=1) for h in HOSTS]
 PACKAGES = [dict(id=i, version='0.61.1', platform=platform,
                  filename=f'frp_0.61.1_{platform}.{ext}', file_size=12582912+i*1048576,
                  source='github', is_active=True, downloaded_at=DATE,
@@ -109,6 +110,8 @@ RESPONSES = {
         3: dict(total=6, online=5, offline=1, portCount=6)}),
     '/api/managed-hosts/context': dict(is_admin=True, actor_type='user', actor_name='demo-admin'),
     '/api/managed-hosts': HOSTS,
+    '/api/host-machines': MACHINES,
+    '/api/host-machines/groups': [dict(id='1:'+g['group_name'], name=SERVERS[0]['name']+' / '+g['group_name']) for g in GROUPS],
     '/api/managed-hosts/gateway/info': dict(port=2222, running=True,
         docker_gateway=dict(port=23750, running=True),
         rdp_gateway=dict(port=13389, running=True, public_address='rdp.example.com:13389')),
@@ -132,6 +135,8 @@ def demo_response(url):
     query = parse_qs(url.query)
     path = url.path
     data = RESPONSES.get(path)
+    if path.startswith('/api/host-machines/') and path.rsplit('/',1)[-1].isdigit():
+        data = next((row for row in MACHINES if row['id']==int(path.rsplit('/',1)[-1])),None)
     if path.startswith('/api/servers/') and path.rsplit('/', 1)[-1].isdigit():
         data = next((row for row in SERVERS if row['id'] == int(path.rsplit('/', 1)[-1])), None)
     if path.startswith('/api/api-keys/') and path.rsplit('/', 1)[-1].isdigit():
@@ -168,6 +173,7 @@ def demo_response(url):
         term = query['search'][0].lower()
         rows = [row for row in rows if term in str(row).lower()]
     if path == '/api/managed-hosts':
+        if query.get('machine_id'): rows = [row for row in rows if str(row.get('machine_id',row['id'])) == query['machine_id'][0]]
         if query.get('host_type'):
             rows = [row for row in rows if row['host_type'] == query['host_type'][0]]
         if query.get('host_status'):
@@ -277,9 +283,9 @@ def main():
             if width == 390:
                 page.get_by_role('button', name='切换导航菜单').click()
                 page.get_by_role('navigation', name='主导航').get_by_role('link', name='主机资源').click()
-                page.wait_for_url('**/hosts')
+                page.wait_for_url('**/machines')
                 settle()
-                assert page.url.endswith('/hosts')
+                assert page.url.endswith('/machines')
                 expect(page.get_by_role('navigation', name='主导航')).not_to_be_visible()
             print(f'Responsive check passed: {width}px, {len(routes)} routes')
 

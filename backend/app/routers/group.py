@@ -400,12 +400,16 @@ def _compose_action_context(
 
 
 def _group_names_query(db, frps_server_id=None):
+    from app.models.host_machine import HostMachine
     created = db.query(Group.name.label("group_name"), Group.frps_server_id.label("frps_server_id"))
     discovered = db.query(Proxy.group_name.label("group_name"), Proxy.frps_server_id.label("frps_server_id")).filter(Proxy.group_name.isnot(None), Proxy.group_name != "")
     if frps_server_id:
         created = created.filter(Group.frps_server_id == frps_server_id)
         discovered = discovered.filter(Proxy.frps_server_id == frps_server_id)
-    return created.union(discovered).subquery()
+    inventory = db.query(HostMachine.group_name.label('group_name'), HostMachine.frps_server_id.label('frps_server_id')).filter(HostMachine.group_name.isnot(None))
+    if frps_server_id:
+        inventory = inventory.filter(HostMachine.frps_server_id == frps_server_id)
+    return created.union(discovered, inventory).subquery()
 
 
 @router.get("/list")
@@ -646,7 +650,8 @@ def rename_group(
     
     将指定分组的所有代理更新到新分组名称
     """
-    if not new_name:
+    new_name = new_name.strip()
+    if not new_name or len(new_name) > 50:
         raise HTTPException(status_code=400, detail="新分组名称不能为空")
     
     query = db.query(Proxy).filter(Proxy.group_name == old_name)
@@ -656,11 +661,29 @@ def rename_group(
     
     proxies = query.all()
     
-    if not proxies:
-        raise HTTPException(status_code=404, detail=f"分组 '{old_name}' 不存在或没有代理")
-    
+    records = db.query(Group).filter(Group.name == old_name)
+    if frps_server_id:
+        records = records.filter(Group.frps_server_id == frps_server_id)
+    records = records.all()
+    from app.models.host_machine import HostMachine
+    from app.services.host_access_service import require_admin
+    scoped = db.query(HostMachine).filter(HostMachine.group_name == old_name)
+    if frps_server_id:
+        scoped = scoped.filter(HostMachine.frps_server_id == frps_server_id)
+    has_machines = scoped.first() is not None
+    if not proxies and not records and not has_machines:
+        raise HTTPException(status_code=404, detail=f"分组 '{old_name}' 不存在")
+    if has_machines:
+        require_admin(current_user)
     for proxy in proxies:
         proxy.group_name = new_name
+    scoped.update({HostMachine.group_name: new_name}, synchronize_session=False)
+    for record in records:
+        existing = db.query(Group).filter(Group.frps_server_id == record.frps_server_id, Group.name == new_name, Group.id != record.id).first()
+        if existing:
+            db.delete(record)
+        else:
+            record.name = new_name
     
     db.commit()
     
@@ -728,7 +751,8 @@ def _group_delete_scope(db, group_name, server_id):
     record = db.query(Group).filter(Group.frps_server_id == server_id, Group.name == group_name).first()
     proxies = db.query(Proxy).filter(Proxy.frps_server_id == server_id, Proxy.group_name == group_name)
     count = proxies.count()
-    if not record and not count:
+    from app.models.host_machine import HostMachine
+    if not record and not count and not db.query(HostMachine.id).filter_by(frps_server_id=server_id, group_name=group_name).first():
         raise HTTPException(status_code=404, detail="分组不存在")
     return record, proxies, count
 
@@ -755,6 +779,10 @@ def delete_group(
     if not group_name or group_name == "其他":
         raise HTTPException(status_code=400, detail="不能删除此分组")
     record, proxies, count = _group_delete_scope(db, group_name, frps_server_id)
+    from app.models.host_machine import HostMachine
+    if db.query(HostMachine.id).filter_by(frps_server_id=frps_server_id, group_name=group_name).first():
+        from app.services.host_access_service import require_admin
+        require_admin(current_user)
     if count and not delete_proxies:
         raise HTTPException(status_code=409, detail=f"该分组包含 {count} 条代理配置，需要二次确认后连同配置删除")
     if count and expected_proxy_count is None:
@@ -774,6 +802,9 @@ def delete_group(
         released = db.query(PortAllocation).filter(PortAllocation.frps_server_id == frps_server_id,
             PortAllocation.allocated_to.in_(proxies.with_entities(Proxy.name)), PortAllocation.is_allocated.is_(True)).update({PortAllocation.is_allocated: False}, synchronize_session=False)
         proxies.delete(synchronize_session=False)
+        from app.models.host_machine import HostMachine
+        db.query(HostMachine).filter(HostMachine.frps_server_id == frps_server_id, HostMachine.group_name == group_name).update(
+            {HostMachine.group_name: None, HostMachine.frps_server_id: None}, synchronize_session=False)
         if record:
             db.delete(record)
         db.commit()

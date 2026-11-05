@@ -1,4 +1,4 @@
-"""Live TLS/WebSocket -> real SSH -> RFB acceptance, on disposable container data only.
+"""Live TLS/WebSocket -> direct RFB and optional SSH acceptance, on disposable container data only.
 
 Run inside an isolated test container, with PYTHONPATH=/app/backend. Never point
 DATABASE_URL at an existing deployment. No host ports or real Mac are required.
@@ -210,14 +210,17 @@ def main():
                 if response.status_code >= 400: raise RuntimeError(f'{method} {path}: HTTP {response.status_code}: {response.text[:200]}')
                 return response.json() if response.content else None
             assert client.get('/api/managed-hosts',auth=None).status_code == 401
+            machine = api('POST','host-machines',json=dict(name='Disposable Mac'))
             ssh_cred = api('POST','ssh-credentials',json=dict(name='test-ssh',username='fixture',auth_type='password',password=fixture.ssh_password))
-            ssh_host = api('POST','managed-hosts',json=dict(name='test-ssh',host_type='ssh',address='127.0.0.1',port=fixture.ssh.getsockname()[1],credential_id=ssh_cred['id'],host_key_fingerprint=format_host_key_fingerprint(fixture.key)))
+            ssh_host = api('POST','managed-hosts',json=dict(machine_id=machine['id'],name='test-ssh',host_type='ssh',address='127.0.0.1',port=fixture.ssh.getsockname()[1],credential_id=ssh_cred['id'],host_key_fingerprint=format_host_key_fingerprint(fixture.key)))
             vnc_cred = api('POST','ssh-credentials',json=dict(name='test-vnc',username='vnc',auth_type='password',password=fixture.password))
-            host = api('POST','managed-hosts',json=dict(name='test-vnc',host_type='vnc',address='127.0.0.1',port=fixture.rfb.getsockname()[1],vnc_ssh_host_id=ssh_host['id'],credential_id=vnc_cred['id']))
+            host = api('POST','managed-hosts',json=dict(machine_id=machine['id'],name='test-vnc',host_type='vnc',address='127.0.0.1',port=fixture.rfb.getsockname()[1],credential_id=vnc_cred['id']))
+            assert host['vnc_ssh_host_id'] is None
+            assert api('GET',f"host-machines/{machine['id']}")['service_count']==2
             grant = api('POST','managed-hosts/access/grants',json=dict(host_id=host['id'],subject_type='user',subject_id=operator_id,can_connect=True))
             result = api('POST',f"managed-hosts/{host['id']}/test")
             assert result['success'], result
-            print('HTTPS startup, migration, credentials, host CRUD and real SSH/VNC password test: passed',flush=True)
+            print('HTTPS startup, migration, one machine with separate services and direct VNC password test: passed',flush=True)
             tls = ssl.create_default_context(cafile=str(folder/'cert.pem'))
             uri = f"wss://127.0.0.1:{port}/api/managed-hosts/{host['id']}/vnc"
             async def live():
@@ -248,12 +251,14 @@ def main():
                     try: await asyncio.wait_for(ws.recv(),12)
                     except websockets.exceptions.ConnectionClosed: pass
                     else: raise AssertionError('Revoked session remained connected')
-                print('Real WSS -> pinned SSH -> VNC framebuffer, Origin/query rejection, permissions and live grant revocation: passed',flush=True)
+                print('Real WSS -> direct VNC framebuffer, Origin/query rejection, permissions and live grant revocation: passed',flush=True)
             asyncio.run(live())
             logs = api('GET','managed-hosts/audit/logs',params=dict(page=1,page_size=100))
             rows = logs['items'] if isinstance(logs,dict) else logs
             assert {'vnc_connected','vnc_session'}.issubset({x['action'] for x in rows})
             assert fixture.password not in json.dumps(rows) and fixture.ssh_password not in json.dumps(rows)
+            api('PUT',f"managed-hosts/{host['id']}",json=dict(vnc_ssh_host_id=ssh_host['id']))
+            assert api('POST',f"managed-hosts/{host['id']}/test")['success']
             api('PUT',f"managed-hosts/{ssh_host['id']}",json=dict(host_key_fingerprint='SHA256:wrong'))
             denied = client.post(f"/api/managed-hosts/{host['id']}/test")
             assert denied.status_code == 502 and '指纹不匹配' in denied.text
@@ -262,7 +267,7 @@ def main():
             denied = client.post(f"/api/managed-hosts/{host['id']}/test")
             assert denied.status_code == 502 and '密码认证失败' in denied.text
             print('Audit records without target passwords; wrong SSH fingerprint and wrong VNC password block connection: passed',flush=True)
-            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
+            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + direct VNC + optional SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
         finally:
             server.terminate()
             try: server.wait(timeout=10)

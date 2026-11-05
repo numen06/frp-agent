@@ -41,7 +41,7 @@ def address_aliases(server):
 
 def host_proxy(db, host):
     # VNC loopback belongs to the remote Mac reached through SSH, not this FRP node.
-    if host.host_type == "vnc":
+    if host.host_type == "vnc" and host.vnc_ssh_host_id:
         return None
     source = db.get(HostProxySource, host.id)
     if source:
@@ -147,7 +147,7 @@ def discover(db, proxy_ids=None):
     for p in candidates:
         kind = "unknown"
         address = target_address(p.frps_server)
-        existing = sources.get(p.id) or next((h.id for h in hosts if h.host_type != "vnc" and h.port == p.remote_port and h.address.lower() in aliases[p.frps_server_id]), None)
+        existing = sources.get(p.id) or next((h.id for h in hosts if not (h.host_type == "vnc" and h.vnc_ssh_host_id) and h.port == p.remote_port and h.address.lower() in aliases[p.frps_server_id]), None)
         row = dict(proxy_id=p.id, name=p.name, server_name=p.frps_server.name, host_type=kind, address=address, port=p.remote_port,
                    existing_host_id=existing, available=False, message="", docker_use_tls=True)
         rows.append(row)

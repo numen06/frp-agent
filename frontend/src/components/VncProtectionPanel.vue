@@ -2,7 +2,7 @@
   <div class="space-y-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900">VNC 会话与防护</h3>
-      <Button as-child variant="outline"><RouterLink to="/hosts?host_type=vnc">管理 VNC 主机</RouterLink></Button>
+      <Button as-child variant="outline"><RouterLink to="/hosts?host_type=vnc">管理 VNC 连接</RouterLink></Button>
     </div>
     <p v-if="!snapshot" role="status" class="text-sm text-gray-500">VNC 运行数据尚不可用，请刷新重试。</p>
     <template v-else>
@@ -15,18 +15,18 @@
       </dl>
       <div class="rounded-xl border border-gray-200 p-4">
         <h4 class="text-sm font-semibold text-gray-900">连接安全策略</h4>
-        <p class="mt-2 text-sm leading-6 text-gray-600">浏览器必须通过同源 WSS；平台校验连接权限，服务器通过固定 SSH 指纹的加密通道访问 Mac 回环地址。VNC 密码由服务器代填，拒绝无密码服务。</p>
+        <p class="mt-2 text-sm leading-6 text-gray-600">浏览器必须通过同源 WSS，平台校验连接权限。VNC 直连限可信内网、VPN 或 FRP 内部入口；可选 SSH 隧道核验固定指纹后访问回环地址。VNC 密码由服务器代填，拒绝无密码服务。</p>
         <p class="mt-2 text-xs leading-5 text-gray-500">每个工作进程最多 16 个会话，每个账号最多 2 个；最长 60 分钟，客户端无数据 15 分钟结束。每 5 秒复核授权和凭据变化；桌面轮询也计为客户端数据。</p>
       </div>
       <div class="rounded-xl border border-gray-200 p-4">
-        <h4 class="text-sm font-semibold text-gray-900">主机配置与上次检查</h4>
+        <h4 class="text-sm font-semibold text-gray-900">VNC 服务配置与上次检查</h4>
         <p class="mt-2 text-xs leading-5 text-gray-500">配置检查不连接目标或尝试密码。上次手动检查结果仅反映当时状态；进入主机详情可重新测试并查看审计。</p>
-        <p v-if="!snapshot.hosts.length" class="mt-4 text-sm text-gray-500">尚未添加 VNC 主机。</p>
+        <p v-if="!snapshot.hosts.length" class="mt-4 text-sm text-gray-500">尚未添加 VNC 连接服务。</p>
         <ul v-else class="mt-3 divide-y divide-gray-100">
           <li v-for="host in snapshot.hosts" :key="host.id" class="flex min-w-0 flex-wrap items-start justify-between gap-3 py-3">
             <div class="min-w-0 flex-1 basis-48 break-words">
               <p class="font-medium text-gray-900">{{ host.name }}<span v-if="!host.enabled" class="ml-2 text-xs font-normal text-gray-500">已停用</span></p>
-              <p class="mt-1 text-xs text-gray-500">SSH：{{ host.ssh_name || '未关联' }}</p>
+              <p class="mt-1 text-xs text-gray-500">{{ host.transport === 'direct' ? 'VNC 直连（可信网络）' : `SSH 隧道：${host.ssh_name || '未关联'}` }}</p>
               <p v-if="host.issues.length" class="mt-1 text-sm text-amber-700">{{ host.issues.join('；') }}</p>
               <p v-else class="mt-1 text-sm text-emerald-700">必要配置齐全</p>
               <p class="mt-1 text-xs text-gray-500">{{ checkLabels[host.check_status] || '尚未检测' }} · {{ date(host.checked_at) }}</p>
@@ -64,8 +64,8 @@ function bytes(value) {
   return `${(value / 1024 ** 3).toFixed(1)} GiB`;
 }
 const metrics = computed(() => props.snapshot ? [
-  { label: '已启用 / 全部主机', value: `${props.snapshot.enabled} / ${props.snapshot.total}` },
-  { label: '启用主机配置隐患', value: props.snapshot.needs_attention },
+  { label: '已启用 / 全部 VNC 服务', value: `${props.snapshot.enabled} / ${props.snapshot.total}` },
+  { label: '启用服务配置隐患', value: props.snapshot.needs_attention },
   { label: '24 小时桌面连接成功', value: props.snapshot.connected },
   { label: '24 小时异常结束', value: props.snapshot.failed },
   { label: '24 小时已结束会话', value: props.snapshot.ended },

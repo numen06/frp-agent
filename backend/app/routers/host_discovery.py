@@ -7,6 +7,8 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.models.managed_host import ManagedHost, HostProxySource
+from app.models.host_machine import HostMachine
+from app.models.proxy import Proxy
 from app.services.host_access_service import require_admin, add_audit_log
 from app.services.host_discovery import discover, scan_lock
 
@@ -54,7 +56,10 @@ def import_hosts(body: ImportHosts, request: Request, db: Session = Depends(get_
             if db.query(ManagedHost.id).filter(ManagedHost.name == name).first():
                 suffix = f"-proxy-{row['proxy_id']}"
                 name = name[:100-len(suffix)] + suffix
-            host = ManagedHost(name=name, address=row["address"], port=row["port"], host_type=row["host_type"],
+            proxy = db.get(Proxy, row['proxy_id'])
+            machine = HostMachine(name=name, frps_server_id=proxy.frps_server_id if proxy.group_name else None, group_name=proxy.group_name)
+            db.add(machine); db.flush()
+            host = ManagedHost(machine_id=machine.id, name=name, address=row["address"], port=row["port"], host_type=row["host_type"],
                 docker_use_tls=row["docker_use_tls"], docker_verify_tls=True, is_active=False, last_status="unknown",
                 last_message="代理导入，未激活；请配置凭据并通过连接测试", description=f"从 {row['server_name']} / {row['name']} 识别",
                 created_by_user_id=user.id if user.id > 0 else None)

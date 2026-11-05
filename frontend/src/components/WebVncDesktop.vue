@@ -49,7 +49,7 @@ function connect() {
         rfb.addEventListener("disconnect", (e) => {
           if (socket !== ws) return;
           status.value = "已断开";
-          if (!e.detail.clean) error.value = "连接已结束，请检查授权、SSH 指纹和网络后重试";
+          if (!e.detail.clean) error.value = "连接已结束，请检查当前连接的授权、凭据和网络后重试";
           socket = null;
           rfb = null;
         });
@@ -91,7 +91,7 @@ onBeforeUnmount(() => {
       <Button variant="outline" :disabled="!socket" @click="disconnect">断开</Button>
     </div>
     <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
-    <p class="text-xs text-muted-foreground">通过已核验的 SSH 通道访问 Mac；会话最长 1 小时，授权撤销后自动断开。关闭页面会结束连接。</p>
+    <p class="text-xs text-muted-foreground">{{ host.vnc_ssh_host_id ? '通过已核验指纹的 SSH 隧道连接。' : '通过配置的可信网络入口直连 VNC。' }}会话最长 1 小时，授权撤销后自动断开。关闭页面会结束连接。</p>
     <div ref="screen" class="h-[65vh] min-h-64 w-full min-w-0 overflow-hidden rounded-md bg-black" aria-label="VNC 远程桌面" />
   </Card>
 </template>

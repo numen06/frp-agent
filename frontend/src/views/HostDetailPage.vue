@@ -22,7 +22,9 @@ const host = ref(null),
   error = ref("");
 let disposed = false;
 const listLocation = computed(() => ({
-  path: "/hosts",
+  path: host.value?.machine_id
+    ? `/machines/${host.value.machine_id}`
+    : "/hosts",
   query: {
     page: route.query.page,
     page_size: route.query.page_size,
@@ -91,6 +93,7 @@ const fields = computed(() => {
   if (!host.value) return [];
   const h = host.value;
   return [
+    ["所属主机", h.machine_name || "未归属"],
     [
       "类型",
       {
@@ -139,25 +142,33 @@ onUnmounted(() => {
   <div class="space-y-4">
     <PageHeader
       :title="host?.name || '主机详情'"
-      description="查阅主机信息、连接记录、操作日志与流量。"
+      description="查阅当前连接服务的信息、操作日志与流量。"
       class="[&_.page-title]:break-all"
     >
       <template #before
         ><router-link
           :to="listLocation"
           class="mb-3 inline-flex text-sm text-muted-foreground hover:text-primary"
-          >← 返回主机列表</router-link
+          >{{
+            host?.machine_id ? "← 返回所属主机" : "← 返回连接列表"
+          }}</router-link
         ></template
       >
       <Button v-if="host?.can_manage" as-child variant="outline"
         ><router-link
-          :to="{ path: `/hosts/${host.id}/edit`, query: listLocation.query }"
-          >编辑主机</router-link
+          :to="{
+            path: `/hosts/${host.id}/edit`,
+            query: {
+              ...listLocation.query,
+              machine_id: host.machine_id || undefined,
+            },
+          }"
+          >编辑连接</router-link
         ></Button
       >
     </PageHeader>
     <Card v-if="loading" role="status" class="p-8 text-sm text-muted-foreground"
-      >正在加载主机信息…</Card
+      >正在加载连接信息…</Card
     >
     <Card v-else-if="error" class="gap-3 p-5">
       <p role="alert" class="text-sm text-destructive">{{ error }}</p>
@@ -174,10 +185,10 @@ onUnmounted(() => {
       <Card class="px-2"
         ><TabsList
           variant="line"
-          aria-label="主机详情分类"
+          aria-label="连接详情分类"
           class="flex h-auto w-full flex-wrap justify-start"
         >
-          <TabsTrigger value="overview">主机信息</TabsTrigger
+          <TabsTrigger value="overview">连接信息</TabsTrigger
           ><TabsTrigger value="logs">日志与流量</TabsTrigger>
           <TabsTrigger v-if="canUseDesktop" value="desktop"
             >远程桌面</TabsTrigger
@@ -218,7 +229,7 @@ onUnmounted(() => {
           </Card>
           <Card>
             <CardHeader
-              ><h2 class="font-semibold">主机与关联信息</h2></CardHeader
+              ><h2 class="font-semibold">连接与所属主机</h2></CardHeader
             >
             <CardContent>
               <dl class="grid gap-5 sm:grid-cols-2">

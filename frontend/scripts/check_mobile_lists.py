@@ -75,6 +75,7 @@ def main():
             page.get_by_role('dialog').get_by_role('button',name='取消',exact=True).click()
             if width==390: page.screenshot(path=str(output/'groups-mobile.png'))
             navigate('主机资源')
+            page.get_by_role('link',name='连接服务、授权与审计',exact=True).click();settle()
             page.get_by_role('combobox',name='主机类型',exact=True).click()
             page.get_by_role('option',name='SSH',exact=True).click();settle()
             assert queries[-1]['host_type']==['ssh']
@@ -86,7 +87,7 @@ def main():
             assert 'host_type=ssh' in page.url and 'host_status=abnormal' in page.url
             if width==390: page.screenshot(path=str(output/'hosts-filters-mobile.png'))
             page.locator('article').first.get_by_role('heading',level=2).get_by_role('link').click();settle()
-            page.get_by_role('link',name='← 返回主机列表',exact=True).click();settle()
+            page.get_by_role('link',name='← 返回连接列表',exact=True).click();settle()
             expect(page.locator('article')).to_have_count(12)
             page.get_by_role('button',name='清除筛选',exact=True).click();settle()
             expect(page.locator('article')).to_have_count(20)

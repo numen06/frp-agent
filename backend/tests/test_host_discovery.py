@@ -198,7 +198,7 @@ def test_vnc_loopback_does_not_match_or_exclude_frp_proxy(env,monkeypatch):
     client,factory,_,_=env
     monkeypatch.setattr(service,"address_aliases",lambda s:{s.server_addr,"127.0.0.1"})
     with factory() as db:
-        host=ManagedHost(name="mac-desktop",host_type="vnc",address="127.0.0.1",port=6001)
+        host=ManagedHost(name="mac-desktop",host_type="vnc",address="127.0.0.1",port=6001,vnc_ssh_host_id=999)
         db.add(host);db.commit()
         assert service.host_proxy(db,host) is None
     rows=client.post("/api/managed-hosts/discovery/scan").json()["items"]

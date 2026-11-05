@@ -537,10 +537,11 @@ const forcePasswordChangeReason = ref("");
 const suppressForcePasswordPrompt = ref(false);
 const currentUserRole = ref("user");
 const currentPageTitle = computed(() => {
-  if (route.name === "HostDetail") return "主机详情";
-  if (route.name === "HostEdit") return "编辑主机";
-  if (route.name === "HostClone") return "克隆主机";
-  if (route.name === "HostCreate") return "添加主机";
+  if (route.path.startsWith("/machines")) return "主机资源";
+  if (route.name === "HostDetail") return "连接详情";
+  if (route.name === "HostEdit") return "编辑连接";
+  if (route.name === "HostClone") return "克隆连接";
+  if (route.name === "HostCreate") return "添加连接";
   return (
     pageIntro.value?.title ||
     { "/dashboard": "仪表盘", "/operations": "运行维护", "/hosts": "主机资源" }[

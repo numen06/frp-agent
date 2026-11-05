@@ -86,6 +86,8 @@ async def lifespan(app: FastAPI):
         logger.warning("主机管理表迁移跳过或失败: %s", e)
     
     from app.migrations.add_traffic_fields import upgrade as traffic_upgrade
+    from app.migrations.add_host_machines import upgrade as machines_upgrade
+    machines_upgrade()
     traffic_upgrade()
     from app.migrations.add_builtin_frps_field import upgrade as builtin_frps_upgrade
     builtin_frps_upgrade()
@@ -177,6 +179,8 @@ app.include_router(frp_package.router)
 app.include_router(ssh_credential.router)
 app.include_router(client_upgrade.router)
 app.include_router(managed_host.router)
+from app.routers.host_machine import router as machine_router
+app.include_router(machine_router)
 app.include_router(docker_credential.router)
 app.include_router(builtin_frps.router)
 app.include_router(runtime.router)

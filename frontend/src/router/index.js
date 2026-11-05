@@ -35,6 +35,24 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
+        path: "machines",
+        name: "Machines",
+        component: () => import("@/views/MachineListPage.vue"),
+      },
+      ...[
+        { path: "machines/new", name: "MachineCreate" },
+        { path: "machines/:id(\\d+)/edit", name: "MachineEdit" },
+      ].map((route) => ({
+        ...route,
+        component: () => import("@/views/MachineEditorPage.vue"),
+        beforeEnter: requireHostAdmin,
+      })),
+      {
+        path: "machines/:id(\\d+)",
+        name: "MachineDetail",
+        component: () => import("@/views/MachineDetailPage.vue"),
+      },
+      {
         path: "hosts/:id(\\d+)",
         name: "HostDetail",
         component: () => import("@/views/HostDetailPage.vue"),

@@ -23,6 +23,7 @@ class ManagedHost(Base):
     __tablename__ = "managed_hosts"
 
     id = Column(Integer, primary_key=True, index=True)
+    machine_id = Column(Integer, ForeignKey('host_machines.id'), nullable=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
     address = Column(String(255), nullable=False)
     port = Column(Integer, nullable=False, default=22)
@@ -50,6 +51,7 @@ class ManagedHost(Base):
     )
 
     credential = relationship("SshCredential")
+    machine = relationship('HostMachine')
     docker_credential = relationship("DockerCredential")
     grants = relationship(
         "HostAccessGrant", back_populates="host", cascade="all, delete-orphan"

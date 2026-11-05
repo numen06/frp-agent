@@ -1,5 +1,14 @@
 import api from "./index";
 
+export const machinesApi = {
+  list: (params = {}) => api.get("/host-machines", { params }),
+  get: (id) => api.get(`/host-machines/${id}`),
+  groups: (params = {}) => api.get("/host-machines/groups", { params }),
+  create: (data) => api.post("/host-machines", data),
+  update: (id, data) => api.put(`/host-machines/${id}`, data),
+  remove: (id) => api.delete(`/host-machines/${id}`),
+};
+
 export const managedHostsApi = {
   discover: () =>
     api.post("/managed-hosts/discovery/scan", null, { timeout: 180000 }),

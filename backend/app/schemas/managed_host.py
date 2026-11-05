@@ -25,6 +25,7 @@ def _normalize_ssh_public_key(value: Optional[str]) -> Optional[str]:
 
 
 class ManagedHostCreate(BaseModel):
+    machine_id: Optional[int] = Field(None, gt=0)
     name: str = Field(..., min_length=1, max_length=100)
     address: str = Field(..., min_length=1, max_length=255)
     port: int = Field(22, ge=1, le=65535)
@@ -68,6 +69,7 @@ class ManagedHostCreate(BaseModel):
 
 
 class ManagedHostUpdate(BaseModel):
+    machine_id: Optional[int] = Field(None, gt=0)
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     address: Optional[str] = Field(None, min_length=1, max_length=255)
     port: Optional[int] = Field(None, ge=1, le=65535)
@@ -85,6 +87,8 @@ class ManagedHostUpdate(BaseModel):
 
 
 class ManagedHostResponse(BaseModel):
+    machine_id: Optional[int] = None
+    machine_name: Optional[str] = None
     activation_pending: bool = False
     source_proxy_id: Optional[int] = None
     id: int

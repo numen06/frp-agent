@@ -2,8 +2,8 @@
   <Tabs v-model="tab" class="gap-0"
     ><div class="space-y-4">
       <PageHeader
-        title="主机资源"
-        description="管理 SSH、RDP 与 Docker 主机，统一维护连接、凭证和访问权限。"
+        title="连接服务、授权与审计"
+        description="分别管理每台主机的协议连接、凭据、服务授权与访问记录。"
       >
         <Button
           v-if="context.is_admin"
@@ -24,7 +24,7 @@
           type="button"
           variant="default"
           size="default"
-          >添加主机</Button
+          >添加连接服务</Button
         > </PageHeader
       ><Card class="gap-0 py-0 px-2"
         ><TabsList
@@ -46,7 +46,7 @@
           >
             <SearchField
               v-model="hostList.search.value"
-              placeholder="搜索主机名称、地址或标签"
+              placeholder="搜索连接名称、地址或标签"
               class="col-span-2 min-w-0 lg:min-w-[12rem] lg:flex-1"
               label="搜索主机"
               @search="loadHostPage(1)"
@@ -152,12 +152,12 @@
                       { action: 'audit', label: '流量与审计' },
                       ...(host.can_manage
                         ? [
-                            { action: 'edit', label: '编辑主机' },
-                            { action: 'clone', label: '克隆主机' },
+                            { action: 'edit', label: '编辑连接' },
+                            { action: 'clone', label: '克隆连接' },
                             { separator: true, label: '分隔' },
                             {
                               action: 'delete',
-                              label: '删除主机',
+                              label: '删除连接服务',
                               danger: true,
                               disabled: deletingHostId === host.id,
                             },
@@ -380,7 +380,7 @@
             >
               <ResourceCombobox
                 v-model="grantForm.host_id"
-                label="选择主机"
+                label="选择连接服务"
                 :fetch-options="managedHostsApi.list"
                 :resolve-option="
                   async (id) =>
@@ -431,7 +431,7 @@
           >
             <SearchField
               v-model="grantList.search.value"
-              placeholder="搜索授权的主机名称"
+              placeholder="搜索授权的连接名称"
               label="搜索授权主机"
               @search="grantList.load(1)"
             ></SearchField
@@ -922,7 +922,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                   ssh: "SSH 跳板连接",
                   docker: "Docker HTTPS 网关",
                   rdp: "RDP 平台账号代登录",
-                  vnc: "VNC 加密远程桌面",
+                  vnc: "VNC 远程桌面",
                 }[connectionHost.host_type]
               }}
             </p>
@@ -933,7 +933,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
         >
           <dl class="grid gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
-            <dt class="text-muted-foreground">{{ connectionHost.host_type === 'vnc' ? 'Mac 回环地址' : '目标地址' }}</dt>
+            <dt class="text-muted-foreground">{{ connectionHost.host_type === 'vnc' && connectionHost.vnc_ssh_host_id ? 'Mac 回环地址' : '目标地址' }}</dt>
             <dd class="min-w-0 break-all font-mono text-xs">
               {{ hostAddress(connectionHost) }}
             </dd>
@@ -1102,7 +1102,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             密码由管理员在凭据库维护。
           </p>
           <p v-if="connectionHost.host_type === 'vnc'" class="text-xs leading-5 text-muted-foreground">
-            在浏览器中打开桌面链接，平台通过所选 Mac 的 SSH 通道访问回环端口。目标 VNC 密码由服务端代用。
+            在浏览器中打开桌面链接。目标 VNC 密码由服务端代用；直连使用可信网络入口，SSH 隧道仅在该连接启用时使用。
           </p>
           <div>
             <div class="mb-1.5 text-sm font-medium text-gray-700">{{ connectionHost.host_type === 'vnc' ? '桌面链接' : '终端命令' }}</div>
@@ -1396,7 +1396,7 @@ const containers = containerList.items;
 const origin = window.location.origin;
 
 const tabs = computed(() => [
-  { key: "hosts", label: "主机列表" },
+  { key: "hosts", label: "连接服务" },
   ...(context.is_admin
     ? [
         { key: "credentials", label: "凭证管理" },
@@ -1531,15 +1531,15 @@ async function removeHost(host) {
   try {
     if (
       !(await confirmAction(
-        `确定删除主机“${host.name}”（${host.address}:${host.port}）？\n平台内的授权与审计记录也会删除，此操作不可恢复。`,
-        { title: "删除主机", confirmText: "删除主机", danger: true },
+        `确定删除连接服务“${host.name}”（${host.address}:${host.port}）？\n该服务的授权与审计记录也会删除，所属主机和其他连接服务保留。此操作不可恢复。`,
+        { title: "删除连接服务", confirmText: "删除连接", danger: true },
       ))
     )
       return;
     await managedHostsApi.remove(host.id);
     await loadHosts();
     await loadAdminData();
-    notify("主机已删除", "success");
+    notify("连接服务已删除", "success");
   } catch (e) {
     notify(e.message, "error");
   } finally {
@@ -1637,7 +1637,7 @@ async function dockerAction(container, action) {
 }
 async function saveGrant() {
   if (!grantForm.host_id || !grantForm.subject)
-    return notify("请选择主机和授权主体");
+    return notify("请选择连接服务和授权主体");
   const [subject_type, rawId] = grantForm.subject.split(":");
   try {
     await managedHostsApi.createGrant({

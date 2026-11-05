@@ -32,13 +32,13 @@ def vnc_overview(db, now):
     for host in hosts:
         ssh = ssh_hosts.get(host.vnc_ssh_host_id)
         issues = []
-        if host.address != '127.0.0.1':
+        if host.vnc_ssh_host_id and host.address != '127.0.0.1':
             issues.append('目标必须为 Mac 回环地址')
         if not host.credential or host.credential.auth_type != 'password' or not host.credential.password_encrypted:
             issues.append('缺少 VNC 密码凭据')
-        if not ssh or ssh.host_type != 'ssh':
+        if host.vnc_ssh_host_id and (not ssh or ssh.host_type != 'ssh'):
             issues.append('关联的 SSH 主机不可用')
-        else:
+        elif host.vnc_ssh_host_id:
             if not ssh.is_active:
                 issues.append('关联的 SSH 主机已停用')
             if not ssh.credential or not (
@@ -47,9 +47,16 @@ def vnc_overview(db, now):
                 issues.append('SSH 主机缺少凭据')
             if not ssh.host_key_fingerprint:
                 issues.append('SSH 指纹尚未固定')
+        else:
+            from app.services.vnc_service import direct_address
+            from fastapi import HTTPException
+            try:
+                direct_address(host.address)
+            except HTTPException:
+                issues.append('VNC 直连入口不属于可信网络')
         # A previous successful manual check is not a continuous health probe.
         rows.append(dict(id=host.id, name=host.name, enabled=host.is_active,
-                         ssh_name=ssh.name if ssh else None, issues=issues,
+                         ssh_name=ssh.name if ssh else None, transport='ssh' if host.vnc_ssh_host_id else 'direct', issues=issues,
                          checked_at=utc(host.last_checked_at),
                          check_status=host.last_status if host.last_checked_at else 'unknown'))
     audit = db.query(HostAuditLog).filter(HostAuditLog.created_at >= now - timedelta(hours=24),
