@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import RFB from "@novnc/novnc";
 import { Button } from "@/components/ui/button";
@@ -69,9 +69,19 @@ function connect() {
 function canLeave() {
   return !socket || confirmAction("离开后将断开当前远程桌面，确定离开？", { title: "断开 VNC", confirmText: "断开并离开" });
 }
+function beforeUnload(event) {
+  if (socket) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+}
 onBeforeRouteLeave(canLeave);
 onBeforeRouteUpdate((to, from) => (to.path === from.path && to.query.tab === from.query.tab) || canLeave());
-onBeforeUnmount(disconnect);
+onMounted(() => window.addEventListener("beforeunload", beforeUnload));
+onBeforeUnmount(() => {
+  window.removeEventListener("beforeunload", beforeUnload);
+  disconnect();
+});
 </script>
 <template>
   <Card class="min-w-0 gap-3 p-3">

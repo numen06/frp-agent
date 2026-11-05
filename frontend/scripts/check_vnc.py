@@ -1,5 +1,6 @@
 """VNC UI and real noVNC handshake against isolated demo responses only."""
 import json
+import re
 import struct
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -74,11 +75,21 @@ def main():
             page.goto('https://vnc.test/dashboard')
             if width < 768: page.get_by_role('button',name='切换导航菜单',exact=True).click()
             page.get_by_role('link',name='主机资源',exact=True).click()
+            page.get_by_role('button',name='连接详情',exact=True).click()
+            expect(page.get_by_role('dialog')).to_contain_text('桌面链接')
+            expect(page.get_by_role('button',name='复制链接',exact=True)).to_be_visible()
+            expect(page.get_by_role('button',name='打开远程桌面',exact=True)).to_be_enabled()
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.screenshot(path=str(output/f'vnc-details-{width}.png'))
+            page.get_by_role('button',name='关闭',exact=True).click()
+            expect(page.get_by_role('dialog')).to_have_count(0)
+            assert not errors,errors
             page.get_by_role('button',name='远程桌面',exact=True).click()
             page.get_by_role('button',name='连接桌面',exact=True).click()
             expect(page.get_by_text('已连接',exact=True)).to_be_visible()
             expect(page.get_by_role('button',name='连接桌面',exact=True)).to_be_disabled()
             expect(page.get_by_role('button',name='断开',exact=True)).to_be_enabled()
+            assert page.evaluate("(() => { const e=new Event('beforeunload',{cancelable:true}); window.dispatchEvent(e); return e.defaultPrevented; })()")
             assert page.locator('canvas').count()==1
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(output/f'vnc-{width}.png'))
@@ -86,12 +97,31 @@ def main():
             expect(page.get_by_role('alertdialog')).to_be_visible()
             page.get_by_role('button',name='取消',exact=True).click()
             page.get_by_role('button',name='断开',exact=True).click()
+            page.get_by_role('button',name='连接桌面',exact=True).click()
+            expect(page.get_by_text('已连接',exact=True)).to_be_visible()
+            assert page.locator('canvas').count()==1
+            page.get_by_role('button',name='断开',exact=True).click()
+            assert not page.evaluate("(() => { const e=new Event('beforeunload',{cancelable:true}); window.dispatchEvent(e); return e.defaultPrevented; })()")
             page.get_by_role('tab',name='主机信息',exact=True).click()
             page.get_by_role('link',name='编辑主机',exact=True).click()
             expect(page.get_by_label('端口',exact=True)).to_have_value('5900')
             expect(page.get_by_role('button',name='选择已核验指纹的 Mac SSH 主机',exact=True)).to_be_visible()
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(output/f'vnc-editor-{width}.png'))
+            page.get_by_role('button',name='SSH 主机',exact=True).click()
+            expect(page.get_by_label('连接地址',exact=True)).to_have_value('')
+            page.get_by_label('连接地址',exact=True).fill('preserved.example.com')
+            for label,port in [('RDP 主机','3389'),('Docker 主机','9443'),('SSH 主机','22')]:
+                page.get_by_role('button',name=label,exact=True).click()
+                expect(page.get_by_label('连接地址',exact=True)).to_have_value('preserved.example.com')
+                expect(page.get_by_label('端口',exact=True)).to_have_value(port)
+            page.get_by_role('button',name='VNC 主机',exact=True).click()
+            expect(page.get_by_label('连接地址',exact=True)).to_have_value('127.0.0.1')
+            expect(page.get_by_label('端口',exact=True)).to_have_value('5900')
+            page.get_by_role('button',name='取消',exact=True).first.click()
+            expect(page.get_by_role('alertdialog')).to_contain_text('尚未保存')
+            page.get_by_role('button',name='放弃修改',exact=True).click()
+            expect(page).to_have_url(re.compile('/hosts'))
             print(f'VNC desktop, noVNC handshake, SPA tabs and leave protection: {width}px',flush=True)
         state['fail']=True
         page.goto('https://vnc.test/hosts/7?tab=desktop')
@@ -100,6 +130,10 @@ def main():
         state['allowed']=False
         page.goto('https://vnc.test/hosts/7?tab=desktop')
         expect(page.get_by_role('tab',name='远程桌面',exact=True)).to_have_count(0)
+        page.get_by_role('link',name='← 返回主机列表',exact=True).click()
+        expect(page.get_by_role('button',name='远程桌面',exact=True)).to_have_count(0)
+        page.get_by_role('button',name='连接详情',exact=True).click()
+        expect(page.get_by_role('button',name='打开远程桌面',exact=True)).to_be_disabled()
         assert not errors,errors
         browser.close()
     print('VNC failure and ordinary-user permissions passed',flush=True)
