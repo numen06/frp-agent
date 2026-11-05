@@ -194,6 +194,20 @@ def test_arbitrary_name_and_nonstandard_port_detected_by_protocol(env,monkeypatc
     assert row["available"] and row["host_type"]=="ssh" and ("192.0.2.10",6001) in probes
 
 
+def test_vnc_loopback_does_not_match_or_exclude_frp_proxy(env,monkeypatch):
+    client,factory,_,_=env
+    monkeypatch.setattr(service,"address_aliases",lambda s:{s.server_addr,"127.0.0.1"})
+    with factory() as db:
+        host=ManagedHost(name="mac-desktop",host_type="vnc",address="127.0.0.1",port=6001)
+        db.add(host);db.commit()
+        assert service.host_proxy(db,host) is None
+    rows=client.post("/api/managed-hosts/discovery/scan").json()["items"]
+    row=next(r for r in rows if r["proxy_id"]==1)
+    assert row["available"] and row["existing_host_id"] is None
+    result=client.post("/api/managed-hosts/discovery/import",json={"proxy_ids":[1]})
+    assert result.status_code==200 and len(result.json()["created_ids"])==1
+
+
 def test_real_ssh_handshake_on_random_port():
     import socket,threading
     listener=socket.create_server(("127.0.0.1",0));port=listener.getsockname()[1]

@@ -72,9 +72,9 @@
                 }
               "
               variant="outline"
-              class="grid w-full grid-cols-3"
+              class="grid w-full grid-cols-2 sm:grid-cols-4"
               ><ToggleGroupItem
-                v-for="kind in ['ssh', 'docker', 'rdp']"
+                v-for="kind in ['ssh', 'docker', 'rdp', 'vnc']"
                 :key="kind"
                 :value="kind"
                 :aria-label="
@@ -239,6 +239,38 @@
                   协议、端口和反向代理路径按完整 URL 自动识别。
                 </p>
               </div> </template
+            ><template v-if="hostForm.host_type === 'vnc'">
+              <label class="block text-sm"
+                >Mac SSH 主机
+                <ResourceCombobox
+                  v-model="hostForm.vnc_ssh_host_id"
+                  label="选择已核验指纹的 Mac SSH 主机"
+                  :fetch-options="
+                    (params) =>
+                      managedHostsApi.list({ ...params, host_type: 'ssh' })
+                  "
+                  :resolve-option="
+                    async (id) =>
+                      (
+                        await managedHostsApi.list({
+                          host_id: id,
+                          page: 1,
+                          page_size: 1,
+                        })
+                      ).items[0]
+                  "
+                />
+              </label>
+              <SshCredentialForm
+                v-model="hostForm.credential_id"
+                password-only
+              />
+              <p class="text-sm text-muted-foreground">
+                使用专用 VNC 密码凭据（1–8 位 ASCII；用户名可填写
+                vnc，仅作标识）。在 Mac 开启“远程登录”和“屏幕共享”，启用 VNC
+                密码控制。地址保持 127.0.0.1，通过所选 SSH 主机访问本机
+                5900，无需开放公网 VNC 端口。浏览器连接必须使用 HTTPS。
+              </p> </template
             ><template v-if="hostForm.host_type === 'rdp'">
               <SshCredentialForm
                 :key="hostForm.host_type"
@@ -389,6 +421,7 @@ const hostForm = reactive({
   address: "",
   port: 22,
   host_type: "ssh",
+  vnc_ssh_host_id: null,
   credential_id: 0,
   docker_credential_id: 0,
   docker_use_tls: true,
@@ -456,7 +489,14 @@ function setHostType(type) {
   if (hostForm.host_type === type) return;
   Object.assign(hostForm, {
     host_type: type,
-    port: { ssh: 22, docker: 9443, rdp: 3389 }[type],
+    address:
+      type === "vnc"
+        ? "127.0.0.1"
+        : hostForm.host_type === "vnc"
+          ? ""
+          : hostForm.address,
+    port: { ssh: 22, docker: 9443, rdp: 3389, vnc: 5900 }[type],
+    vnc_ssh_host_id: null,
     credential_id: 0,
     docker_credential_id: 0,
     host_key_fingerprint: "",
@@ -482,7 +522,7 @@ async function saveHost() {
   try {
     const payload = {
       ...hostForm,
-      credential_id: ["ssh", "rdp"].includes(hostForm.host_type)
+      credential_id: ["ssh", "rdp", "vnc"].includes(hostForm.host_type)
         ? hostForm.credential_id
         : null,
       docker_credential_id:

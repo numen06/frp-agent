@@ -6,6 +6,8 @@ from app.routers.host_discovery import router as discovery_router
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(router)
+from app.routers.webvnc import router as webvnc_router
+app.include_router(webvnc_router)
 app.include_router(discovery_router)
 app.post('/api/managed-hosts/rdp/fingerprint')(get_rdp_fingerprint)
 app.get('/api/managed-hosts')(list_hosts)

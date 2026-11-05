@@ -32,17 +32,28 @@ const listLocation = computed(() => ({
   },
 }));
 const activeTab = computed(() =>
-  route.query.tab === "terminal" && canUseTerminal.value
-    ? "terminal"
-    : route.query.tab === "logs"
-      ? "logs"
-      : "overview",
+  route.query.tab === "desktop" && canUseDesktop.value
+    ? "desktop"
+    : route.query.tab === "terminal" && canUseTerminal.value
+      ? "terminal"
+      : route.query.tab === "logs"
+        ? "logs"
+        : "overview",
 );
 const canUseTerminal = computed(
   () =>
     host.value?.host_type === "ssh" &&
     host.value.is_active &&
     host.value.permissions.includes("execute"),
+);
+const canUseDesktop = computed(
+  () =>
+    host.value?.host_type === "vnc" &&
+    host.value.is_active &&
+    host.value.permissions.includes("connect"),
+);
+const WebVncDesktop = defineAsyncComponent(
+  () => import("@/components/WebVncDesktop.vue"),
 );
 const WebSshTerminal = defineAsyncComponent(
   () => import("@/components/WebSshTerminal.vue"),
@@ -82,9 +93,12 @@ const fields = computed(() => {
   return [
     [
       "类型",
-      { ssh: "SSH", rdp: "RDP 远程桌面", docker: "Docker / Portainer" }[
-        h.host_type
-      ],
+      {
+        ssh: "SSH",
+        rdp: "RDP 远程桌面",
+        vnc: "VNC / macOS",
+        docker: "Docker / Portainer",
+      }[h.host_type],
     ],
     [
       "目标地址",
@@ -94,6 +108,7 @@ const fields = computed(() => {
     ["最近检查", date(h.last_checked_at)],
     ["系统版本", h.version_info],
     ["关联凭据", h.credential_name],
+    ...(h.host_type === "vnc" ? [["SSH 通道主机 ID", h.vnc_ssh_host_id]] : []),
     ["登录账号", h.credential_username],
     ...(h.host_type === "docker"
       ? [
@@ -164,6 +179,9 @@ onUnmounted(() => {
         >
           <TabsTrigger value="overview">主机信息</TabsTrigger
           ><TabsTrigger value="logs">日志与流量</TabsTrigger>
+          <TabsTrigger v-if="canUseDesktop" value="desktop"
+            >远程桌面</TabsTrigger
+          >
           <TabsTrigger v-if="canUseTerminal" value="terminal"
             >Web SSH</TabsTrigger
           >
@@ -224,6 +242,7 @@ onUnmounted(() => {
             </CardContent>
           </Card>
         </div>
+        <WebVncDesktop v-else-if="activeTab === 'desktop'" :host="host" />
         <WebSshTerminal v-else-if="activeTab === 'terminal'" :host="host" />
         <HostAuditPanel
           v-else

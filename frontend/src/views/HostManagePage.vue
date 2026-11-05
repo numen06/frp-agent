@@ -61,6 +61,7 @@
               <SelectContent
                 ><SelectItem value="all">全部类型</SelectItem
                 ><SelectItem value="ssh">SSH</SelectItem
+                ><SelectItem value="vnc">VNC / macOS</SelectItem
                 ><SelectItem value="rdp">RDP</SelectItem
                 ><SelectItem value="docker">Docker</SelectItem></SelectContent
               >
@@ -172,7 +173,7 @@
                   <span
                     class="shrink-0 rounded-md bg-muted px-2 py-1 font-medium"
                     >{{
-                      { ssh: "SSH", docker: "Docker", rdp: "RDP" }[
+                      { ssh: "SSH", docker: "Docker", rdp: "RDP", vnc: "VNC" }[
                         host.host_type
                       ]
                     }}</span
@@ -266,6 +267,17 @@
                   size="sm"
                   @click="openHostEditor(host)"
                   >配置主机</Button
+                >
+                <Button
+                  v-else-if="
+                    host.host_type === 'vnc' &&
+                    host.permissions.includes('connect')
+                  "
+                  class="min-w-0 flex-1"
+                  size="sm"
+                  :disabled="!host.is_active"
+                  @click="router.push(hostDetailsLocation(host, 'desktop'))"
+                  ><Monitor class="size-4" />远程桌面</Button
                 >
                 <Button
                   v-else-if="
@@ -910,6 +922,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                   ssh: "SSH 跳板连接",
                   docker: "Docker HTTPS 网关",
                   rdp: "RDP 平台账号代登录",
+                  vnc: "VNC 加密远程桌面",
                 }[connectionHost.host_type]
               }}
             </p>
@@ -1711,6 +1724,14 @@ function buildConnectionInfo(host) {
   const gatewayHost = window.location.hostname || "平台地址";
   const isApiKey = context.actor_type === "api_key";
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
+  if (host.host_type === "vnc")
+    return {
+      gateway: window.location.origin,
+      loginName: context.actor_name,
+      passwordHint: "平台连接授权；目标 VNC 密码由服务端代用",
+      command: new URL(`/hosts/${host.id}?tab=desktop`, window.location.origin)
+        .href,
+    };
   if (host.host_type === "rdp") {
     const gateway =
       gatewayInfo.value.rdp_gateway?.public_address ||

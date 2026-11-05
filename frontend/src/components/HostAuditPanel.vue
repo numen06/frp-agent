@@ -524,6 +524,8 @@ const actions = {
   execute_command: "执行命令",
   execute_sudo_command: "提权执行",
   ssh_gateway_session: "SSH 跳板会话",
+  vnc_connected: "VNC 桌面已连接",
+  vnc_session: "VNC 会话结束",
   webssh_connected: "Web SSH 已连接",
   webssh_session: "Web SSH 会话结束",
   docker_gateway_request: "Docker 网关请求",

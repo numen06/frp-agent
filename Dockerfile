@@ -80,7 +80,11 @@ RUN apt-get update && apt-get -o Acquire::Retries=3 install -y --no-install-reco
 
 # 维护者信息
 LABEL maintainer="frp-agent"
-LABEL version="1.3.2"
+ARG APP_VERSION=1.3.3
+ARG VCS_REF=unknown
+LABEL version="${APP_VERSION}" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}"
 LABEL description="FRP Agent Management Platform"
 
 # 设置工作目录
@@ -100,6 +104,7 @@ RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
 COPY --from=frontend-builder /app/dist ./dist
 # 复制后端代码
 COPY backend/ ./backend/
+RUN test "$(cat /app/backend/VERSION)" = "${APP_VERSION}"
 COPY --from=frp-downloader /opt/frp/frps /opt/frp/frps
 COPY --from=frp-downloader /opt/frp/LICENSE /opt/frp/LICENSE
 COPY --from=rdp-builder /src/proxy-frpagent-plugin.so /usr/lib/x86_64-linux-gnu/freerdp3/proxy/proxy-frpagent-plugin.so

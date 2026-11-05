@@ -181,6 +181,8 @@ app.include_router(docker_credential.router)
 app.include_router(builtin_frps.router)
 app.include_router(runtime.router)
 app.include_router(webssh.router)
+from app.routers.webvnc import router as webvnc_router
+app.include_router(webvnc_router)
 
 
 @app.exception_handler(FrpsCollectionError)

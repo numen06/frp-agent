@@ -78,6 +78,8 @@ def upgrade():
             )
         """))
         host_columns = _columns(conn, "managed_hosts")
+        if "vnc_ssh_host_id" not in host_columns:
+            conn.execute(text("ALTER TABLE managed_hosts ADD COLUMN vnc_ssh_host_id INTEGER"))
         if "docker_credential_id" not in host_columns:
             conn.execute(text(
                 "ALTER TABLE managed_hosts ADD COLUMN docker_credential_id INTEGER"

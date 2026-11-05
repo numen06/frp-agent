@@ -12,6 +12,7 @@ export default defineConfig({
     }
   },
   build: {
+    target: "es2022", // noVNC 1.7 probes browser codec support with top-level await.
     outDir: '../dist',
     emptyOutDir: true
   },

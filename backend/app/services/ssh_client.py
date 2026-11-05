@@ -83,6 +83,8 @@ class ParamikoSSHClient:
             password=self._password if not pkey else None,
             pkey=pkey,
             timeout=timeout,
+            auth_timeout=timeout,
+            banner_timeout=timeout,
             allow_agent=False,
             look_for_keys=False,
         )
@@ -101,6 +103,14 @@ class ParamikoSSHClient:
             return None
         key = transport.get_remote_server_key()
         return format_host_key_fingerprint(key)
+
+    def open_loopback_channel(self, port: int):
+        """Restricted forwarding used only for the managed desktop service."""
+        if not self._client or not self._client.get_transport():
+            raise RuntimeError("SSH 未连接")
+        return self._client.get_transport().open_channel(
+            "direct-tcpip", ("127.0.0.1", port), ("127.0.0.1", 0), timeout=10
+        )
 
     def open_shell(
         self, term: str = "xterm-256color", width: int = 120, height: int = 40

@@ -4,7 +4,7 @@
 
 FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机资源放进同一个 Web 控制台。既可以完成内网穿透配置的日常维护，也可以按用户或 API Key 分配主机访问权限、执行远程操作并查看审计记录。
 
-当前版本：**v1.3.2** · [发行说明](release-notes/1.3.2.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
+当前版本：**v1.3.3** · [发行说明](release-notes/1.3.3.md) · [Gitee 仓库](https://gitee.com/numen06/frp-agent) · [MIT License](LICENSE)
 
 ![运行概览：多节点统计与代理在线率](docs/screenshots/dashboard.png)
 
@@ -145,11 +145,15 @@ FRP-AGENT 将多台 frps、代理分组、安装包和 SSH / Docker / RDP 主机
 
 [分页覆盖范围与 API 接入说明](docs/pagination.md)
 
+## macOS VNC 远程桌面
+
+主机管理支持 VNC / macOS，通过已核验指纹的 Mac SSH 通道连接屏幕共享，使用平台连接授权、服务端密码代用及会话审计，无需公网开放 5900。浏览器入口强制 HTTPS/WSS，配置与限制见 [macOS VNC 接入说明](docs/vnc-macos.md)。
+
 ## 快速部署
 
 ### 直接使用项目镜像（推荐）
 
-项目镜像：`registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest`。常规部署直接拉取镜像，无需在本地安装 Node.js、Python 或编译依赖。
+项目镜像采用固定版本标签，例如 `registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.3.3`（需对应镜像已发布）。dev 分支测试可通过 `FRP_AGENT_IMAGE` 指定已构建的开发镜像；源码构建使用 `docker-compose.build.yml`。常规部署直接拉取镜像，无需在本地安装 Node.js、Python 或编译依赖。
 
 以下为 Linux / macOS Shell 示例。首次部署创建独立目录并保存凭据加密密钥：
 
@@ -158,7 +162,7 @@ mkdir -p frp-agent/data
 cd frp-agent
 # 已有部署请保留原 .env 和 SSH_CREDENTIAL_SECRET，不要重新生成。
 printf 'SSH_CREDENTIAL_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
-docker pull registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+docker pull registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.3.3
 docker run -d \
   --name frp-agent \
   --restart unless-stopped \
@@ -171,7 +175,7 @@ docker run -d \
   -p 6000-6099:6000-6099/tcp \
   -p 6000-6099:6000-6099/udp \
   -v "$(pwd)/data:/app/data" \
-  registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest
+  registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.3.3
 ```
 
 启动后访问 `http://localhost:8000`。默认用户名 / 密码为 `admin` / `admin`，首次登录后修改密码。也可在 `.env` 中设置 `AUTH_USERNAME`、`AUTH_PASSWORD`，用于初始化默认用户。
@@ -235,7 +239,7 @@ Compose 已声明这四个端口映射。RDP 需要在 `data` 中放置配置指
 
 ### 升级
 
-如果旧版 `docker-compose.yml` 只有 `build` 配置，先将 `frp-agent` 服务的 `build` 配置块替换为 `image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:latest`，保留现有环境变量、端口和数据挂载，再按以下步骤升级。
+如果旧版 `docker-compose.yml` 只有 `build` 配置，先将 `frp-agent` 服务的 `build` 配置块替换为 `image: registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.3.3`，保留现有环境变量、端口和数据挂载，再按以下步骤升级。
 
 1. 备份 `data` 目录、部署配置和现有加密密钥。
 2. 使用项目镜像的 Compose 部署执行 `docker compose pull`，再执行 `docker compose up -d --no-build`。使用 `docker run` 部署时，先拉取镜像，再停止并删除原容器，使用原 `.env`、数据目录及端口参数重新创建容器。

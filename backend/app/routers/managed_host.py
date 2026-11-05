@@ -100,6 +100,8 @@ def _get_docker_credential(db: Session, credential_id: int) -> DockerCredential:
 
 
 def _validate_host_credentials(db: Session, values: dict) -> None:
+    if values["host_type"] != "vnc":
+        values["vnc_ssh_host_id"] = None
     if values["host_type"] == "ssh":
         if not values.get("credential_id"):
             raise HTTPException(status_code=400, detail="SSH 主机必须配置 SSH 凭据")
@@ -144,6 +146,9 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
                 status_code=400,
                 detail="Portainer 含路径时请填写完整 URL，例如 http://host/docker/",
             )
+    elif values["host_type"] == "vnc":
+        from app.services.vnc_service import validate_vnc_values
+        validate_vnc_values(db, values)
     elif values["host_type"] == "rdp":
         values["address"] = validate_rdp_address(values["address"])
         if not values.get("credential_id"):
@@ -168,7 +173,7 @@ def _validate_host_credentials(db: Session, values: dict) -> None:
 def _host_response(
     db: Session, host: ManagedHost, current_user: User
 ) -> ManagedHostResponse:
-    credential = host.credential if host.host_type in {"ssh", "rdp"} else host.docker_credential
+    credential = host.credential if host.host_type in {"ssh", "rdp", "vnc"} else host.docker_credential
     source = db.get(HostProxySource, host.id)
     return ManagedHostResponse(
         activation_pending=bool(source and source.activation_pending),
@@ -178,11 +183,12 @@ def _host_response(
         address=host.address,
         port=host.port,
         host_type=host.host_type,
+        vnc_ssh_host_id=host.vnc_ssh_host_id,
         credential_id=host.credential_id,
         docker_credential_id=host.docker_credential_id,
         credential_name=credential.name if credential else "未配置凭据",
         credential_username=(credential.username or "") if credential else "",
-        credential_kind={"ssh": "SSH", "docker": "Docker", "rdp": "RDP"}[host.host_type],
+        credential_kind={"ssh": "SSH", "docker": "Docker", "rdp": "RDP", "vnc": "VNC"}[host.host_type],
         docker_use_tls=host.docker_use_tls,
         docker_verify_tls=host.docker_verify_tls,
         docker_endpoint_id=host.docker_endpoint_id,
@@ -357,7 +363,7 @@ def get_docker_client_certificate(
 def list_hosts(
     paging: PageParams = Depends(),
     host_id: Optional[int] = Query(None, gt=0),
-    host_type: Optional[Literal['ssh', 'rdp', 'docker']] = None,
+    host_type: Optional[Literal['ssh', 'rdp', 'docker', 'vnc']] = None,
     host_status: Optional[Literal['online', 'abnormal', 'unknown', 'disabled', 'pending']] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -433,6 +439,7 @@ def update_host(
         values["is_active"] = False
     effective = {
         "host_type": values.get("host_type", host.host_type),
+        "vnc_ssh_host_id": values.get("vnc_ssh_host_id", host.vnc_ssh_host_id),
         "credential_id": values.get("credential_id", host.credential_id),
         "docker_credential_id": values.get(
             "docker_credential_id", host.docker_credential_id
@@ -453,9 +460,14 @@ def update_host(
     if (host.host_type == effective["host_type"] == "rdp" and host.host_key_fingerprint
             and not effective["host_key_fingerprint"]):
         effective["host_key_fingerprint"] = host.host_key_fingerprint
+    if effective["host_type"] == "vnc" and effective.get("vnc_ssh_host_id") == host.id:
+        raise HTTPException(400, "VNC 不能关联自身作为 SSH 通道")
+    if effective["host_type"] != "ssh" and db.query(ManagedHost.id).filter(ManagedHost.vnc_ssh_host_id == host.id).first():
+        raise HTTPException(409, "该 SSH 主机被 VNC 使用，不能更改类型")
     _validate_host_credentials(db, effective)
     values.update(
         {
+            "vnc_ssh_host_id": effective.get("vnc_ssh_host_id"),
             "credential_id": effective["credential_id"],
             "docker_credential_id": effective["docker_credential_id"],
             "host_key_fingerprint": effective["host_key_fingerprint"],
@@ -494,6 +506,8 @@ def delete_host(
     source = db.get(HostProxySource, host.id)
     if source:
         db.delete(source)
+    if db.query(ManagedHost.id).filter(ManagedHost.vnc_ssh_host_id == host.id).first():
+        raise HTTPException(409, "该 SSH 主机被 VNC 使用，请先更换 VNC 的 SSH 通道")
     db.delete(host)
     db.commit()
 
@@ -533,6 +547,10 @@ def test_host(
             )
             if result.exit_code == 0:
                 version_info = " ".join(result.stdout.split())[:500] or None
+        elif host.host_type == "vnc":
+            from app.services.vnc_service import test_vnc_connection
+            result, duration_ms = test_vnc_connection(db, host)
+            fingerprint = None
         elif host.host_type == "rdp":
             result, duration_ms = test_rdp_connection(host)
             fingerprint = None
@@ -554,7 +572,7 @@ def test_host(
         host.last_status = "online" if success else "error"
         host.last_checked_at = datetime.utcnow()
         host.last_message = (
-            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书'}[host.host_type]} 连接成功"
+            f"{ {'ssh': 'SSH', 'docker': 'Portainer API', 'rdp': 'RDP TLS/证书', 'vnc': 'VNC SSH/密码认证'}[host.host_type]} 连接成功"
             if success
             else (result.stderr or "连接成功，但测试失败")
         )[:500]
