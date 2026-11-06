@@ -204,6 +204,11 @@ def demo_response(url):
 def main():
     from check_runtime import fixture
     RESPONSES['/api/system/overview'] = fixture()
+    RESPONSES['/api/managed-hosts/2/docker/containers'] = dict(containers=[
+        dict(Id='demo-gateway', Names=['/edge-gateway'], Image='nginx:alpine', Status='Up 3 days'),
+        dict(Id='demo-cache', Names=['/office-cache'], Image='redis:alpine', Status='Up 3 days'),
+        dict(Id='demo-worker', Names=['/report-worker'], Image='example.com/demo/worker:1.0', Status='Exited (0)'),
+    ])
     HOSTS.insert(0, {**HOSTS[0], 'id': 7, 'name': 'office-mac-vnc',
         'host_type': 'vnc', 'address': '10.20.0.7', 'port': 5900,
         'credential_id': 4, 'credential_name': '演示 macOS 凭据',
@@ -228,16 +233,25 @@ def main():
 
         def intercept(route):
             url = urlparse(route.request.url)
-            if url.path.startswith('/api/'):
+            if url.netloc != '127.0.0.1:4173':
+                errors.append(f'Unexpected external request: {url.netloc}')
+                route.abort()
+            elif route.request.method == 'GET' and url.path == '/api/frpc/config/group/office':
+                route.fulfill(content_type='text/plain', body='\n'.join([
+                    'serverAddr = "frps-1.example.com"', 'serverPort = 7000', '',
+                    '[[proxies]]', 'name = "office_ssh"', 'type = "tcp"',
+                    'localIP = "127.0.0.1"', 'localPort = 22', 'remotePort = 6001',
+                ]))
+            elif route.request.method == 'POST' and url.path == '/api/managed-hosts/3/test':
+                route.fulfill(json=dict(success=True, duration_ms=25,
+                    stdout='RDP TLS/NLA 及证书校验通过', stderr=''))
+            elif url.path.startswith('/api/'):
                 payload = demo_response(url)
                 if payload is None or route.request.method != 'GET':
                     errors.append(f'Unmocked request: {route.request.method} {url.path}')
                     route.fulfill(status=501, json=dict(detail='Screenshot fixture missing'))
                 else:
                     route.fulfill(json=payload)
-            elif url.netloc != '127.0.0.1:4173':
-                errors.append(f'Unexpected external request: {url.netloc}')
-                route.abort()
             else:
                 route.continue_()
 
@@ -322,10 +336,35 @@ def main():
                 expect(page.get_by_role('link', name='办公 Mac', exact=True)).to_be_visible()
             page.screenshot(path=str(OUTPUT / f'{route}.png'), animations='disabled')
             print(f'Captured {route}: 1920x1080')
+            if route == 'groups':
+                page.get_by_role('button', name='更多操作', exact=True).first.click()
+                page.get_by_role('menuitem', name='生成配置', exact=True).click()
+                dialog = page.get_by_role('dialog')
+                dialog.get_by_text('TOML 格式', exact=True).click()
+                dialog.get_by_role('button', name='生成配置文件', exact=True).click()
+                expect(dialog).to_contain_text('office_ssh')
+                dialog.screenshot(path=str(OUTPUT / 'group-config.png'), animations='disabled')
+                dialog.get_by_role('button', name='关闭', exact=True).first.click()
             if route == 'hosts':
+                docker = page.locator('article').filter(has=page.get_by_role('heading', name='production-docker', exact=True))
+                docker.get_by_role('button', name='容器管理', exact=True).click()
+                dialog = page.get_by_role('dialog')
+                expect(dialog).to_contain_text('edge-gateway')
+                dialog.screenshot(path=str(OUTPUT / 'host-docker.png'), animations='disabled')
+                dialog.get_by_role('button', name='关闭', exact=True).first.click()
+                windows = page.locator('article').filter(has=page.get_by_role('heading', name='office-windows', exact=True))
+                windows.get_by_role('button', name='连接详情', exact=True).click()
+                dialog = page.get_by_role('dialog')
+                expect(dialog).to_contain_text('rdp.example.com:13389')
+                dialog.get_by_role('button', name='重新校验 RDP', exact=True).click()
+                expect(dialog.get_by_role('status', name='TLS／证书校验通过')).to_be_visible()
+                dialog.screenshot(path=str(OUTPUT / 'host-rdp.png'), animations='disabled')
+                dialog.get_by_role('button', name='关闭', exact=True).first.click()
                 for label, filename in [('凭证管理', 'host-credentials'), ('访问授权', 'host-access'), ('审计与流量', 'host-audit')]:
                     page.get_by_role('tab', name=label, exact=True).click()
-                    if label != '凭证管理':
+                    if label == '凭证管理':
+                        expect(page.get_by_role('cell', name='演示部署凭证', exact=True)).to_be_visible()
+                    else:
                         expect(page.get_by_role('row').filter(has_text='operator').first).to_be_visible()
                     settle()
                     page.screenshot(path=str(OUTPUT / f'{filename}.png'), animations='disabled')

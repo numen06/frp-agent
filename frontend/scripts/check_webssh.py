@@ -1,5 +1,6 @@
 """Exercise real xterm rendering/input over isolated WebSocket demo messages."""
 import json
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, expect
@@ -36,7 +37,10 @@ def main():
                     ws.send(json.dumps(dict(type='error',message='SSH 主机指纹不匹配，连接已阻止')))
                     ws.close(code=1008,reason='demo mismatch'); return
                 ws.send(json.dumps(dict(type='ready')))
-                ws.send(b'\x1b[32mWeb SSH demo ready\x1b[0m\r\n$ ')
+                ws.send(b'\x1b[32mWeb SSH demo ready\x1b[0m\r\n'
+                        b'deploy@demo-linux:~$ uptime\r\n'
+                        b' 09:30:00 up 3 days,  load average: 0.14, 0.21, 0.18\r\n'
+                        b'deploy@demo-linux:~$ ')
             elif packet['type']=='input': ws.send(packet['data'].encode())
         ws.on_message(receive)
 
@@ -47,8 +51,8 @@ def main():
         context.route_web_socket('**/api/managed-hosts/*/terminal',websocket)
         context.add_init_script("localStorage.setItem('auth_token',btoa('demo-admin:demo-only'))")
         page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
-        for width in [1280,390,320]:
-            page.set_viewport_size(dict(width=width,height=900))
+        for width in [1920,390,320]:
+            page.set_viewport_size(dict(width=width,height=1080 if width==1920 else 900))
             page.goto(demo.BASE+'/hosts');page.wait_for_load_state('networkidle')
             card=page.locator('article').filter(has=page.get_by_role('heading',name='production-linux',exact=True))
             card.get_by_role('button',name='Web SSH',exact=True).click()
@@ -66,6 +70,8 @@ def main():
             assert any(p['type']=='resize' and p['cols']>0 and p['rows']>0 for p in packets)
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(output/f'webssh-{width}.png'))
+            if width == 1920 and '--docs-screenshot' in sys.argv:
+                page.screenshot(path=str(demo.OUTPUT / 'webssh.png'), animations='disabled')
             page.get_by_role('tab',name='日志与流量',exact=True).click()
             expect(page.get_by_role('alertdialog')).to_contain_text('断开当前 SSH 会话')
             page.get_by_role('button',name='取消',exact=True).click()

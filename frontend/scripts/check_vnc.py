@@ -8,7 +8,41 @@ from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright, expect
 import capture_screenshots as demo
 
-INITIAL=struct.pack('!HH',16,16)+bytes([32,24,0,1])+struct.pack('!HHH',255,255,255)+bytes([16,8,0,0,0,0])+struct.pack('!I',4)+b'demo'
+WIDTH, HEIGHT = 640, 360
+INITIAL = (struct.pack('!HH', WIDTH, HEIGHT) + bytes([32,24,0,1])
+           + struct.pack('!HHH',255,255,255) + bytes([0,8,16,0,0,0])
+           + struct.pack('!I',4) + b'demo')
+
+
+def demo_frame(page):
+    rgba = bytes(page.evaluate("""([width, height]) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      const wallpaper = ctx.createLinearGradient(0, 0, width, height);
+      wallpaper.addColorStop(0, '#1456a4');
+      wallpaper.addColorStop(1, '#6d38a2');
+      ctx.fillStyle = wallpaper;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#20305b';
+      ctx.roundRect(146, 65, 348, 230, 18);
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 38px sans-serif';
+      ctx.fillText('演示桌面', 320, 130);
+      ctx.font = '24px sans-serif';
+      ctx.fillText('VNC 屏幕共享', 320, 174);
+      ctx.fillStyle = '#e9efff';
+      ctx.beginPath();
+      ctx.roundRect(204, 211, 232, 48, 10);
+      ctx.fill();
+      ctx.fillStyle = '#20305b';
+      ctx.fillText('密码输入示例', 320, 243);
+      return Array.from(ctx.getImageData(0, 0, width, height).data);
+    }""", [WIDTH, HEIGHT]))
+    return b'\0\0\0\1' + struct.pack('!HHHHi',0,0,WIDTH,HEIGHT,0) + rgba
 
 def main():
     state=dict(allowed=True,fail=False)
@@ -43,6 +77,7 @@ def main():
                 assert data==b'\x01';ws.send(b'\0'*4);stage=3
             elif stage==3:
                 assert data==b'\x01';ws.send(INITIAL);stage=4
+                ws.send(frame)
         ws.on_message(receive)
     output=Path(__file__).resolve().parents[2]/'.codex-remote-attachments/vnc-ui';output.mkdir(parents=True,exist_ok=True)
     with sync_playwright() as p:
@@ -71,6 +106,7 @@ def main():
         """)
         context.add_init_script("localStorage.setItem('auth_token',btoa('demo:demo-only'))")
         page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
+        frame=demo_frame(page)
         for width in [1280,390,320]:
             page.set_viewport_size(dict(width=width,height=900))
             page.goto('https://vnc.test/dashboard')
@@ -96,6 +132,11 @@ def main():
             page.screenshot(path=str(output/f'vnc-{width}.png'))
             if width == 390 and '--docs-screenshot' in sys.argv:
                 expect(page.get_by_label('远程键盘输入', exact=True)).to_be_visible()
+                page.wait_for_function("""() => {
+                  const canvas = document.querySelector('[aria-label="VNC 远程桌面"] canvas');
+                  const pixel = canvas?.getContext('2d').getImageData(8, 8, 1, 1).data;
+                  return pixel && pixel[2] - pixel[0] > 60;
+                }""", timeout=10000)
                 page.screenshot(path=str(demo.OUTPUT / 'vnc-mobile.png'), animations='disabled')
             page.get_by_role('tab',name='日志与流量',exact=True).click()
             expect(page.get_by_role('alertdialog')).to_be_visible()
