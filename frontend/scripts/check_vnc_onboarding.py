@@ -1,7 +1,7 @@
 """Real browser -> disposable HTTPS app -> real SSH fingerprint -> VNC creation.
 
 Run with the backend dependencies and Playwright installed; no production access.
-Covers group -> machine -> independent protocols, direct VNC and optional SSH.
+Covers connection-first creation, machine and group filters, direct VNC and optional SSH.
 """
 import base64
 import json
@@ -91,17 +91,11 @@ def main():
                             page.goto(base+'/dashboard')
                             if width < 1024: page.get_by_role('button',name='切换导航菜单',exact=True).click()
                             page.get_by_role('link',name='主机资源',exact=True).click()
-                            page.get_by_role('link',name='添加主机',exact=True).click()
+                            page.get_by_role('button',name='添加连接服务',exact=True).click()
                             name = f'Mac {width}'
-                            page.get_by_label('主机名称',exact=True).fill(name)
-                            page.get_by_label('选择分组（可选）',exact=True).click()
-                            page.get_by_role('option',name='onboarding-node / lab',exact=True).click()
-                            page.get_by_role('button',name='保存主机',exact=True).click()
-                            expect(page.locator('main h1')).to_have_text(name)
-                            machine = next(row for row in api('GET','host-machines',params=dict(page=1,page_size=100))['items'] if row['name']==name)
-                            page.get_by_role('link',name='添加连接服务',exact=True).click()
                             page.get_by_role('button',name='VNC 主机',exact=True).click()
-                            expect(page.get_by_label('连接名称',exact=True)).to_have_value(name+'-vnc')
+                            page.get_by_label('连接名称',exact=True).fill(name)
+                            expect(page.get_by_text('保存时用连接名称创建主机。',exact=False)).to_be_visible()
                             expect(page.get_by_label('VNC 端口',exact=True)).to_have_value('5900')
                             expect(page.get_by_label('选择 SSH 隧道连接',exact=True)).to_have_count(0)
                             expect(page.get_by_placeholder('SHA256:...',exact=True)).to_have_count(0)
@@ -110,30 +104,46 @@ def main():
                             page.get_by_label('选择凭据',exact=True).click()
                             page.get_by_role('option',name='VNC credential (vnc)',exact=True).click()
                             page.get_by_role('button',name='保存连接服务',exact=True).first.click()
-                            expect(page).to_have_url(base+f"/machines/{machine['id']}")
+                            expect(page).to_have_url(re.compile(r'/hosts\?'))
+                            machine = next(row for row in api('GET','host-machines',params=dict(page=1,page_size=100))['items'] if row['name']==name)
+                            api('PUT',f"host-machines/{machine['id']}",json=dict(name=name,group_key=f"{node['id']}:lab"))
                             services = api('GET','managed-hosts',params=dict(page=1,machine_id=machine['id']))['items']
                             assert len(services)==1 and services[0]['host_type']=='vnc' and services[0]['vnc_ssh_host_id'] is None
                             desktop = services[0]
                             assert api('POST',f"managed-hosts/{desktop['id']}/test")['success']
-                            page.get_by_role('link',name='远程桌面',exact=True).click()
+                            page.get_by_label('筛选主机',exact=True).click()
+                            page.get_by_role('option',name=name+' · lab',exact=True).click()
+                            page.get_by_label('筛选分组',exact=True).click()
+                            page.get_by_role('option',name='onboarding-node / lab',exact=True).click()
+                            expect(page.locator('article')).to_have_count(1)
+                            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                            page.get_by_role('link',name=name,exact=True).click()
+                            page.get_by_role('tab',name='远程桌面',exact=True).click()
                             page.get_by_role('button',name='连接桌面',exact=True).click()
                             expect(page.get_by_text('已连接',exact=True)).to_be_visible(timeout=30000)
                             assert page.locator('canvas').count()==1
                             assert fixture.password not in page.evaluate('JSON.stringify(localStorage)')
                             page.get_by_role('button',name='断开',exact=True).click()
-                            page.get_by_role('link',name='← 返回所属主机',exact=True).click()
-                            page.get_by_role('link',name='添加连接服务',exact=True).click()
+                            page.get_by_role('link',name='← 返回连接列表',exact=True).click()
+                            expect(page).to_have_url(re.compile(r'filter_machine='))
+                            page.get_by_role('button',name='清除筛选',exact=True).click()
+                            page.get_by_role('button',name='添加连接服务',exact=True).click()
+                            page.get_by_label('选择所属主机',exact=True).click()
+                            page.get_by_role('option',name=name+' · lab',exact=True).click()
+                            expect(page.get_by_label('连接名称',exact=True)).to_have_value(name+'-ssh')
                             page.get_by_label('连接地址',exact=True).fill('127.0.0.1')
                             page.get_by_label('SSH 端口',exact=True).fill(str(fixture.ssh.getsockname()[1]))
                             page.get_by_label('选择凭据',exact=True).click()
                             page.get_by_role('option',name='Mac SSH credential (fixture)',exact=True).click()
                             page.get_by_role('button',name='保存连接服务',exact=True).first.click()
-                            expect(page).to_have_url(base+f"/machines/{machine['id']}")
+                            expect(page).to_have_url(re.compile(r'/hosts\?'))
                             services = api('GET','managed-hosts',params=dict(page=1,machine_id=machine['id']))['items']
                             assert {row['host_type'] for row in services}=={'ssh','vnc'}
                             shell = next(row for row in services if row['host_type']=='ssh')
                             assert api('POST',f"managed-hosts/{shell['id']}/test")['success']
                             assert not next(row for row in services if row['host_type']=='vnc')['vnc_ssh_host_id']
+                            page.get_by_role('link',name='按主机查看',exact=True).click()
+                            page.get_by_role('link',name=name,exact=True).click()
                             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                             page.wait_for_load_state('networkidle')
                             expect(page.get_by_text('SSH · '+shell['name'],exact=True)).to_be_visible()
@@ -151,7 +161,7 @@ def main():
                             expect(page).to_have_url(base+f"/machines/{machine['id']}")
                             assert api('POST',f"managed-hosts/{desktop['id']}/test")['success']
                             assert not errors, errors
-                            print(f'Group -> one machine -> independent VNC first and SSH later, real WSS desktop, optional SSH ports: {width}px',flush=True)
+                            print(f'Connection-first creation, existing machine selection, filters, real WSS desktop and optional SSH: {width}px',flush=True)
                         except Exception:
                             page.screenshot(path=str(output/'failure.png'),full_page=True)
                             (output/'failure-dom.txt').write_text(page.locator('body').inner_text())

@@ -92,6 +92,7 @@ def check_upstream(db, host):
     live_port = conf.get("remotePort", conf.get("remote_port"))
     if live_port is not None and int(live_port) != host.port:
         raise HTTPException(409, f"代理“{proxy.name}”的远程端口已变化，请同步代理并更新主机连接地址。")
+    return proxy
 
 
 def identify_service(address, port):

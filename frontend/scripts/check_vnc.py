@@ -75,7 +75,6 @@ def main():
             page.goto('https://vnc.test/dashboard')
             if width < 768: page.get_by_role('button',name='切换导航菜单',exact=True).click()
             page.get_by_role('link',name='主机资源',exact=True).click()
-            page.get_by_role('link',name='连接服务、授权与审计',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
             expect(page.get_by_role('dialog')).to_contain_text('桌面链接')
             expect(page.get_by_role('button',name='复制链接',exact=True)).to_be_visible()

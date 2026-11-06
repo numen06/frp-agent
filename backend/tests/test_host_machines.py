@@ -46,11 +46,15 @@ def test_hierarchy_move_and_group_changes_never_expand_service_permissions(db):
         assert client.get('/api/host-machines',params=dict(page=1)).json()['total']==0
         assert client.get(f"/api/host-machines/{machine['id']}").status_code==404
         assert client.post('/api/host-machines',json=dict(name='no')).status_code==403
-        assert client.get('/api/host-machines/groups').status_code==403
+        assert client.get('/api/host-machines/groups',params=dict(page=1)).json()['total']==0
         db.add(HostAccessGrant(host_id=vnc['id'],subject_type='user',subject_id=2,can_connect=True));db.commit()
         assert client.get(f"/api/host-machines/{machine['id']}").json()['service_count']==1
         visible = client.get('/api/managed-hosts',params=dict(page=1,machine_id=machine['id'])).json()['items']
         assert [row['id'] for row in visible]==[vnc['id']]
+        groups = client.get('/api/host-machines/groups',params=dict(page=1)).json()['items']
+        assert [group['id'] for group in groups]==[f'{server.id}:lab']
+        assert client.get('/api/managed-hosts',params=dict(page=1,group_key=groups[0]['id'],host_type='ssh')).json()['total']==0
+        assert client.get('/api/managed-hosts',params=dict(page=1,group_key=groups[0]['id'],host_type='vnc')).json()['total']==1
         user[0] = User(id=0,role='admin')
         result = client.put(f"/api/managed-hosts/{vnc['id']}",json=dict(machine_id=other['id']))
         assert result.status_code==200 and result.json()['name']==vnc['name']
@@ -58,6 +62,7 @@ def test_hierarchy_move_and_group_changes_never_expand_service_permissions(db):
         user[0] = User(id=2,role='user')
         assert client.get(f"/api/host-machines/{machine['id']}").status_code==404
         assert client.get(f"/api/host-machines/{other['id']}").json()['service_count']==1
+        assert client.get('/api/host-machines/groups',params=dict(page=1)).json()['total']==0
         assert client.put(f"/api/managed-hosts/{vnc['id']}",json=dict(machine_id=machine['id'])).status_code==403
         user[0] = User(id=0,role='admin')
         assert client.post('/api/groups/rename',json=dict(old_name='lab',new_name='office',frps_server_id=server.id)).status_code==200
@@ -95,3 +100,28 @@ def test_vnc_dns_rebinding_and_mixed_answers_never_open_a_socket(monkeypatch):
     monkeypatch.setattr(vnc_service.socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('127.0.0.1',5900)),(2,1,6,'',('8.8.8.8',5900))])
     monkeypatch.setattr(vnc_service.socket,'socket',lambda *a:pytest.fail('Untrusted destination was dialled'))
     with pytest.raises(HTTPException): vnc_service.open_direct('vnc.test',5900)
+
+
+def test_split_worker_dials_builtin_frp_loopback_via_private_address(db, monkeypatch):
+    from types import SimpleNamespace
+    from app.services import host_discovery
+
+    monkeypatch.setenv('FRP_LOCAL_ADDRESS', '172.16.97.250')
+    monkeypatch.setattr(vnc_service, 'snapshot', lambda db, host: None)
+    monkeypatch.setattr(host_discovery, 'check_upstream', lambda db, host: proxy)
+    monkeypatch.setattr(vnc_service, 'decrypt_secret', lambda _: 'secret')
+    monkeypatch.setattr(vnc_service, 'authenticate_vnc', lambda channel, password: b'desktop')
+    dialed = []
+
+    def dial(address, port):
+        dialed.append((address, port))
+        return SimpleNamespace(settimeout=lambda timeout: None)
+
+    monkeypatch.setattr(vnc_service, 'open_direct', dial)
+    host = SimpleNamespace(address='127.0.0.1', port=6022, vnc_ssh_host_id=None,
+                           credential=SimpleNamespace(password_encrypted='encrypted'))
+    proxy = SimpleNamespace(frps_server=SimpleNamespace(is_builtin=True))
+    assert vnc_service.open_vnc(db, host)[2] == b'desktop'
+    proxy = None
+    assert vnc_service.open_vnc(db, host)[2] == b'desktop'
+    assert dialed == [('172.16.97.250', 6022), ('127.0.0.1', 6022)]

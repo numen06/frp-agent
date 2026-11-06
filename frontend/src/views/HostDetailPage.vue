@@ -22,8 +22,8 @@ const host = ref(null),
   error = ref("");
 let disposed = false;
 const listLocation = computed(() => ({
-  path: host.value?.machine_id
-    ? `/machines/${host.value.machine_id}`
+  path: route.query.machine_id
+    ? `/machines/${route.query.machine_id}`
     : "/hosts",
   query: {
     page: route.query.page,
@@ -31,6 +31,8 @@ const listLocation = computed(() => ({
     search: route.query.search,
     host_type: route.query.host_type,
     host_status: route.query.host_status,
+    filter_machine: route.query.filter_machine,
+    group_key: route.query.group_key,
   },
 }));
 const activeTab = computed(() =>
@@ -150,7 +152,7 @@ onUnmounted(() => {
           :to="listLocation"
           class="mb-3 inline-flex text-sm text-muted-foreground hover:text-primary"
           >{{
-            host?.machine_id ? "← 返回所属主机" : "← 返回连接列表"
+            route.query.machine_id ? "← 返回所属主机" : "← 返回连接列表"
           }}</router-link
         ></template
       >
@@ -160,7 +162,7 @@ onUnmounted(() => {
             path: `/hosts/${host.id}/edit`,
             query: {
               ...listLocation.query,
-              machine_id: host.machine_id || undefined,
+              machine_id: route.query.machine_id,
             },
           }"
           >编辑连接</router-link

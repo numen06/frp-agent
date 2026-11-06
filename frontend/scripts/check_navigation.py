@@ -120,7 +120,7 @@ def main():
         page.screenshot(path=str(output/'proxy-actions.png'))
 
         # Exercise every sidebar route through the existing app instance, not page.goto reloads.
-        for label, path in [('分组管理','groups'),('穿透服务','tunnel-services'),('主机资源','machines'),('安装包管理','packages'),('配置转换','converter'),('密钥管理','api-keys'),('运行维护','operations'),('仪表盘','dashboard'),('代理列表','proxies')]:
+        for label, path in [('分组管理','groups'),('穿透服务','tunnel-services'),('主机资源','hosts'),('安装包管理','packages'),('配置转换','converter'),('密钥管理','api-keys'),('运行维护','operations'),('仪表盘','dashboard'),('代理列表','proxies')]:
             navigate(label); expect(page).to_have_url(demo.BASE+'/'+path); expect(page.locator('main h1')).to_have_count(1)
             if path == 'tunnel-services':
                 tabs = page.get_by_role('tablist',name='穿透服务分类',exact=True)
@@ -168,7 +168,6 @@ def main():
                 assert all(t.bounding_box()['height'] >= 44 for t in service_tabs.get_by_role('tab').all())
             page.screenshot(path=str(output/f'tunnel-services-{width}.png'))
             navigate('主机资源')
-            page.get_by_role('link',name='连接服务、授权与审计',exact=True).click(); expect(page).to_have_url(re.compile(re.escape(demo.BASE)+r'/hosts(?:\?.*)?$')); settle()
             expect(page.get_by_role('heading',name='production-linux',exact=True)).to_be_visible()
             tabs=page.get_by_role('tablist',name='主机管理分类')
             for label in ['凭证管理','访问授权','系统用户','审计与流量','API 访问','连接服务']:
@@ -206,7 +205,6 @@ def main():
         page.get_by_role('button',name='重试读取权限',exact=True).click(); settle()
         expect(page.get_by_role('heading',name='内置 FRP 服务端',exact=True)).to_be_visible()
         navigate('主机资源')
-        page.get_by_role('link',name='连接服务、授权与审计',exact=True).click(); expect(page).to_have_url(re.compile(re.escape(demo.BASE)+r'/hosts(?:\?.*)?$')); settle()
         state['admin']=False; page.reload(); settle()
         expect(page.get_by_role('tab',name='凭证管理',exact=True)).to_have_count(0)
         state['rdp_ok']=False

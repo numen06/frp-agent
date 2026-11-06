@@ -2,9 +2,12 @@
   <Tabs v-model="tab" class="gap-0"
     ><div class="space-y-4">
       <PageHeader
-        title="连接服务、授权与审计"
-        description="分别管理每台主机的协议连接、凭据、服务授权与访问记录。"
+        title="连接服务"
+        description="按连接、所属主机或分组查找，直接测试或连接。"
       >
+        <Button as-child variant="outline"
+          ><router-link to="/machines">按主机查看</router-link></Button
+        >
         <Button
           v-if="context.is_admin"
           variant="outline"
@@ -48,8 +51,42 @@
               v-model="hostList.search.value"
               placeholder="搜索连接名称、地址或标签"
               class="col-span-2 min-w-0 lg:min-w-[12rem] lg:flex-1"
-              label="搜索主机"
+              label="搜索连接"
               @search="loadHostPage(1)"
+            />
+            <ResourceCombobox
+              v-model="hostFilters.machine"
+              label="筛选主机"
+              allow-clear
+              clear-label="全部主机"
+              class="col-span-2 min-w-0 sm:col-span-1 lg:basis-40"
+              :fetch-options="machinesApi.list"
+              :resolve-option="machinesApi.get"
+              :get-label="
+                (item) =>
+                  item.group_name
+                    ? `${item.name} · ${item.group_name}`
+                    : item.name
+              "
+              @select="loadHostPage(1)"
+            />
+            <ResourceCombobox
+              v-model="hostFilters.group"
+              label="筛选分组"
+              allow-clear
+              clear-label="全部分组"
+              class="col-span-2 min-w-0 sm:col-span-1 lg:basis-40"
+              :fetch-options="machinesApi.groups"
+              :resolve-option="
+                async (id) => ({
+                  id,
+                  name:
+                    id === 'ungrouped'
+                      ? '未分组'
+                      : id.split(':').slice(1).join(':'),
+                })
+              "
+              @select="loadHostPage(1)"
             />
             <Select
               v-model="hostFilters.type"
@@ -117,8 +154,8 @@
           >
             {{
               hasHostFilters
-                ? "没有符合筛选条件的主机，请调整或清除筛选。"
-                : "暂无可访问的主机资源"
+                ? "没有符合筛选条件的连接，请调整或清除筛选。"
+                : "暂无可访问的连接"
             }}
           </div>
           <div v-else class="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
@@ -212,6 +249,20 @@
                 </p>
               </div>
               <dl class="space-y-1.5 text-xs">
+                <div
+                  v-if="host.machine_id && host.machine_name !== host.name"
+                  class="flex min-w-0 gap-3"
+                >
+                  <dt class="w-12 shrink-0 text-muted-foreground">主机</dt>
+                  <dd class="min-w-0 flex-1 truncate">
+                    <router-link
+                      :to="`/machines/${host.machine_id}`"
+                      class="hover:underline"
+                    >
+                      {{ host.machine_name }}
+                    </router-link>
+                  </dd>
+                </div>
                 <div class="flex min-w-0 gap-3">
                   <dt class="w-12 shrink-0 text-muted-foreground">凭据</dt>
                   <dd class="min-w-0 flex-1 truncate">
@@ -1283,7 +1334,7 @@ import ResourceCombobox from "@/components/ResourceCombobox.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { usePagedList } from "@/composables/usePagedList";
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { managedHostsApi } from "@/api/managedHosts";
+import { machinesApi, managedHostsApi } from "@/api/managedHosts";
 import RdpConnectionStatus from "@/components/RdpConnectionStatus.vue";
 import { copyText } from "@/composables/useClipboard";
 import { useRouter, useRoute } from "vue-router";
@@ -1293,19 +1344,25 @@ const router = useRouter(),
 const hostFilters = reactive({
   type: String(route.query.host_type || "all"),
   status: String(route.query.host_status || "all"),
+  machine: Number(route.query.filter_machine) || "",
+  group: String(route.query.group_key || ""),
 });
 const hostList = usePagedList((params) =>
   managedHostsApi.list({
     ...params,
     host_type: hostFilters.type === "all" ? undefined : hostFilters.type,
     host_status: hostFilters.status === "all" ? undefined : hostFilters.status,
+    machine_id: hostFilters.machine || undefined,
+    group_key: hostFilters.group || undefined,
   }),
 );
 const hasHostFilters = computed(() =>
   Boolean(
     hostList.search.value ||
     hostFilters.type !== "all" ||
-    hostFilters.status !== "all",
+    hostFilters.status !== "all" ||
+    hostFilters.machine ||
+    hostFilters.group,
   ),
 );
 hostList.search.value =
@@ -1323,6 +1380,10 @@ function hostListQuery(page = hostList.pagination.page) {
     search: hostList.search.value || undefined,
     host_type: hostFilters.type === "all" ? undefined : hostFilters.type,
     host_status: hostFilters.status === "all" ? undefined : hostFilters.status,
+    filter_machine: hostFilters.machine
+      ? String(hostFilters.machine)
+      : undefined,
+    group_key: hostFilters.group || undefined,
   };
 }
 async function loadHostPage(page = 1) {
@@ -1336,6 +1397,7 @@ function resizeHostPage(size) {
 }
 function clearHostFilters() {
   hostFilters.type = hostFilters.status = "all";
+  hostFilters.machine = hostFilters.group = "";
   hostList.search.value = "";
   return loadHostPage(1);
 }
@@ -1344,6 +1406,8 @@ watch(
   (query) => {
     const type = String(query.host_type || "all"),
       status = String(query.host_status || "all"),
+      machine = Number(query.filter_machine) || "",
+      group = String(query.group_key || ""),
       search = String(query.search || ""),
       page = Math.max(1, Number(query.page) || 1),
       size = [10, 20, 50, 100].includes(Number(query.page_size))
@@ -1352,12 +1416,14 @@ watch(
     if (
       type === hostFilters.type &&
       status === hostFilters.status &&
+      machine === hostFilters.machine &&
+      group === hostFilters.group &&
       search === hostList.search.value &&
       page === hostList.pagination.page &&
       size === hostList.pagination.page_size
     )
       return;
-    Object.assign(hostFilters, { type, status });
+    Object.assign(hostFilters, { type, status, machine, group });
     hostList.search.value = search;
     hostList.pagination.page = page;
     hostList.pagination.page_size = size;

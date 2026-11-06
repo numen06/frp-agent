@@ -48,7 +48,7 @@ const groups = computed(() => [
       { path: "/proxies", label: "代理列表", icon: ArrowLeftRight },
       { path: "/groups", label: "分组管理", icon: Folder },
       { path: "/tunnel-services", label: "穿透服务", icon: Server },
-      { path: "/machines", label: "主机资源", icon: Monitor },
+      { path: "/hosts", label: "主机资源", icon: Monitor },
     ],
   },
   {
@@ -64,8 +64,7 @@ const groups = computed(() => [
 ]);
 const active = (path) =>
   route.path === path ||
-  (path === "/machines" &&
-    (route.path.startsWith("/machines/") || route.path.startsWith("/hosts")));
+  (path === "/hosts" && /^\/(hosts|machines)(\/|$)/.test(route.path));
 watch(
   () => route.fullPath,
   () => setOpenMobile(false),

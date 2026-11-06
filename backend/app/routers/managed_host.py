@@ -21,6 +21,7 @@ from app.models.managed_host import HostAccessGrant, HostAuditLog, ManagedHost, 
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
 from app.models.host_machine import HostMachine
+from app.routers.host_machine import machine_group_filter
 from app.schemas.managed_host import (
     AccessSubjectResponse,
     DockerActionRequest,
@@ -367,6 +368,7 @@ def list_hosts(
     paging: PageParams = Depends(),
     host_id: Optional[int] = Query(None, gt=0),
     machine_id: Optional[int] = Query(None, gt=0),
+    group_key: Optional[str] = None,
     host_type: Optional[Literal['ssh', 'rdp', 'docker', 'vnc']] = None,
     host_status: Optional[Literal['online', 'abnormal', 'unknown', 'disabled', 'pending']] = None,
     db: Session = Depends(get_db),
@@ -386,6 +388,8 @@ def list_hosts(
         query = query.filter(ManagedHost.id == host_id)
     if machine_id:
         query = query.filter(ManagedHost.machine_id == machine_id)
+    if group_key:
+        query = query.filter(ManagedHost.machine.has(machine_group_filter(group_key)))
     if host_type:
         query = query.filter(ManagedHost.host_type == host_type)
     pending_ids = db.query(HostProxySource.host_id).filter(HostProxySource.activation_pending.is_(True))

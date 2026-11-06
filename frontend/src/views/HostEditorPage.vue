@@ -67,19 +67,8 @@
       >
         <Card
           ><CardHeader
-            ><h2 class="text-base font-semibold">
-              所属主机与连接协议
-            </h2></CardHeader
+            ><h2 class="text-base font-semibold">连接协议</h2></CardHeader
           ><CardContent class="space-y-4">
-            <label class="block text-sm"
-              >所属主机<ResourceCombobox
-                v-model="hostForm.machine_id"
-                label="选择所属主机"
-                :fetch-options="machinesApi.list"
-                :resolve-option="resolveMachine"
-                :get-label="(item) => `${item.name} (#${item.id})`"
-                @select="selectMachine"
-            /></label>
             <ToggleGroup
               type="single"
               :model-value="hostForm.host_type"
@@ -143,6 +132,29 @@
                 ><Checkbox v-model="hostForm.is_active"></Checkbox
                 >启用资源</label
               >
+            </div>
+            <div class="space-y-1">
+              <ResourceCombobox
+                v-model="hostForm.machine_id"
+                label="选择所属主机"
+                :allow-clear="!editingHostId"
+                clear-label="保存时创建主机"
+                :fetch-options="machinesApi.list"
+                :resolve-option="resolveMachine"
+                :get-label="
+                  (item) =>
+                    item.group_name
+                      ? `${item.name} · ${item.group_name}`
+                      : item.name
+                "
+                @select="selectMachine"
+              />
+              <p
+                v-if="!editingHostId && !hostForm.machine_id"
+                class="text-xs text-muted-foreground"
+              >
+                保存时用连接名称创建主机。已有主机可在上方选择。
+              </p>
             </div></CardContent
           ></Card
         ><Card
@@ -533,6 +545,8 @@ const listLocation = computed(() => ({
     search: route.query.search,
     host_type: route.query.host_type,
     host_status: route.query.host_status,
+    filter_machine: route.query.filter_machine,
+    group_key: route.query.group_key,
   },
 }));
 const activationPending = ref(false);
@@ -608,9 +622,13 @@ async function load() {
         hostForm.host_key_fingerprint = "";
       }
     }
-    if (!id && returnMachine.value) {
-      hostForm.machine_id = returnMachine.value;
-      await resolveMachine(returnMachine.value);
+    if (!id) {
+      const machineId =
+        returnMachine.value || Number(route.query.filter_machine);
+      if (machineId > 0) {
+        hostForm.machine_id = machineId;
+        await resolveMachine(machineId);
+      }
     }
     if (!id && ["ssh", "vnc", "rdp", "docker"].includes(route.query.protocol))
       setHostType(route.query.protocol);
@@ -648,10 +666,6 @@ async function saveHost() {
   )
     return;
   error.value = "";
-  if (!hostForm.machine_id) {
-    error.value = "请选择所属主机；可先到主机资源添加设备，再补充连接服务";
-    return;
-  }
   if (
     hostForm.host_type === "vnc" &&
     vncUseSsh.value &&
@@ -672,6 +686,7 @@ async function saveHost() {
   try {
     const payload = {
       ...hostForm,
+      machine_id: hostForm.machine_id || null,
       credential_id: ["ssh", "rdp", "vnc"].includes(hostForm.host_type)
         ? hostForm.credential_id
         : null,

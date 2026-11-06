@@ -75,7 +75,6 @@ def main():
             page.get_by_role('dialog').get_by_role('button',name='取消',exact=True).click()
             if width==390: page.screenshot(path=str(output/'groups-mobile.png'))
             navigate('主机资源')
-            page.get_by_role('link',name='连接服务、授权与审计',exact=True).click();settle()
             page.get_by_role('combobox',name='主机类型',exact=True).click()
             page.get_by_role('option',name='SSH',exact=True).click();settle()
             assert queries[-1]['host_type']==['ssh']

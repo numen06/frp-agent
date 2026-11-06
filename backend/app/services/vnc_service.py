@@ -1,4 +1,5 @@
-"""VNC password delegation inside a pinned SSH channel to the Mac's loopback only."""
+"""VNC password delegation over a trusted direct connection or a pinned SSH tunnel."""
+import os
 import struct
 import time
 import socket
@@ -153,8 +154,15 @@ def open_vnc(db, host):
             client.connect(ssh.address, ssh.port, ssh.credential.username, 10)
             channel = client.open_loopback_channel(host.port)
         else:
-            check_upstream(db, host)
-            client = channel = open_direct(host.address, host.port)
+            proxy = check_upstream(db, host)
+            address = host.address
+            # A separate desktop worker reaches the local FRP node via its private address.
+            if proxy and proxy.frps_server.is_builtin and address.lower() in ('127.0.0.1', 'localhost', '::1'):
+                address = os.environ.get('FRP_LOCAL_ADDRESS') or address
+            try:
+                client = channel = open_direct(address, host.port)
+            except OSError as exc:
+                raise HTTPException(502, 'VNC 端口无法连接，请检查地址、端口和 FRP 转发') from exc
         initial = authenticate_vnc(channel, decrypt_secret(host.credential.password_encrypted))
         channel.settimeout(1)
         return client, channel, initial

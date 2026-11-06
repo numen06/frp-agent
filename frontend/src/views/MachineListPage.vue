@@ -58,7 +58,7 @@ watch(
       description="按组组织主机；每台主机可分别配置 SSH、VNC、RDP 和 Docker 连接服务。"
     >
       <Button as-child variant="outline"
-        ><router-link to="/hosts">连接服务、授权与审计</router-link></Button
+        ><router-link to="/hosts">按连接查看</router-link></Button
       >
       <Button v-if="admin" as-child
         ><router-link to="/machines/new">添加主机</router-link></Button
@@ -74,7 +74,6 @@ watch(
           @search="load(1)"
         />
         <ResourceCombobox
-          v-if="admin"
           v-model="group"
           label="筛选分组"
           allow-clear

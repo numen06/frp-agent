@@ -68,12 +68,27 @@ def set_group(db, machine, key):
     machine.frps_server_id, machine.group_name = sid, name
 
 
+def machine_group_filter(key):
+    if key == 'ungrouped':
+        return HostMachine.group_name.is_(None)
+    try:
+        sid, name = key.split(':', 1)
+        return (HostMachine.frps_server_id == int(sid)) & (HostMachine.group_name == name)
+    except ValueError:
+        raise HTTPException(400, '分组筛选无效')
+
+
 @router.get('/groups')
 def groups(paging: PageParams = Depends(), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    require_admin(user)
-    names = db.query(Group.frps_server_id.label('sid'), Group.name.label('name')).union(
-        db.query(Proxy.frps_server_id, Proxy.group_name).filter(Proxy.group_name.isnot(None), Proxy.group_name != ''),
-        db.query(HostMachine.frps_server_id, HostMachine.group_name).filter(HostMachine.group_name.isnot(None))).subquery()
+    names = db.query(HostMachine.frps_server_id.label('sid'), HostMachine.group_name.label('name')).filter(HostMachine.group_name.isnot(None))
+    if is_admin(user):
+        names = names.union(
+            db.query(Group.frps_server_id, Group.name),
+            db.query(Proxy.frps_server_id, Proxy.group_name).filter(Proxy.group_name.isnot(None), Proxy.group_name != ''),
+        )
+    else:
+        names = names.filter(HostMachine.id.in_(visible_services(db, user).with_entities(ManagedHost.machine_id))).distinct()
+    names = names.subquery()
     query = db.query(names.c.sid, names.c.name, FrpsServer.name.label('server')).join(FrpsServer, FrpsServer.id == names.c.sid)
     query = search_query(query, paging.search, names.c.name, FrpsServer.name).order_by(FrpsServer.name, names.c.name)
     return paginate(query, paging, lambda row: dict(id=f'{row.sid}:{row.name}', name=f'{row.server} / {row.name}'))
@@ -88,14 +103,7 @@ def machines(response: Response, paging: PageParams = Depends(), group_key: str 
     if not is_admin(user):
         query = query.filter(counts.c.total > 0)
     if group_key:
-        if group_key == 'ungrouped':
-            query = query.filter(HostMachine.group_name.is_(None))
-        else:
-            try:
-                sid, name = group_key.split(':', 1)
-                query = query.filter(HostMachine.frps_server_id == int(sid), HostMachine.group_name == name)
-            except ValueError:
-                raise HTTPException(400, '分组筛选无效')
+        query = query.filter(machine_group_filter(group_key))
     query = search_query(query, paging.search, HostMachine.name, HostMachine.group_name).order_by(HostMachine.id.desc())
     return paginate(query, paging, lambda row: record(row[0], row[1], row[2] or 0))
 

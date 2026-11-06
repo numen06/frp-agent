@@ -91,7 +91,6 @@ def main():
             page.get_by_role('menuitem', name=action, exact=True).click()
             expect(page).to_have_url(demo.BASE + '/hosts/1/' + suffix + '?page=1&page_size=20')
             page.get_by_role('navigation', name='主导航').get_by_role('link', name='主机资源', exact=True).click()
-            page.get_by_role('link',name='连接服务、授权与审计',exact=True).click()
             expect(page).to_have_url(demo.BASE+'/hosts')
             settle()
         page.locator('article').first.get_by_role('button', name='主机操作', exact=True).click()

@@ -150,7 +150,8 @@ watch(() => route.params.id, load);
             </p>
             <div class="flex flex-wrap gap-2">
               <Button as-child variant="outline"
-                ><router-link :to="`/hosts/${service.id}`"
+                ><router-link
+                  :to="`/hosts/${service.id}?machine_id=${machine.id}`"
                   >查看连接</router-link
                 ></Button
               >
@@ -161,7 +162,8 @@ watch(() => route.params.id, load);
                   service.permissions.includes('connect')
                 "
                 as-child
-                ><router-link :to="`/hosts/${service.id}?tab=desktop`"
+                ><router-link
+                  :to="`/hosts/${service.id}?tab=desktop&machine_id=${machine.id}`"
                   >远程桌面</router-link
                 ></Button
               >
@@ -172,13 +174,17 @@ watch(() => route.params.id, load);
                   service.permissions.includes('execute')
                 "
                 as-child
-                ><router-link :to="`/hosts/${service.id}?tab=terminal`"
+                ><router-link
+                  :to="`/hosts/${service.id}?tab=terminal&machine_id=${machine.id}`"
                   >Web SSH</router-link
                 ></Button
               >
               <Button as-child variant="outline"
                 ><router-link
-                  :to="{ path: '/hosts', query: { search: service.name } }"
+                  :to="{
+                    path: '/hosts',
+                    query: { filter_machine: machine.id },
+                  }"
                   >连接操作与审计</router-link
                 ></Button
               >

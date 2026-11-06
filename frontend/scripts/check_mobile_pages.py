@@ -70,7 +70,7 @@ def main():
             link.click()
             expect(page).to_have_url(demo.BASE+target)
             if mobile:expect(page.get_by_role('navigation',name='主导航')).not_to_be_visible()
-        routes=[('仪表盘','dashboard'),('运行维护','operations'),('代理列表','proxies'),('分组管理','groups'),('穿透服务','tunnel-services'),('主机资源','machines'),('安装包管理','packages'),('配置转换','converter'),('密钥管理','api-keys')]
+        routes=[('仪表盘','dashboard'),('运行维护','operations'),('代理列表','proxies'),('分组管理','groups'),('穿透服务','tunnel-services'),('主机资源','hosts'),('安装包管理','packages'),('配置转换','converter'),('密钥管理','api-keys')]
         for width in ([844] if '--landscape' in sys.argv else [320,390,430]):
             page.set_viewport_size(dict(width=width,height=390 if width==844 else 844))
             page.goto(demo.BASE+'/dashboard');check('dashboard',width)
@@ -86,8 +86,7 @@ def main():
                         if tab=='插件':page.get_by_role('button',name='添加插件',exact=True).click()
                         check('tunnel-services/'+tab,width)
                     page.get_by_role('tab',name='服务节点',exact=True).click()
-                if path=='machines':
-                    page.get_by_role('link',name='连接服务、授权与审计',exact=True).click();check('hosts',width)
+                if path=='hosts':
                     for tab in ['凭证管理','访问授权','系统用户','审计与流量','API 访问','连接服务']:
                         page.get_by_role('tab',name=tab,exact=True).click();check('hosts/'+tab,width)
                         if tab=='凭证管理':

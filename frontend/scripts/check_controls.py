@@ -91,8 +91,7 @@ def main():
         toggle.click(); nav = page.get_by_role('navigation', name='主导航')
         expect(nav).to_be_visible(); page.keyboard.press('Escape'); expect(nav).not_to_be_visible()
         expect(toggle).to_be_focused(); toggle.click(); nav.get_by_role('link', name='主机资源', exact=True).click()
-        expect(page).to_have_url(demo.BASE+'/machines'); expect(nav).not_to_be_visible()
-        page.get_by_role('link',name='连接服务、授权与审计',exact=True).click()
+        expect(page).to_have_url(demo.BASE+'/hosts'); expect(nav).not_to_be_visible()
         assert page.get_by_role('tablist', name='主机管理分类').evaluate("el => getComputedStyle(el).overflowY === 'hidden'")
         # Toggle group changes the editor's actual host fields, not just its appearance.
         page.get_by_role('button', name='添加连接服务', exact=True).click()
