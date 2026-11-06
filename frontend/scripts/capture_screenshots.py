@@ -204,6 +204,19 @@ def demo_response(url):
 def main():
     from check_runtime import fixture
     RESPONSES['/api/system/overview'] = fixture()
+    HOSTS.insert(0, {**HOSTS[0], 'id': 7, 'name': 'office-mac-vnc',
+        'host_type': 'vnc', 'address': '10.20.0.7', 'port': 5900,
+        'credential_id': 4, 'credential_name': '演示 macOS 凭据',
+        'credential_username': 'vnc', 'host_key_fingerprint': None,
+        'tags': '办公环境 / 屏幕共享', 'version_info': 'macOS'})
+    SSH_CREDENTIALS.append({**SSH_CREDENTIALS[1], 'id': 4,
+        'name': '演示 macOS 凭据', 'username': 'vnc'})
+    MACHINES.append(dict(id=7, name='办公 Mac', description='演示屏幕共享',
+        group_key='1:office', group_name='office', server_name=SERVERS[0]['name'],
+        service_count=1))
+    for host in HOSTS:
+        machine = next(machine for machine in MACHINES if machine['id'] == host['id'])
+        host.update(machine_id=machine['id'], machine_name=machine['name'])
     OUTPUT.mkdir(parents=True, exist_ok=True)
     errors = []
     with sync_playwright() as p:
@@ -236,7 +249,7 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('console', lambda msg: errors.append(msg.text) if msg.type == 'error' else None)
         page.on('dialog', lambda dialog: (errors.append(dialog.message), dialog.dismiss()))
-        routes = ['dashboard', 'operations', 'servers', 'builtin-service', 'proxies', 'groups', 'hosts', 'packages', 'api-keys', 'converter']
+        routes = ['dashboard', 'operations', 'servers', 'builtin-service', 'proxies', 'groups', 'hosts', 'machines', 'packages', 'api-keys', 'converter']
         review = ROOT / 'data' / 'ui-review'
         review.mkdir(parents=True, exist_ok=True)
 
@@ -250,27 +263,98 @@ def main():
                     assert select.evaluate('(el) => parseFloat(getComputedStyle(el).fontSize) >= 16')
                     assert select.bounding_box()['height'] >= 44
 
+        def capture_login():
+            # Exercise the actual login form, including a failed response and retry.
+            login_context = browser.new_context(viewport=dict(width=1920, height=1080), device_scale_factor=1,
+                                                locale='zh-CN', reduced_motion='reduce', service_workers='block')
+            login_attempts = []
+            captcha_requests = []
+            demo_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="56"><rect width="180" height="56" fill="#eff6ff"/><text x="15" y="39" font-size="34" letter-spacing="5" fill="#1e40af">24680</text></svg>'
+
+            def login_intercept(route):
+                path = urlparse(route.request.url).path
+                if path == '/api/auth/captcha':
+                    captcha_requests.append(path)
+                    route.fulfill(json=dict(challenge_id=f'demo-{len(captcha_requests)}', expires_in=120,
+                        image='data:image/svg+xml;base64,' + base64.b64encode(demo_svg.encode()).decode()))
+                elif path == '/api/auth/login':
+                    data = route.request.post_data_json
+                    assert data['captcha'] == '24680' and data['challenge_id'].startswith('demo-')
+                    login_attempts.append(data)
+                    if len(login_attempts) == 1:
+                        route.fulfill(status=401, headers={'Retry-After': '2'}, json=dict(detail='用户名或密码错误'))
+                    else:
+                        route.fulfill(json=dict(success=True, username='demo-admin', role='admin'))
+                else:
+                    intercept(route)
+
+            login_context.route('**/*', login_intercept)
+            login_page = login_context.new_page()
+            login_page.on('pageerror', lambda error: errors.append(str(error)))
+            login_page.goto(f'{BASE}/login')
+            login_page.get_by_role('img', name='登录验证码，点击可更换').wait_for()
+            login_page.screenshot(path=str(OUTPUT / 'login.png'), animations='disabled')
+            login_page.set_viewport_size(dict(width=390, height=844))
+            login_page.screenshot(path=str(review / 'mobile-login.png'), animations='disabled')
+            login_page.get_by_label('用户名', exact=True).fill('demo-admin')
+            login_page.get_by_label('密码', exact=True).fill('wrong-password')
+            login_page.get_by_label('验证码', exact=True).fill('24680')
+            login_page.get_by_role('button', name='登录', exact=True).click()
+            login_page.get_by_text('用户名或密码错误', exact=True).wait_for()
+            assert login_page.locator('button[type=submit]').is_disabled()
+            assert login_page.evaluate('localStorage.getItem("auth_token")') is None
+            login_page.wait_for_function('!document.querySelector("button[type=submit]").disabled')
+            assert len(captcha_requests) == 2
+            login_page.get_by_label('密码', exact=True).fill('correct-password')
+            login_page.get_by_label('验证码', exact=True).fill('24680')
+            login_page.get_by_label('验证码', exact=True).press('Enter')
+            login_page.wait_for_url('**/dashboard')
+            assert len(login_attempts) == 2
+            print('Login form: CAPTCHA refresh, failure countdown, single submit and success passed')
+            login_context.close()
+
         for route in ([] if '--dialogs-only' in sys.argv else routes):
             page.goto(f'{BASE}/{route}')
             settle()
+            if route == 'hosts':
+                expect(page.get_by_role('link', name='office-mac-vnc', exact=True)).to_be_visible()
+            if route == 'machines':
+                expect(page.get_by_role('link', name='办公 Mac', exact=True)).to_be_visible()
             page.screenshot(path=str(OUTPUT / f'{route}.png'), animations='disabled')
             print(f'Captured {route}: 1920x1080')
             if route == 'hosts':
                 for label, filename in [('凭证管理', 'host-credentials'), ('访问授权', 'host-access'), ('审计与流量', 'host-audit')]:
                     page.get_by_role('tab', name=label, exact=True).click()
+                    if label != '凭证管理':
+                        expect(page.get_by_role('row').filter(has_text='operator').first).to_be_visible()
                     settle()
                     page.screenshot(path=str(OUTPUT / f'{filename}.png'), animations='disabled')
                 page.goto(f'{BASE}/hosts/1')
                 settle()
                 page.screenshot(path=str(OUTPUT / 'host-detail.png'), animations='disabled')
                 page.get_by_role('tab', name='日志与流量', exact=True).click()
+                expect(page.get_by_role('row').filter(has_text='operator').first).to_be_visible()
                 settle()
                 page.screenshot(path=str(OUTPUT / 'host-logs.png'), animations='disabled')
+
+        if '--dialogs-only' not in sys.argv:
+            page.goto(f'{BASE}/hosts/new?protocol=vnc')
+            settle()
+            page.get_by_label('连接名称', exact=True).fill('office-mac-vnc')
+            page.get_by_label('VNC 地址', exact=True).fill('10.20.0.7')
+            page.get_by_label('选择凭据', exact=True).click()
+            page.get_by_role('option', name='演示 macOS 凭据 (vnc)', exact=True).click()
+            expect(page.get_by_label('VNC 端口', exact=True)).to_have_value('5900')
+            page.screenshot(path=str(OUTPUT / 'vnc-add.png'), animations='disabled')
+            page.get_by_role('button', name='取消', exact=True).first.click()
+            page.get_by_role('button', name='放弃修改', exact=True).click()
+
+        capture_login()
 
         if '--screenshots-only' in sys.argv:
             browser.close()
             assert not errors, '\n'.join(errors)
-            print('Updated main-page screenshots and host subpages; no runtime errors.')
+            print('Updated main pages, connection examples and login screenshots.')
             return
         # Responsive smoke check uses the same real pages and demo responses.
         for width in ([] if '--dialogs-only' in sys.argv else [320, 390, 768, 1280]):
@@ -283,9 +367,9 @@ def main():
             if width == 390:
                 page.get_by_role('button', name='切换导航菜单').click()
                 page.get_by_role('navigation', name='主导航').get_by_role('link', name='主机资源').click()
-                page.wait_for_url('**/machines')
+                page.wait_for_url('**/hosts')
                 settle()
-                assert page.url.endswith('/machines')
+                assert page.url.endswith('/hosts')
                 expect(page.get_by_role('navigation', name='主导航')).not_to_be_visible()
             print(f'Responsive check passed: {width}px, {len(routes)} routes')
 
@@ -361,54 +445,6 @@ def main():
         page.get_by_role('button', name='版本与更新').click()
         check_dialog('版本与更新')
 
-        # Exercise the actual login form, including a failed response and retry.
-        login_context = browser.new_context(viewport=dict(width=1920, height=1080), device_scale_factor=1,
-                                            locale='zh-CN', reduced_motion='reduce', service_workers='block')
-        login_attempts = []
-        captcha_requests = []
-        demo_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="56"><rect width="180" height="56" fill="#eff6ff"/><text x="15" y="39" font-size="34" letter-spacing="5" fill="#1e40af">24680</text></svg>'
-
-        def login_intercept(route):
-            path = urlparse(route.request.url).path
-            if path == '/api/auth/captcha':
-                captcha_requests.append(path)
-                route.fulfill(json=dict(challenge_id=f'demo-{len(captcha_requests)}', expires_in=120,
-                    image='data:image/svg+xml;base64,' + base64.b64encode(demo_svg.encode()).decode()))
-            elif path == '/api/auth/login':
-                data = route.request.post_data_json
-                assert data['captcha'] == '24680' and data['challenge_id'].startswith('demo-')
-                login_attempts.append(data)
-                if len(login_attempts) == 1:
-                    route.fulfill(status=401, headers={'Retry-After': '2'}, json=dict(detail='用户名或密码错误'))
-                else:
-                    route.fulfill(json=dict(success=True, username='demo-admin', role='admin'))
-            else:
-                intercept(route)
-
-        login_context.route('**/*', login_intercept)
-        login_page = login_context.new_page()
-        login_page.on('pageerror', lambda error: errors.append(str(error)))
-        login_page.goto(f'{BASE}/login')
-        login_page.get_by_role('img', name='登录验证码，点击可更换').wait_for()
-        login_page.screenshot(path=str(OUTPUT / 'login.png'), animations='disabled')
-        login_page.set_viewport_size(dict(width=390, height=844))
-        login_page.screenshot(path=str(review / 'mobile-login.png'), animations='disabled')
-        login_page.get_by_label('用户名', exact=True).fill('demo-admin')
-        login_page.get_by_label('密码', exact=True).fill('wrong-password')
-        login_page.get_by_label('验证码', exact=True).fill('24680')
-        login_page.get_by_role('button', name='登录', exact=True).click()
-        login_page.get_by_text('用户名或密码错误', exact=True).wait_for()
-        assert login_page.locator('button[type=submit]').is_disabled()
-        assert login_page.evaluate('localStorage.getItem("auth_token")') is None
-        login_page.wait_for_function('!document.querySelector("button[type=submit]").disabled')
-        assert len(captcha_requests) == 2
-        login_page.get_by_label('密码', exact=True).fill('correct-password')
-        login_page.get_by_label('验证码', exact=True).fill('24680')
-        login_page.get_by_label('验证码', exact=True).press('Enter')
-        login_page.wait_for_url('**/dashboard')
-        assert len(login_attempts) == 2
-        print('Login form: CAPTCHA refresh, failure countdown, single submit and success passed')
-        login_context.close()
         browser.close()
     assert not errors, '\n'.join(errors)
     print('No runtime errors, external requests, or page-level horizontal overflow.')

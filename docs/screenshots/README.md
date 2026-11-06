@@ -1,11 +1,20 @@
-# 截图与移动端验证
+# 界面截图
 
-此目录的 PNG 使用当前生产构建和独立演示接口生成，尺寸均为 **1920 × 1080**、设备像素比 1，未拉伸或拼接。示例地址使用 `example.com`、`192.0.2.0/24` 和虚构内网地址，所有密钥均为不可用演示值。
+截图来自 1.4.3 的生产构建，使用隔离演示数据。桌面截图为 1920 × 1080，手机截图为 390 × 900。
 
-脚本拦截所有 API 请求，未知接口会失败，外部请求会被阻止；不需要启动后端，不读取或修改真实数据库。
+| 场景 | 截图 |
+| --- | --- |
+| 开始使用 | [登录](login.png) · [仪表盘](dashboard.png) |
+| FRP 代理 | [穿透服务](servers.png) · [内置服务](builtin-service.png) · [代理列表](proxies.png) · [分组管理](groups.png) |
+| 远程连接 | [连接服务](hosts.png) · [按主机查看](machines.png) · [添加 macOS VNC](vnc-add.png) · [手机键盘入口](vnc-mobile.png) · [连接详情](host-detail.png) |
+| 权限和审计 | [凭证管理](host-credentials.png) · [访问授权](host-access.png) · [审计与流量](host-audit.png) · [连接日志](host-logs.png) · [API Key](api-keys.png) |
+| 运维工具 | [运行维护](operations.png) · [安装包管理](packages.png) · [配置转换](converter.png) |
+
+## 重拍截图
+
+在 `frontend` 目录构建并启动预览：
 
 ```bash
-cd frontend
 npm ci
 npm run build
 npm run preview -- --host 127.0.0.1 --port 4173
@@ -16,12 +25,8 @@ npm run preview -- --host 127.0.0.1 --port 4173
 ```bash
 python -m pip install playwright==1.58.0
 python -m playwright install chromium
-python frontend/scripts/capture_screenshots.py
-python frontend/scripts/check_credentials.py
+python frontend/scripts/capture_screenshots.py --screenshots-only
+python frontend/scripts/check_vnc.py --docs-screenshot
 ```
 
-除桌面截图外，脚本检查 320 / 390 / 768 / 1280px 页面宽度、手机导航、主要弹窗的滚动与关闭，以及 420px 可视高度下的操作按钮可达性。移动端验证图片输出到被 Git 忽略的 `data/ui-review`。
-
-缩小视口用于模拟键盘占用空间，不能替代 iOS / Android 真机的软键盘验收。
-
-旧版截图已从当前版本移除，避免残留真实分组名称或环境信息。后续更新必须通过本脚本使用演示数据重新截图，不得连接生产接口；提交前检查账号、域名、IP、密钥、命令和审计记录。历史提交中的旧图片不属于本次清理范围。
+去掉 `--screenshots-only` 可同时检查手机布局、导航和弹窗，验证图片输出到 `data/ui-review`。脚本拦截 API 请求并阻止外部连接，截图应始终使用演示数据。

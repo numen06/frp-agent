@@ -2,6 +2,7 @@
 import json
 import re
 import struct
+import sys
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright, expect
@@ -93,6 +94,9 @@ def main():
             assert page.locator('canvas').count()==1
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(output/f'vnc-{width}.png'))
+            if width == 390 and '--docs-screenshot' in sys.argv:
+                expect(page.get_by_label('远程键盘输入', exact=True)).to_be_visible()
+                page.screenshot(path=str(demo.OUTPUT / 'vnc-mobile.png'), animations='disabled')
             page.get_by_role('tab',name='日志与流量',exact=True).click()
             expect(page.get_by_role('alertdialog')).to_be_visible()
             page.get_by_role('button',name='取消',exact=True).click()
