@@ -4,24 +4,31 @@
 
 **当前版本 1.4.3** · [发行说明](release-notes/1.4.3.md) · [完整截图](docs/screenshots/README.md) · [MIT 许可证](LICENSE)
 
-![仪表盘：FRP 节点、在线代理和端口概览](docs/screenshots/dashboard.png)
-
 ## 快速部署
 
-安装 Docker 和 Docker Compose 后，用 Bash 执行以下命令完成首次部署：
+**推荐直接使用我们发布到阿里云的 Docker 镜像。** 下载 Compose 配置后即可拉取并启动 `registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.3`。
+
+安装 Docker 和 Docker Compose 后，在 Bash 中执行以下命令完成首次部署：
 
 ```bash
-git clone --depth 1 --branch v1.4.3 https://gitee.com/numen06/frp-agent.git
-cd frp-agent
-(umask 077; set -C; printf 'AUTH_PASSWORD=%s\nSSH_CREDENTIAL_SECRET=%s\n' \
-  "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" > .env)
-docker compose pull
+mkdir -p frp-agent && cd frp-agent &&
+(
+  umask 077
+  set -C
+  curl -fsSL https://gitee.com/numen06/frp-agent/raw/v1.4.3/docker-compose.yml > docker-compose.yml &&
+  initial_password=$(openssl rand -hex 16) &&
+  credential_secret=$(openssl rand -hex 32) &&
+  printf 'AUTH_PASSWORD=%s\nSSH_CREDENTIAL_SECRET=%s\n' "$initial_password" "$credential_secret" > .env
+) &&
+docker compose pull &&
 docker compose up -d --no-build
 ```
 
-打开 [http://localhost:8000](http://localhost:8000)，以 `admin` 和 `.env` 中的 `AUTH_PASSWORD` 登录。默认镜像是 `registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.3`，也提供 `latest`。通过公网使用控制台时请配置 HTTPS，网页远程桌面需要同源 HTTPS/WSS。
+打开 [http://localhost:8000](http://localhost:8000)，以 `admin` 和 `.env` 中的 `AUTH_PASSWORD` 登录。通过公网使用控制台时请配置 HTTPS，网页远程桌面需要同源 HTTPS/WSS。
 
 ## 管理 FRP 代理
+
+![仪表盘：FRP 节点、在线代理和端口概览](docs/screenshots/dashboard.png)
 
 1. 打开 **穿透服务**，添加已有 frps 并测试管理接口，或在 **内置服务** 中启用本机 frps。
 2. 在 **代理列表** 同步代理，按节点、分组和状态查询。到 **分组管理** 生成或导入 INI / TOML，并按组生成客户端安装脚本。
@@ -72,5 +79,3 @@ docker compose up -d --no-build
 ```
 
 如果旧 Compose 固定了 `image:`，在原配置中更新镜像标签。升级后从页面或 `/api/public/version` 确认版本。
-
-需要从源码构建时，在仓库根目录运行 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`。
