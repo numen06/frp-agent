@@ -4,11 +4,29 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import RFB from "@novnc/novnc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { confirmAction } from "@/composables/useFeedback";
 const props = defineProps({ host: { type: Object, required: true } });
 const screen = ref(null), status = ref("未连接"), error = ref("");
+const keyboardText = ref("");
 let socket, rfb;
+
+function sendKeyboardText() {
+  if (!rfb || status.value !== "已连接" || !keyboardText.value) return;
+  const text = keyboardText.value;
+  keyboardText.value = "";
+  for (const character of text) {
+    const point = character.codePointAt(0);
+    const latin1 =
+      (point >= 0x20 && point <= 0x7e) || (point >= 0xa0 && point <= 0xff);
+    rfb.sendKey(latin1 ? point : 0x01000000 + point);
+  }
+  rfb.sendKey(0xff0d); // X11 Return
+  rfb.focus({ preventScroll: true });
+}
+
 function disconnect() {
+  keyboardText.value = "";
   const old = socket;
   socket = null;
   rfb?.disconnect();
@@ -48,6 +66,7 @@ function connect() {
         rfb.addEventListener("connect", () => { status.value = "已连接"; });
         rfb.addEventListener("disconnect", (e) => {
           if (socket !== ws) return;
+          keyboardText.value = "";
           status.value = "已断开";
           if (!e.detail.clean) error.value = "连接已结束，请检查当前连接的授权、凭据和网络后重试";
           socket = null;
@@ -91,6 +110,37 @@ onBeforeUnmount(() => {
       <Button variant="outline" :disabled="!socket" @click="disconnect">断开</Button>
     </div>
     <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
+    <form
+      v-if="status === '已连接'"
+      class="space-y-1"
+      @submit.prevent="sendKeyboardText"
+    >
+      <div class="flex items-center gap-2">
+        <Input
+          v-model="keyboardText"
+          type="password"
+          aria-label="远程键盘输入"
+          placeholder="点此打开手机键盘"
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          enterkeyhint="send"
+          :spellcheck="false"
+          maxlength="256"
+          class="min-h-11"
+        />
+        <Button
+          type="submit"
+          variant="outline"
+          class="min-h-11 shrink-0"
+          :disabled="!keyboardText"
+          >发送并回车</Button
+        >
+      </div>
+      <p class="text-xs text-muted-foreground">
+        先点远程画面的密码框，再在这里输入。
+      </p>
+    </form>
     <p class="text-xs text-muted-foreground">{{ host.vnc_ssh_host_id ? '通过已核验指纹的 SSH 隧道连接。' : '通过配置的可信网络入口直连 VNC。' }}会话最长 1 小时，授权撤销后自动断开。关闭页面会结束连接。</p>
     <div ref="screen" class="h-[65vh] min-h-64 w-full min-w-0 overflow-hidden rounded-md bg-black" aria-label="VNC 远程桌面" />
   </Card>

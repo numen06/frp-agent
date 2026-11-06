@@ -76,7 +76,7 @@ def main():
                         mime = 'application/javascript' if path.suffix == '.js' else 'text/css' if path.suffix == '.css' else 'text/html'
                         request.fulfill(path=str(path),content_type=mime)
                     def context_for(username, secret, width):
-                        context = browser.new_context(ignore_https_errors=True, viewport=dict(width=width,height=900), reduced_motion='reduce')
+                        context = browser.new_context(ignore_https_errors=True, viewport=dict(width=width,height=900), has_touch=width < 1024, reduced_motion='reduce')
                         context.route('**/*',route)
                         # Fulfilled test assets have no network address classification in Chromium.
                         context.grant_permissions(['local-network-access'],origin=base)
@@ -121,9 +121,31 @@ def main():
                             page.get_by_role('tab',name='远程桌面',exact=True).click()
                             page.get_by_role('button',name='连接桌面',exact=True).click()
                             expect(page.get_by_text('已连接',exact=True)).to_be_visible(timeout=30000)
-                            assert page.locator('canvas').count()==1
+                            expect(page.locator('[aria-label="VNC 远程桌面"] canvas')).to_have_count(1)
                             assert fixture.password not in page.evaluate('JSON.stringify(localStorage)')
+                            keyboard = page.get_by_label('远程键盘输入',exact=True)
+                            if width < 1024:
+                                keyboard.tap()
+                            else:
+                                keyboard.click()
+                            expect(keyboard).to_be_focused()
+                            expect(keyboard).to_have_attribute('type','password')
+                            assert keyboard.bounding_box()['height'] >= 44
+                            start = len(fixture.key_events)
+                            keyboard.fill('A!7é中')
+                            if width == 320:
+                                keyboard.press('Enter')
+                            else:
+                                page.get_by_role('button',name='发送并回车',exact=True).click()
+                            expect(keyboard).to_have_value('')
+                            expected = [(down,key) for key in [0x41,0x21,0x37,0xe9,0x1004e2d,0xff0d] for down in [1,0]]
+                            deadline = time.monotonic()+5
+                            while len(fixture.key_events) < start+len(expected) and time.monotonic() < deadline:
+                                time.sleep(.05)
+                            assert fixture.key_events[start:] == expected
+                            assert 'A!7é中' not in page.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)')
                             page.get_by_role('button',name='断开',exact=True).click()
+                            expect(keyboard).to_have_count(0)
                             page.get_by_role('link',name='← 返回连接列表',exact=True).click()
                             expect(page).to_have_url(re.compile(r'filter_machine='))
                             page.get_by_role('button',name='清除筛选',exact=True).click()

@@ -64,6 +64,7 @@ class DesktopFixture:
         self.frame = b'\0\0\0\1' + struct.pack('!HHHHi',0,0,16,16,0) + bytes([64,128,192,0])*256
         self.authenticated = 0
         self.frame_requests = 0
+        self.key_events = []
         background(self.accept, self.rfb, self.desktop)
         background(self.accept, self.ssh, self.transport)
 
@@ -100,7 +101,7 @@ class DesktopFixture:
                 elif kind == 3:
                     read(sock,9); self.frame_requests += 1; sock.sendall(self.frame)
                 elif kind == 4:
-                    read(sock,7)
+                    self.key_events.append(struct.unpack('!B2xI',read(sock,7)))
                 elif kind == 5:
                     read(sock,5)
                 else:
