@@ -6,25 +6,15 @@
 
 ## 快速部署
 
-**推荐直接使用我们发布到阿里云的 Docker 镜像。** 下载 Compose 配置后即可拉取并启动 `registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.3`。
-
-安装 Docker 和 Docker Compose 后，在 Bash 中执行以下命令完成首次部署：
+**推荐一键部署。** 在已安装 Docker 的服务器上执行这一行，自动拉取阿里云发布镜像并启动：
 
 ```bash
-mkdir -p frp-agent && cd frp-agent &&
-(
-  umask 077
-  set -C
-  curl -fsSL https://gitee.com/numen06/frp-agent/raw/v1.4.3/docker-compose.yml > docker-compose.yml &&
-  initial_password=$(openssl rand -hex 16) &&
-  credential_secret=$(openssl rand -hex 32) &&
-  printf 'AUTH_PASSWORD=%s\nSSH_CREDENTIAL_SECRET=%s\n' "$initial_password" "$credential_secret" > .env
-) &&
-docker compose pull &&
-docker compose up -d --no-build
+curl -fsSLo frp-agent-install.sh https://gitee.com/numen06/frp-agent/raw/master/ops/install.sh && bash frp-agent-install.sh
 ```
 
-打开 [http://localhost:8000](http://localhost:8000)，以 `admin` 和 `.env` 中的 `AUTH_PASSWORD` 登录。通过公网使用控制台时请配置 HTTPS，网页远程桌面需要同源 HTTPS/WSS。
+安装后访问服务器的 `8000` 端口，本机可打开 [http://localhost:8000](http://localhost:8000)。默认账号是 `admin`，初始密码在安装结束时显示。配置和数据保存在 `~/frp-agent`。脚本默认使用阿里云的 `latest` 镜像（Linux amd64）。[查看安装脚本](ops/install.sh)
+
+通过公网使用控制台时请配置 HTTPS，网页远程桌面需要同源 HTTPS/WSS。
 
 ## 管理 FRP 代理
 
@@ -67,7 +57,13 @@ VNC 直连填写可从平台访问的内网地址和实际端口，SSH 隧道可
 
 ## 升级已有部署
 
-先备份数据目录和部署配置，保留原来的 `SSH_CREDENTIAL_SECRET`。在原部署的 `.env` 中设置以下镜像，再拉取并重建容器：
+**一键部署的实例**，先备份 `~/frp-agent` 中的 `data` 和 `.env`，保留原来的 `SSH_CREDENTIAL_SECRET`。然后停止并移除旧容器，再执行上面的一键部署命令：
+
+```bash
+docker stop frp-agent && docker rm frp-agent
+```
+
+**已经使用 Compose 的实例**，先备份数据和部署配置，再在原部署的 `.env` 中设置以下镜像：
 
 ```dotenv
 FRP_AGENT_IMAGE=registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.3
