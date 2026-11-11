@@ -1016,18 +1016,39 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               {{ connectionHost.tags || "无标签" }}
             </dd>
           </dl>
+          <section
+            v-if="connectionHost.host_type === 'vnc'"
+            class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
+          >
+            <h3 class="font-medium">Mac 屏幕共享地址</h3>
+            <template v-if="connectionHost.vnc_native_url">
+              <code class="block break-all text-xs">{{ connectionHost.vnc_native_url }}</code>
+              <Button
+                type="button"
+                variant="outline"
+                @click="copyCredentialValue(connectionHost.vnc_native_url, $event.currentTarget)"
+              >复制 Mac 屏幕共享地址</Button>
+              <p class="text-xs text-muted-foreground">
+                在 Mac 的访达按 ⌘K 后粘贴。原生连接由目标 Mac 认证。
+              </p>
+            </template>
+            <p v-else class="text-xs text-muted-foreground">
+              当前连接没有可供 Mac 屏幕共享直连的地址，可使用下方网页入口。
+            </p>
+          </section>
           <dl
+            v-else
             class="grid gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm sm:grid-cols-[7rem_1fr]"
           >
-            <dt class="text-gray-500">{{ connectionHost.host_type === 'vnc' ? '平台地址' : '网关地址' }}</dt>
+            <dt class="text-gray-500">网关地址</dt>
             <dd class="flex min-w-0 items-center gap-2">
               <code class="min-w-0 flex-1 break-all text-xs text-gray-900">{{
                 connectionInfo.gateway
               }}</code
               ><Button
                 class="touch-manipulation"
-                :aria-label="connectionHost.host_type === 'vnc' ? '复制平台地址' : '复制网关地址'"
-                :title="connectionHost.host_type === 'vnc' ? '复制平台地址' : '复制网关地址'"
+                aria-label="复制网关地址"
+                title="复制网关地址"
                 @click="
                   copyCredentialValue(
                     connectionInfo.gateway,
@@ -1050,15 +1071,15 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                   ></path></svg
               ></Button>
             </dd>
-            <dt class="text-gray-500">{{ connectionHost.host_type === 'vnc' ? '当前平台账号' : '登录用户名' }}</dt>
+            <dt class="text-gray-500">登录用户名</dt>
             <dd class="flex min-w-0 items-center gap-2">
               <code class="min-w-0 flex-1 break-all text-xs text-gray-900">{{
                 connectionInfo.loginName
               }}</code
               ><Button
                 class="touch-manipulation"
-                :aria-label="connectionHost.host_type === 'vnc' ? '复制平台账号' : '复制登录用户名'"
-                :title="connectionHost.host_type === 'vnc' ? '复制平台账号' : '复制登录用户名'"
+                aria-label="复制登录用户名"
+                title="复制登录用户名"
                 @click="
                   copyCredentialValue(
                     connectionInfo.loginName,
@@ -1153,10 +1174,10 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             密码由管理员在凭据库维护。
           </p>
           <p v-if="connectionHost.host_type === 'vnc'" class="text-xs leading-5 text-muted-foreground">
-            在浏览器中打开桌面链接。目标 VNC 密码由服务端代用；直连使用可信网络入口，SSH 隧道仅在该连接启用时使用。
+            网页远程桌面使用平台账号授权，目标 VNC 密码由服务端代用。
           </p>
           <div>
-            <div class="mb-1.5 text-sm font-medium text-gray-700">{{ connectionHost.host_type === 'vnc' ? '桌面链接' : '终端命令' }}</div>
+            <div class="mb-1.5 text-sm font-medium text-gray-700">{{ connectionHost.host_type === 'vnc' ? '网页远程桌面链接' : '终端命令' }}</div>
             <pre
               class="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-950 p-3 text-xs text-gray-100"
               >{{ connectionInfo.command }}</pre>
@@ -1175,7 +1196,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             :disabled="!connectionHost.is_active || !connectionHost.permissions.includes('connect')"
             @click="router.push(hostDetailsLocation(connectionHost, 'desktop'))"
             type="button"
-            >打开远程桌面</Button
+            >打开网页远程桌面</Button
           ><Button
             v-if="connectionHost.host_type === 'docker'"
             class="touch-manipulation"
@@ -1201,7 +1222,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             type="button"
             :variant="connectionHost.host_type === 'vnc' ? 'outline' : 'default'"
             size="default"
-            >{{ connectionHost.host_type === 'vnc' ? '复制链接' : '复制命令' }}</Button
+            >{{ connectionHost.host_type === 'vnc' ? '复制网页链接' : '复制命令' }}</Button
           ></DialogFooter
         ></DialogContent
       ></Dialog
@@ -1801,9 +1822,6 @@ function buildConnectionInfo(host) {
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
   if (host.host_type === "vnc")
     return {
-      gateway: window.location.origin,
-      loginName: context.actor_name,
-      passwordHint: "平台连接授权；目标 VNC 密码由服务端代用",
       command: new URL(`/hosts/${host.id}?tab=desktop`, window.location.origin)
         .href,
     };

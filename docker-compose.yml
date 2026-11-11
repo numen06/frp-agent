@@ -1,6 +1,6 @@
 services:
   frp-agent:
-    image: ${FRP_AGENT_IMAGE:-registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.3}
+    image: ${FRP_AGENT_IMAGE:-registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.4}
     container_name: frp-agent
     restart: always
     ports:

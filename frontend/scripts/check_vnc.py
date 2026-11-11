@@ -45,7 +45,8 @@ def demo_frame(page):
     return b'\0\0\0\1' + struct.pack('!HHHHi',0,0,WIDTH,HEIGHT,0) + rgba
 
 def main():
-    state=dict(allowed=True,fail=False)
+    state=dict(allowed=True,fail=False,native=False)
+    native_url='vnc://frp.example.com:6022'
     host={**demo.HOSTS[0], 'id':7,'name':'mac-vnc','host_type':'vnc','address':'127.0.0.1','port':5900,'vnc_ssh_host_id':1,'credential_id':2}
     errors=[]
     def intercept(route):
@@ -57,6 +58,8 @@ def main():
         data=demo.demo_response(url)
         if url.path=='/api/managed-hosts':
             h={**host,'permissions':['connect'] if state['allowed'] else [],'can_manage':state['allowed']}
+            if state['allowed'] and state['native']:
+                h.update(vnc_ssh_host_id=None, port=6022, vnc_native_url=native_url)
             if parse_qs(url.query).get('host_id')==['1']: h=demo.HOSTS[0]
             data=demo.paginated([h])
         if url.path=='/api/managed-hosts/context': data=dict(is_admin=state['allowed'],actor_type='user',actor_name='demo')
@@ -83,6 +86,7 @@ def main():
     with sync_playwright() as p:
         browser=p.chromium.launch()
         context=browser.new_context(ignore_https_errors=True)
+        context.grant_permissions(['clipboard-read','clipboard-write'],origin='https://vnc.test')
         # HTTPS origin fulfilled from local built assets, without contacting an external service.
         def asset(route):
             u=urlparse(route.request.url)
@@ -108,18 +112,23 @@ def main():
         page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
         frame=demo_frame(page)
         for width in [1280,390,320]:
+            state['native']=True
             page.set_viewport_size(dict(width=width,height=900))
             page.goto('https://vnc.test/dashboard')
             if width < 768: page.get_by_role('button',name='切换导航菜单',exact=True).click()
             page.get_by_role('link',name='主机资源',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
-            expect(page.get_by_role('dialog')).to_contain_text('桌面链接')
-            expect(page.get_by_role('button',name='复制链接',exact=True)).to_be_visible()
-            expect(page.get_by_role('button',name='打开远程桌面',exact=True)).to_be_enabled()
+            expect(page.get_by_role('dialog')).to_contain_text(native_url)
+            page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True).click()
+            assert page.evaluate('navigator.clipboard.readText()') == native_url
+            page.get_by_role('button',name='复制网页链接',exact=True).click()
+            assert page.evaluate('navigator.clipboard.readText()') == 'https://vnc.test/hosts/7?tab=desktop'
+            expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_enabled()
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(output/f'vnc-details-{width}.png'))
             page.get_by_role('button',name='关闭',exact=True).click()
             expect(page.get_by_role('dialog')).to_have_count(0)
+            state['native']=False
             assert not errors,errors
             page.get_by_role('button',name='远程桌面',exact=True).click()
             page.get_by_role('button',name='连接桌面',exact=True).click()
@@ -179,7 +188,8 @@ def main():
         page.get_by_role('link',name='← 返回连接列表',exact=True).click()
         expect(page.get_by_role('button',name='远程桌面',exact=True)).to_have_count(0)
         page.get_by_role('button',name='连接详情',exact=True).click()
-        expect(page.get_by_role('button',name='打开远程桌面',exact=True)).to_be_disabled()
+        expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_disabled()
+        expect(page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True)).to_have_count(0)
         assert not errors,errors
         browser.close()
     print('VNC failure and ordinary-user permissions passed',flush=True)
