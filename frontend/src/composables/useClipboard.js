@@ -65,8 +65,12 @@ export async function copyText(text, trigger) {
   return false;
 }
 
+export function formatCredentialExpiry(value) {
+  return value ? new Date(value).toLocaleString("zh-CN", { timeZoneName: "short" }) : "—";
+}
+
 export function formatTemporaryCredential(credential) {
-  return `地址：${credential.address}\n账号：${credential.username}\n密码：${credential.password}`;
+  return `地址：${credential.address}\n账号：${credential.username}\n密码：${credential.password}\n有效至：${formatCredentialExpiry(credential.expires_at)}${credential.protocol === "vnc" ? "（仅可连接一次）" : ""}`;
 }
 
 export async function copyDeferredText(load, trigger) {

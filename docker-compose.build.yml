@@ -1,9 +1,9 @@
 services:
   frp-agent:
-    image: frp-agent:${FRP_AGENT_VERSION:-1.4.9}
+    image: frp-agent:${FRP_AGENT_VERSION:-1.4.10}
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${FRP_AGENT_VERSION:-1.4.9}
+        APP_VERSION: ${FRP_AGENT_VERSION:-1.4.10}
         VCS_REF: ${VCS_REF:-unknown}

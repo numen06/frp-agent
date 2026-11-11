@@ -1,12 +1,14 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { temporaryCredentialsApi } from "@/api/managedHosts";
-import { copyDeferredText, formatTemporaryCredential } from "@/composables/useClipboard";
+import { copyDeferredText, formatCredentialExpiry, formatTemporaryCredential } from "@/composables/useClipboard";
 import { confirmAction, notify } from "@/composables/useFeedback";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TablePagination from "@/components/TablePagination.vue";
+import TemporaryCredentialDetails from "@/components/TemporaryCredentialDetails.vue";
 
 const protocol = ref("all");
 const rows = ref([]);
@@ -16,10 +18,25 @@ const pageSize = ref(20);
 const busy = ref(false);
 const error = ref("");
 const action = ref("");
+const selected = ref(null);
+const detail = computed(() => rows.value.find((row) => row.can_copy &&
+  row.protocol === selected.value?.protocol && row.username === selected.value?.username));
 const states = { active: "有效", used: "已使用", expired: "已过期", revoked: "已失效" };
 let requestNumber = 0;
 let timer;
+let detailTrigger;
 const formatDate = (value) => value ? new Date(value).toLocaleString("zh-CN") : "—";
+
+function openDetail(row, trigger) {
+  detailTrigger = trigger;
+  selected.value = row;
+}
+
+function restoreDetailFocus(event) {
+  if (!detailTrigger?.isConnected) return;
+  event.preventDefault();
+  detailTrigger.focus();
+}
 
 async function load(nextPage = page.value) {
   const number = ++requestNumber;
@@ -111,19 +128,32 @@ onUnmounted(() => {
             <span class="text-xs text-muted-foreground">{{ row.protocol.toUpperCase() }}</span>
             <span class="rounded border px-1.5 py-0.5 text-xs" :class="{ 'text-green-700 dark:text-green-400': row.status === 'active' }">{{ states[row.status] }}</span>
           </div>
-          <code class="block break-all text-xs">{{ row.address }}</code>
-          <p class="break-all text-xs text-muted-foreground">签发人 {{ row.owner }} · {{ row.username }}</p>
+          <p class="break-all text-xs"><span class="text-muted-foreground">地址 </span><code>{{ row.address }}</code></p>
+          <p class="break-all text-xs"><span class="text-muted-foreground">账号 </span><code>{{ row.username }}</code></p>
+          <p class="break-all text-xs text-muted-foreground">签发人 {{ row.owner }}</p>
         </div>
         <dl class="space-y-1 text-xs text-muted-foreground">
-          <div><dt class="inline">有效至 </dt><dd class="inline">{{ formatDate(row.expires_at) }}</dd></div>
+          <div><dt class="inline">有效至 </dt><dd class="inline">{{ formatCredentialExpiry(row.expires_at) }}</dd></div>
           <div><dt class="inline">使用 </dt><dd class="inline">{{ row.uses }} 次 · 最近 {{ formatDate(row.last_used_at) }}</dd></div>
         </dl>
         <div class="flex flex-wrap items-center gap-2">
-          <Button v-if="row.can_copy" type="button" size="sm" variant="outline" :disabled="!!action" @click="copy(row, $event.currentTarget)">复制地址、账号和密码</Button>
-          <Button v-if="row.status === 'active'" type="button" size="sm" variant="ghost" :disabled="!!action" @click="revoke(row)">撤销</Button>
+          <Button v-if="row.can_copy" type="button" size="sm" variant="outline" class="max-sm:min-h-11" @click="openDetail(row, $event.currentTarget)">连接详情</Button>
+          <Button v-if="row.can_copy" type="button" size="sm" variant="outline" class="max-sm:min-h-11" :disabled="!!action" @click="copy(row, $event.currentTarget)">一键复制（含有效期）</Button>
+          <Button v-if="row.status === 'active'" type="button" size="sm" variant="ghost" class="max-sm:min-h-11" :disabled="!!action" @click="revoke(row)">撤销</Button>
         </div>
       </li>
     </ul>
     <TablePagination :total="total" :page="page" :page-size="pageSize" @page-change="load" @page-size-change="(size) => { pageSize = size; load(1); }" />
+    <Dialog :open="!!detail" @update:open="(open) => { if (!open) selected = null; }">
+      <DialogContent v-if="detail" class="sm:max-w-md" @close-auto-focus="restoreDetailFocus">
+        <DialogHeader>
+          <DialogTitle>临时凭据</DialogTitle>
+          <DialogDescription>{{ detail.protocol.toUpperCase() }} · {{ detail.target }}</DialogDescription>
+        </DialogHeader>
+        <div data-slot="dialog-body" class="space-y-3">
+          <TemporaryCredentialDetails :credential="detail" @refresh="load()" />
+        </div>
+      </DialogContent>
+    </Dialog>
   </Card>
 </template>

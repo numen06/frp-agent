@@ -1026,29 +1026,17 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               <p class="text-xs text-muted-foreground">
                 生成一次性凭据，再打开 Mac「屏幕共享」。凭据 3 分钟内有效。
               </p>
-              <code class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
+              <code v-if="!vncTicket" class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
               <div class="flex flex-wrap gap-2">
                 <Button type="button" :disabled="vncTicketLoading" @click="issueVncTicket">
                   {{ vncTicketLoading ? "正在生成…" : "生成连接凭据" }}
                 </Button>
-                <Button type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
+                <Button v-if="!vncTicket" type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
                   复制代理地址
-                </Button>
-                <Button v-if="vncTicket" as-child variant="outline">
-                  <a :href="connectionInfo.publicVnc">打开屏幕共享</a>
                 </Button>
                 <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
               </div>
-              <div v-if="vncTicket" class="grid gap-2">
-                <Button type="button" variant="outline" class="justify-self-start" @click="copyTemporary('vnc', vncTicket, $event.currentTarget)">复制地址、账号和密码</Button>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span>用户名</span><code class="break-all">{{ vncTicket.username }}</code>
-                  <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(vncTicket.username, $event.currentTarget)">复制用户名</Button>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" @click="copyTemporary('vnc', vncTicket, $event.currentTarget, 'password')">复制临时密码</Button>
-                </div>
-              </div>
+              <TemporaryCredentialDetails v-if="vncTicket" :key="vncTicket.username" :credential="vncTicket" />
             </template>
             <template v-else-if="connectionInfo.nativeCommand">
               <p class="text-xs text-muted-foreground">
@@ -1205,26 +1193,9 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               <Button type="button" :disabled="rdpTicketLoading" @click="issueRdpTicket">
                 {{ rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
               </Button>
-              <Button
-                v-if="rdpTicket"
-                type="button"
-                variant="outline"
-                :disabled="operating"
-                @click="downloadRdpFile(connectionHost, rdpTicket.username)"
-              >下载临时连接文件</Button>
               <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
             </div>
-            <template v-if="rdpTicket">
-              <p class="text-xs text-muted-foreground">有效至 {{ formatDate(rdpTicket.expires_at) }}，期间可重复登录此连接。</p>
-              <Button type="button" variant="outline" @click="copyTemporary('rdp', rdpTicket, $event.currentTarget)">复制地址、账号和密码</Button>
-              <div class="flex flex-wrap items-center gap-2">
-                <span>用户名</span><code class="break-all">{{ rdpTicket.username }}</code>
-                <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(rdpTicket.username, $event.currentTarget)">复制用户名</Button>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" variant="outline" @click="copyTemporary('rdp', rdpTicket, $event.currentTarget, 'password')">复制临时密码</Button>
-              </div>
-            </template>
+            <TemporaryCredentialDetails v-if="rdpTicket" :key="rdpTicket.username" :credential="rdpTicket" />
           </section>
           <RdpConnectionStatus
             v-if="connectionHost.host_type === 'rdp'"
@@ -1421,14 +1392,16 @@ import { notify, confirmAction, promptText } from "@/composables/useFeedback";
 import PageHeader from "@/components/PageHeader.vue";
 import HostAuditPanel from "@/components/HostAuditPanel.vue";
 import TemporaryCredentialsPanel from "@/components/TemporaryCredentialsPanel.vue";
+import TemporaryCredentialDetails from "@/components/TemporaryCredentialDetails.vue";
 import HostCredentialPanel from "@/components/HostCredentialPanel.vue";
 import ResourceCombobox from "@/components/ResourceCombobox.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { usePagedList } from "@/composables/usePagedList";
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { machinesApi, managedHostsApi, temporaryCredentialsApi } from "@/api/managedHosts";
+import { machinesApi, managedHostsApi } from "@/api/managedHosts";
 import RdpConnectionStatus from "@/components/RdpConnectionStatus.vue";
-import { copyText, copyDeferredText, formatTemporaryCredential } from "@/composables/useClipboard";
+import { copyText } from "@/composables/useClipboard";
+import { saveDownload } from "@/utils/saveDownload";
 import { useRouter, useRoute } from "vue-router";
 
 const router = useRouter(),
@@ -1748,18 +1721,13 @@ async function testHost(host) {
     checkingHosts.delete(host.id);
   }
 }
-async function downloadRdpFile(host, ticketUsername) {
+async function downloadRdpFile(host) {
   if (operating.value || checkingHosts.has(host.id)) return;
   operating.value = true;
   try {
     if (!(await testHost(host))) return;
-    const blob = await managedHostsApi.rdpFile(host.id, ticketUsername);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `frp-agent-rdp-${host.id}.rdp`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const blob = await managedHostsApi.rdpFile(host.id);
+    saveDownload(blob, `frp-agent-rdp-${host.id}.rdp`);
     await loadAudit();
   } catch (e) {
     notify(e.message);
@@ -1890,9 +1858,6 @@ function hostAddress(host) {
     ? host.address
     : `${host.docker_use_tls ? "https" : "http"}://${host.address}:${host.port}`;
 }
-function formatDate(value) {
-  return value ? new Date(value).toLocaleString("zh-CN") : "-";
-}
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
@@ -1975,24 +1940,13 @@ function openTemporaryCredentials() {
   connectionHost.value = null;
   tab.value = "temporary";
 }
-async function copyTemporary(protocol, ticket, trigger, field) {
-  try {
-    await copyDeferredText(
-      () => temporaryCredentialsApi.copy({ protocol, username: ticket.username })
-        .then((data) => field ? data[field] : formatTemporaryCredential(data)),
-      trigger,
-    );
-  } catch (error) {
-    notify(error.message, "error");
-  }
-}
 async function issueRdpTicket() {
   const host = connectionHost.value;
   rdpTicketLoading.value = true;
   rdpTicket.value = null;
   try {
-    const { username, expires_at } = await managedHostsApi.rdpTicket(host.id);
-    if (host === connectionHost.value) rdpTicket.value = { username, expires_at };
+    const { address, username, expires_at } = await managedHostsApi.rdpTicket(host.id);
+    if (host === connectionHost.value) rdpTicket.value = { protocol: "rdp", host_id: host.id, address, username, expires_at };
   } catch (error) {
     notify(error.message || "生成临时凭据失败", "error");
   } finally {
@@ -2004,8 +1958,8 @@ async function issueVncTicket() {
   vncTicketLoading.value = true;
   vncTicket.value = null;
   try {
-    const { username } = await managedHostsApi.vncTicket(host.id);
-    if (host === connectionHost.value) vncTicket.value = { username };
+    const { address, username, expires_at } = await managedHostsApi.vncTicket(host.id);
+    if (host === connectionHost.value) vncTicket.value = { protocol: "vnc", host_id: host.id, address, username, expires_at };
   } catch (error) {
     notify(error.message || "生成连接凭据失败", "error");
   } finally {
