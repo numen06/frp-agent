@@ -70,7 +70,17 @@ export function formatCredentialExpiry(value) {
 }
 
 export function formatTemporaryCredential(credential) {
-  return `地址：${credential.address}\n账号：${credential.username}\n密码：${credential.password}\n有效至：${formatCredentialExpiry(credential.expires_at)}${credential.protocol === "vnc" ? "（仅可连接一次）" : ""}`;
+  const isVnc = credential.protocol === "vnc";
+  const protocol = isVnc ? "VNC（Mac 屏幕共享）" : "RDP（Windows 远程桌面）";
+  const target = credential.target.replace(/\s+/g, " ").trim();
+  return [
+    `连接类型：${protocol}`,
+    `连接名称：${target}`,
+    `地址：${credential.address}`,
+    `账号：${credential.username}`,
+    `密码：${credential.password}`,
+    `有效至：${formatCredentialExpiry(credential.expires_at)}${isVnc ? "（仅可连接一次）" : ""}`,
+  ].join("\n");
 }
 
 export async function copyDeferredText(load, trigger) {

@@ -80,7 +80,7 @@ RUN apt-get update && apt-get -o Acquire::Retries=3 install -y --no-install-reco
 
 # 维护者信息
 LABEL maintainer="frp-agent"
-ARG APP_VERSION=1.4.10
+ARG APP_VERSION=1.4.11
 ARG VCS_REF=unknown
 LABEL version="${APP_VERSION}" \
       org.opencontainers.image.version="${APP_VERSION}" \

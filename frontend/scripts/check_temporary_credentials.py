@@ -87,7 +87,9 @@ def main():
             expect(dialog.get_by_text(PASSWORD, exact=True)).to_have_count(0)
             expiry = page.evaluate("expiry => new Date(expiry).toLocaleString('zh-CN', {timeZoneName:'short'})", EXPIRY)
             dialog.get_by_role("button", name="一键复制（含有效期）").click()
-            clipboard(page, f"地址：{RDP['address']}\n账号：{RDP['username']}\n密码：{PASSWORD}\n有效至：{expiry}")
+            expected_rdp = (f"连接类型：RDP（Windows 远程桌面）\n连接名称：{RDP['target']}\n"
+                            f"地址：{RDP['address']}\n账号：{RDP['username']}\n密码：{PASSWORD}\n有效至：{expiry}")
+            clipboard(page, expected_rdp)
             assert dialog.evaluate("node => node.scrollWidth <= node.clientWidth")
             page.keyboard.press("Escape")
             expect(dialog).to_have_count(0)
@@ -100,7 +102,8 @@ def main():
         page.get_by_role("listitem").filter(has_text=VNC["target"]).get_by_role("button", name="连接详情").click()
         expect(dialog.get_by_role("link", name="打开屏幕共享")).to_have_attribute("href", VNC["address"])
         dialog.get_by_role("button", name="一键复制（含有效期）").click()
-        clipboard(page, f"地址：{VNC['address']}\n账号：{VNC['username']}\n密码：{PASSWORD}\n有效至：{expiry}（仅可连接一次）")
+        clipboard(page, f"连接类型：VNC（Mac 屏幕共享）\n连接名称：{VNC['target']}\n"
+                        f"地址：{VNC['address']}\n账号：{VNC['username']}\n密码：{PASSWORD}\n有效至：{expiry}（仅可连接一次）")
         page.keyboard.press("Escape")
 
         page.get_by_role("listitem").filter(has_text=RDP["target"]).get_by_role("button", name="连接详情").click()
@@ -125,7 +128,7 @@ def main():
         page.get_by_role("tab", name="临时凭据", exact=True).click()
         expect(page.get_by_text(OTHER["target"], exact=True)).to_have_count(0)
         page.get_by_role("listitem").filter(has_text=RDP["target"]).get_by_role("button", name="一键复制（含有效期）").click()
-        clipboard(page, f"地址：{RDP['address']}\n账号：{RDP['username']}\n密码：{PASSWORD}\n有效至：{expiry}")
+        clipboard(page, expected_rdp)
         assert state["copies"] == 8
         browser.close()
     print("Temporary credential details: desktop/mobile, SPA monitor, clipboard, RDP certificate/download and permissions passed")

@@ -2,7 +2,7 @@
 
 用一个 Web 控制台管理多台 frps、代理分组和客户端配置，也可以远程访问 SSH、Docker / Portainer、Windows RDP 和 macOS VNC。
 
-**当前版本 1.4.10** · [发行说明](release-notes/1.4.10.md) · [完整截图](docs/screenshots/README.md) · [MIT 许可证](LICENSE)
+**当前版本 1.4.11** · [发行说明](release-notes/1.4.11.md) · [完整截图](docs/screenshots/README.md) · [MIT 许可证](LICENSE)
 
 ## 快速部署
 
@@ -66,7 +66,7 @@ docker stop frp-agent && docker rm frp-agent
 **已经使用 Compose 的实例**，先备份数据和部署配置，再在原部署的 `.env` 中设置以下镜像：
 
 ```dotenv
-FRP_AGENT_IMAGE=registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.10
+FRP_AGENT_IMAGE=registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.11
 ```
 
 ```bash

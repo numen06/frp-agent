@@ -3,6 +3,7 @@ import json
 import re
 import struct
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright, expect
@@ -47,6 +48,9 @@ def demo_frame(page):
 def main():
     state=dict(allowed=True,fail=False)
     native_url='vnc://vnc.test:15901'
+    expires_at=(datetime.now(timezone.utc)+timedelta(minutes=3)).isoformat()
+    ticket=dict(protocol='vnc', username='test-ticket', password='test-only-password',
+                address=native_url, expires_in=180, expires_at=expires_at)
     host={**demo.HOSTS[0], 'id':7,'name':'mac-vnc','host_type':'vnc','address':'127.0.0.1','port':5900,'vnc_ssh_host_id':1,'credential_id':2}
     errors=[]
     def intercept(route):
@@ -54,10 +58,10 @@ def main():
         if not url.path.startswith('/api/'):
             route.continue_(); return
         if url.path == '/api/managed-hosts/7/vnc-ticket' and route.request.method == 'POST':
-            route.fulfill(json=dict(username='test-ticket', password='test-only-password', expires_in=180))
+            route.fulfill(json=ticket)
             return
         if url.path == '/api/temporary-credentials/vnc/test-ticket/copy' and route.request.method == 'POST':
-            route.fulfill(json=dict(username='test-ticket', password='test-only-password', address=native_url))
+            route.fulfill(json=ticket)
             return
         if route.request.method!='GET':
             errors.append('Unexpected write '+url.path); route.abort(); return
@@ -126,9 +130,9 @@ def main():
             expect(page.get_by_role('dialog')).to_contain_text(native_url)
             page.get_by_role('button',name='生成连接凭据',exact=True).click()
             expect(page.get_by_role('link',name='打开屏幕共享',exact=True)).to_have_attribute('href', native_url)
-            page.get_by_role('button',name='复制临时密码',exact=True).click()
+            page.get_by_role('button',name='复制密码',exact=True).click()
             page.wait_for_function("navigator.clipboard.readText().then(text => text === 'test-only-password')")
-            page.get_by_role('button',name='复制代理地址',exact=True).click()
+            page.get_by_role('button',name='复制地址',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == native_url
             page.get_by_role('button',name='复制网页链接',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == 'https://vnc.test/hosts/7?tab=desktop'
