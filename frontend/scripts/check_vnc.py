@@ -127,6 +127,8 @@ def main():
             if width < 768: page.get_by_role('button',name='切换导航菜单',exact=True).click()
             page.get_by_role('link',name='主机资源',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
+            dialog=page.get_by_role('dialog')
+            dialog.get_by_role('tab',name='临时凭据',exact=True).click()
             expect(page.get_by_role('dialog')).to_contain_text(native_url)
             page.get_by_role('button',name='生成连接凭据',exact=True).click()
             expect(page.get_by_role('link',name='打开屏幕共享',exact=True)).to_have_attribute('href', native_url)
@@ -134,11 +136,12 @@ def main():
             page.wait_for_function("navigator.clipboard.readText().then(text => text === 'test-only-password')")
             page.get_by_role('button',name='复制地址',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == native_url
+            page.screenshot(path=str(output/f'vnc-details-{width}.png'))
+            dialog.get_by_role('tab',name='连接方式',exact=True).click()
             page.get_by_role('button',name='复制网页链接',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == 'https://vnc.test/hosts/7?tab=desktop'
             expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_enabled()
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-            page.screenshot(path=str(output/f'vnc-details-{width}.png'))
             page.get_by_role('button',name='关闭',exact=True).click()
             expect(page.get_by_role('dialog')).to_have_count(0)
             assert not errors,errors
@@ -210,6 +213,7 @@ def main():
         page.get_by_role('link',name='← 返回连接列表',exact=True).click()
         expect(page.get_by_role('button',name='远程桌面',exact=True)).to_have_count(0)
         page.get_by_role('button',name='连接详情',exact=True).click()
+        expect(page.get_by_role('dialog').get_by_role('tab',name='临时凭据')).to_have_count(0)
         expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_disabled()
         expect(page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True)).to_have_count(0)
         assert not errors,errors

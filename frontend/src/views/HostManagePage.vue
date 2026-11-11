@@ -962,13 +962,13 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
           }
         }
       "
-      ><DialogContent class="sm:max-w-2xl" :aria-describedby="undefined"
+      ><DialogContent class="sm:h-[min(40rem,85dvh)] sm:max-w-2xl"
         ><DialogHeader
           ><div class="min-w-0">
             <DialogTitle class="break-all"
               >{{ connectionHost.name }} · 连接详情</DialogTitle
             >
-            <p class="mt-0.5 text-xs text-gray-500">
+            <DialogDescription>
               {{
                 {
                   ssh: "SSH 跳板连接",
@@ -977,179 +977,65 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                   vnc: "VNC 远程桌面",
                 }[connectionHost.host_type]
               }}
-            </p>
+            </DialogDescription>
           </div></DialogHeader
         >
-        <div
-          data-slot="dialog-body"
-          class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
-        >
-          <dl class="grid gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
-            <dt class="text-muted-foreground">{{ connectionHost.host_type === 'vnc' && connectionHost.vnc_ssh_host_id ? 'Mac 回环地址' : '目标地址' }}</dt>
-            <dd class="min-w-0 break-all font-mono text-xs">
-              {{ hostAddress(connectionHost) }}
-            </dd>
-            <dt class="text-muted-foreground">访问凭据</dt>
-            <dd class="min-w-0 break-all">
-              {{ connectionHost.credential_name || "未配置"
-              }}{{
-                connectionHost.credential_username
-                  ? ` / ${connectionHost.credential_username}`
-                  : ""
-              }}
-            </dd>
-            <dt class="text-muted-foreground">系统版本</dt>
-            <dd class="min-w-0 break-words">
-              {{ connectionHost.version_info || "未采集" }}
-            </dd>
-            <dt class="text-muted-foreground">最近状态</dt>
-            <dd class="min-w-0 whitespace-pre-wrap break-all">
-              {{ connectionHost.last_message || "尚未检测" }}
-            </dd>
-            <template v-if="connectionHost.host_key_fingerprint"
-              ><dt class="text-muted-foreground">目标指纹</dt>
-              <dd class="min-w-0 break-all font-mono text-xs">
-                {{ connectionHost.host_key_fingerprint }}
-              </dd></template
+        <Tabs default-value="connection" :unmount-on-hide="true" class="min-h-0 flex-1 gap-0">
+          <div class="shrink-0 border-b px-4 sm:px-5">
+            <TabsList variant="line" aria-label="连接详情" class="flex h-auto w-full justify-start p-0">
+              <TabsTrigger value="connection" class="min-w-0 flex-1 px-1 sm:flex-none sm:px-4">连接方式</TabsTrigger>
+              <TabsTrigger v-if="canIssueConnectionTicket" value="credential" class="min-w-0 flex-1 px-1 sm:flex-none sm:px-4">临时凭据</TabsTrigger>
+              <TabsTrigger value="host" class="min-w-0 flex-1 px-1 sm:flex-none sm:px-4">主机信息</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="connection" data-slot="dialog-body" class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <section
+              v-if="connectionHost.host_type === 'vnc' && !connectionInfo.publicVnc"
+              class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
             >
-            <dt class="text-muted-foreground">标签</dt>
-            <dd class="min-w-0 break-all">
-              {{ connectionHost.tags || "无标签" }}
-            </dd>
-          </dl>
-          <section
-            v-if="connectionHost.host_type === 'vnc'"
-            class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
-          >
-            <h3 class="font-medium">Mac 屏幕共享 · 平台网关</h3>
-            <template v-if="connectionInfo.publicVnc">
-              <p class="text-xs text-muted-foreground">
-                生成一次性凭据，再打开 Mac「屏幕共享」。凭据 3 分钟内有效。
+              <h3 class="font-medium">Mac 屏幕共享 · 平台网关</h3>
+              <template v-if="connectionInfo.nativeCommand">
+                <p class="text-xs text-muted-foreground">
+                  在 Mac 的终端运行命令，用平台账号登录。保持终端开启，在访达按 ⌘K，粘贴屏幕共享地址，并输入终端显示的临时验证码。
+                </p>
+                <code class="block break-all text-xs">{{ connectionInfo.nativeCommand }}</code>
+                <p v-if="gatewayInfo.host_key_fingerprint" class="break-all text-xs text-muted-foreground">
+                  首次连接请核对网关指纹 {{ gatewayInfo.host_key_fingerprint }}。
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    @click="copyCredentialValue(connectionInfo.nativeCommand, $event.currentTarget)"
+                  >复制网关连接命令</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    @click="copyCredentialValue(connectionInfo.nativeUrl, $event.currentTarget)"
+                  >复制 Mac 屏幕共享地址</Button>
+                </div>
+                <code class="block break-all text-xs">{{ connectionInfo.nativeUrl }}</code>
+              </template>
+              <p v-else class="text-xs text-muted-foreground">
+                请使用具备连接权限的平台账号，并确认平台 SSH 网关已启用。
               </p>
-              <code v-if="!vncTicket" class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
-              <div class="flex flex-wrap gap-2">
-                <Button type="button" :disabled="vncTicketLoading" @click="issueVncTicket">
-                  {{ vncTicketLoading ? "正在生成…" : "生成连接凭据" }}
-                </Button>
-                <Button v-if="!vncTicket" type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
-                  复制代理地址
-                </Button>
-                <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
-              </div>
-              <TemporaryCredentialDetails v-if="vncTicket" :key="vncTicket.username" :credential="vncTicket" />
-            </template>
-            <template v-else-if="connectionInfo.nativeCommand">
-              <p class="text-xs text-muted-foreground">
-                在 Mac 的终端运行命令，用平台账号登录。保持终端开启，在访达按 ⌘K，粘贴屏幕共享地址，并输入终端显示的临时验证码。
-              </p>
-              <code class="block break-all text-xs">{{ connectionInfo.nativeCommand }}</code>
-              <p v-if="gatewayInfo.host_key_fingerprint" class="break-all text-xs text-muted-foreground">
-                首次连接请核对网关指纹 {{ gatewayInfo.host_key_fingerprint }}。
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  @click="copyCredentialValue(connectionInfo.nativeCommand, $event.currentTarget)"
-                >复制网关连接命令</Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  @click="copyCredentialValue(connectionInfo.nativeUrl, $event.currentTarget)"
-                >复制 Mac 屏幕共享地址</Button>
-              </div>
-              <code class="block break-all text-xs">{{ connectionInfo.nativeUrl }}</code>
-            </template>
-            <p v-else class="text-xs text-muted-foreground">
-              请使用具备连接权限的平台账号，并确认平台 SSH 网关已启用。
-            </p>
-          </section>
-          <dl
-            v-else
-            class="grid gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm sm:grid-cols-[7rem_1fr]"
-          >
-            <dt class="text-gray-500">网关地址</dt>
-            <dd class="flex min-w-0 items-center gap-2">
-              <code class="min-w-0 flex-1 break-all text-xs text-gray-900">{{
-                connectionInfo.gateway
-              }}</code
-              ><Button
-                class="touch-manipulation"
-                aria-label="复制网关地址"
-                title="复制网关地址"
-                @click="
-                  copyCredentialValue(
-                    connectionInfo.gateway,
-                    $event.currentTarget,
-                  )
-                "
-                type="button"
-                variant="outline"
-                size="icon"
-                ><svg
-                  class="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                  <path
-                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                  ></path></svg
-              ></Button>
-            </dd>
-            <dt class="text-gray-500">登录用户名</dt>
-            <dd class="flex min-w-0 items-center gap-2">
-              <code class="min-w-0 flex-1 break-all text-xs text-gray-900">{{
-                connectionInfo.loginName
-              }}</code
-              ><Button
-                class="touch-manipulation"
-                aria-label="复制登录用户名"
-                title="复制登录用户名"
-                @click="
-                  copyCredentialValue(
-                    connectionInfo.loginName,
-                    $event.currentTarget,
-                  )
-                "
-                type="button"
-                variant="outline"
-                size="icon"
-                ><svg
-                  class="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                  <path
-                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                  ></path></svg
-              ></Button>
-            </dd>
-            <dt class="text-gray-500">认证</dt>
-            <dd class="text-gray-900">{{ connectionInfo.passwordHint }}</dd>
-            <template
-              v-if="
-                connectionHost.host_type === 'ssh' &&
-                gatewayInfo.host_key_fingerprint
-              "
+            </section>
+            <dl
+              v-if="connectionHost.host_type !== 'vnc'"
+              class="grid gap-2 rounded-xl border bg-muted/30 p-3 text-sm sm:grid-cols-[7rem_1fr]"
             >
-              <dt class="text-gray-500">网关指纹</dt>
+              <dt class="text-muted-foreground">网关地址</dt>
               <dd class="flex min-w-0 items-center gap-2">
-                <code class="min-w-0 flex-1 break-all text-xs text-gray-900">{{
-                  gatewayInfo.host_key_fingerprint
+                <code class="min-w-0 flex-1 break-all text-xs text-foreground">{{
+                  connectionInfo.gateway
                 }}</code
                 ><Button
                   class="touch-manipulation"
-                  aria-label="复制网关指纹"
-                  title="复制网关指纹"
+                  aria-label="复制网关地址"
+                  title="复制网关地址"
                   @click="
                     copyCredentialValue(
-                      gatewayInfo.host_key_fingerprint,
+                      connectionInfo.gateway,
                       $event.currentTarget,
                     )
                   "
@@ -1169,103 +1055,229 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                     ></path></svg
                 ></Button>
               </dd>
-            </template>
-          </dl>
-          <section
-            v-if="connectionHost.host_type === 'rdp'"
-            class="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"
-          >
-            <h3 class="mb-1 font-medium text-foreground">远程桌面连接说明</h3>
-            <p>
-              {{
-                gatewayInfo.rdp_gateway?.running
-                  ? "使用 mstsc 或 Windows App 连接网关地址，填写“平台账号#主机名”和平台密码，客户端的网关设置留空。首次使用或修改密码后，请先用平台密码登录网页一次；也可下载连接文件。"
-                  : "RDP 网关未运行，请管理员配置公网地址、TLS 证书并启用网关。"
-              }}
+              <dt class="text-muted-foreground">登录用户名</dt>
+              <dd class="flex min-w-0 items-center gap-2">
+                <code class="min-w-0 flex-1 break-all text-xs text-foreground">{{
+                  connectionInfo.loginName
+                }}</code
+                ><Button
+                  class="touch-manipulation"
+                  aria-label="复制登录用户名"
+                  title="复制登录用户名"
+                  @click="
+                    copyCredentialValue(
+                      connectionInfo.loginName,
+                      $event.currentTarget,
+                    )
+                  "
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  ><svg
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                    ></path></svg
+                ></Button>
+              </dd>
+              <dt class="text-muted-foreground">认证</dt>
+              <dd class="text-foreground">{{ connectionInfo.passwordHint }}</dd>
+              <template
+                v-if="
+                  connectionHost.host_type === 'ssh' &&
+                  gatewayInfo.host_key_fingerprint
+                "
+              >
+                <dt class="text-muted-foreground">网关指纹</dt>
+                <dd class="flex min-w-0 items-center gap-2">
+                  <code class="min-w-0 flex-1 break-all text-xs text-foreground">{{
+                    gatewayInfo.host_key_fingerprint
+                  }}</code
+                  ><Button
+                    class="touch-manipulation"
+                    aria-label="复制网关指纹"
+                    title="复制网关指纹"
+                    @click="
+                      copyCredentialValue(
+                        gatewayInfo.host_key_fingerprint,
+                        $event.currentTarget,
+                      )
+                    "
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    ><svg
+                      class="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                      ></path></svg
+                  ></Button>
+                </dd>
+              </template>
+            </dl>
+            <section
+              v-if="connectionHost.host_type === 'rdp'"
+              class="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"
+            >
+              <h3 class="mb-1 font-medium text-foreground">远程桌面连接说明</h3>
+              <p>
+                {{
+                  gatewayInfo.rdp_gateway?.running
+                    ? "使用 mstsc 或 Windows App 连接网关地址，填写“平台账号#主机名”和平台密码，客户端的网关设置留空。首次使用或修改密码后，请先用平台密码登录网页一次；也可下载连接文件。"
+                    : "RDP 网关未运行，请管理员配置公网地址、TLS 证书并启用网关。"
+                }}
+              </p>
+            </section>
+            <p v-if="connectionHost.host_type === 'vnc'" class="text-xs leading-5 text-muted-foreground">
+              网页远程桌面使用平台账号授权，目标 VNC 密码由服务端代用。
             </p>
-          </section>
-          <section
-            v-if="connectionHost.host_type === 'rdp' && gatewayInfo.rdp_gateway?.running && context.actor_type === 'user' && connectionHost.is_active && connectionHost.permissions.includes('connect')"
-            class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
-          >
-            <h3 class="font-medium">RDP 临时凭据</h3>
-            <div class="flex flex-wrap gap-2">
-              <Button type="button" :disabled="rdpTicketLoading" @click="issueRdpTicket">
-                {{ rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
-              </Button>
-              <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
+            <div>
+              <div class="mb-1.5 text-sm font-medium text-foreground">{{ connectionHost.host_type === 'vnc' ? '网页远程桌面链接' : connectionHost.host_type === 'rdp' ? 'Windows 客户端命令' : '终端命令' }}</div>
+              <pre
+                class="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-950 p-3 text-xs text-gray-100"
+                >{{ connectionInfo.command }}</pre>
             </div>
-            <TemporaryCredentialDetails v-if="rdpTicket" :key="rdpTicket.username" :credential="rdpTicket" />
-          </section>
-          <RdpConnectionStatus
-            v-if="connectionHost.host_type === 'rdp'"
-            :host="connectionHost"
-            :result="rdpChecks[connectionHost.id]"
-            :checking="checkingHosts.has(connectionHost.id)"
-            :can-manage="context.is_admin && connectionHost.can_manage"
-            @check="testHost(connectionHost)"
-            @edit="openHostEditor(connectionHost)"
-          />
-          <p
-            v-if="connectionHost.host_type === 'rdp'"
-            class="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"
-          >
-            若客户端快速断开，先重新校验证书，再查看审计记录。“平台认证通过”仅代表网关授权；只有“RDP
-            桌面已连接”才表示进入桌面。网关填写平台账号密码，Windows
-            密码由管理员在凭据库维护。
-          </p>
-          <p v-if="connectionHost.host_type === 'vnc'" class="text-xs leading-5 text-muted-foreground">
-            网页远程桌面使用平台账号授权，目标 VNC 密码由服务端代用。
-          </p>
-          <div>
-            <div class="mb-1.5 text-sm font-medium text-gray-700">{{ connectionHost.host_type === 'vnc' ? '网页远程桌面链接' : '终端命令' }}</div>
-            <pre
-              class="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-950 p-3 text-xs text-gray-100"
-              >{{ connectionInfo.command }}</pre>
-          </div>
-          <p
-            v-if="connectionHost.host_type === 'docker'"
-            class="text-xs leading-5 text-gray-500"
-          >
-            Docker 网关命令需要先下载 CA 证书，并将证书保存为
-            <code>frp-agent-docker-gateway-ca.pem</code>。
-          </p>
-        </div>
-        <DialogFooter
-          ><Button
-            v-if="connectionHost.host_type === 'vnc'"
-            :disabled="!connectionHost.is_active || !connectionHost.permissions.includes('connect')"
-            @click="router.push(hostDetailsLocation(connectionHost, 'desktop'))"
-            type="button"
-            >打开网页远程桌面</Button
-          ><Button
-            v-if="connectionHost.host_type === 'docker'"
-            class="touch-manipulation"
-            @click="downloadDockerCa"
-            type="button"
-            variant="outline"
-            size="default"
-            >下载 CA 证书</Button
-          ><Button
-            v-if="
-              connectionHost.host_type === 'docker' &&
-              gatewayInfo.docker_gateway?.client_certificate_available
-            "
-            class="touch-manipulation"
-            @click="downloadDockerClientCert"
-            type="button"
-            variant="outline"
-            size="default"
-            >下载客户端证书</Button
-          ><Button
-            class="touch-manipulation"
-            @click="copyConnectionCommand(connectionHost, $event.currentTarget)"
-            type="button"
-            :variant="connectionHost.host_type === 'vnc' ? 'outline' : 'default'"
-            size="default"
-            >{{ connectionHost.host_type === 'vnc' ? '复制网页链接' : '复制命令' }}</Button
-          ></DialogFooter
-        ></DialogContent
+            <p
+              v-if="connectionHost.host_type === 'docker'"
+              class="text-xs leading-5 text-muted-foreground"
+            >
+              Docker 网关命令需要先下载 CA 证书，并将证书保存为
+              <code>frp-agent-docker-gateway-ca.pem</code>。
+            </p>
+            <div class="flex flex-wrap items-center gap-2">
+            <Button
+              v-if="connectionHost.host_type === 'vnc'"
+              :disabled="!connectionHost.is_active || !connectionHost.permissions.includes('connect')"
+              @click="router.push(hostDetailsLocation(connectionHost, 'desktop'))"
+              type="button"
+              >打开网页远程桌面</Button
+            ><Button
+              v-if="connectionHost.host_type === 'docker'"
+              class="touch-manipulation"
+              @click="downloadDockerCa"
+              type="button"
+              variant="outline"
+              size="default"
+              >下载 CA 证书</Button
+            ><Button
+              v-if="
+                connectionHost.host_type === 'docker' &&
+                gatewayInfo.docker_gateway?.client_certificate_available
+              "
+              class="touch-manipulation"
+              @click="downloadDockerClientCert"
+              type="button"
+              variant="outline"
+              size="default"
+              >下载客户端证书</Button
+            ><Button
+              class="touch-manipulation"
+              @click="copyConnectionCommand(connectionHost, $event.currentTarget)"
+              type="button"
+              :variant="connectionHost.host_type === 'vnc' ? 'outline' : 'default'"
+              size="default"
+              >{{ connectionHost.host_type === 'vnc' ? '复制网页链接' : '复制命令' }}</Button
+            >
+            </div>
+          </TabsContent>
+          <TabsContent v-if="canIssueConnectionTicket" value="credential" data-slot="dialog-body" class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <section v-if="connectionHost.host_type === 'vnc'" class="space-y-3">
+              <h3 class="font-medium">Mac 屏幕共享</h3>
+                <p class="text-xs text-muted-foreground">
+                  生成一次性凭据，再打开 Mac「屏幕共享」。凭据 3 分钟内有效。
+                </p>
+                <code v-if="!vncTicket" class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
+                <div class="flex flex-wrap gap-2">
+                  <Button type="button" :disabled="vncTicketLoading" @click="issueVncTicket">
+                    {{ vncTicketLoading ? "正在生成…" : "生成连接凭据" }}
+                  </Button>
+                  <Button v-if="!vncTicket" type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
+                    复制代理地址
+                  </Button>
+                  <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
+                </div>
+                <TemporaryCredentialDetails v-if="vncTicket" :key="vncTicket.username" :credential="vncTicket" />
+            </section>
+            <section
+              v-if="connectionHost.host_type === 'rdp'"
+              class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
+            >
+              <h3 class="font-medium">RDP 临时凭据</h3>
+              <div class="flex flex-wrap gap-2">
+                <Button type="button" :disabled="rdpTicketLoading" @click="issueRdpTicket">
+                  {{ rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
+                </Button>
+                <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
+              </div>
+              <TemporaryCredentialDetails v-if="rdpTicket" :key="rdpTicket.username" :credential="rdpTicket" />
+            </section>
+          </TabsContent>
+          <TabsContent value="host" data-slot="dialog-body" class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <dl class="grid gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
+              <dt class="text-muted-foreground">{{ connectionHost.host_type === 'vnc' && connectionHost.vnc_ssh_host_id ? 'Mac 回环地址' : '目标地址' }}</dt>
+              <dd class="min-w-0 break-all font-mono text-xs">
+                {{ hostAddress(connectionHost) }}
+              </dd>
+              <dt class="text-muted-foreground">访问凭据</dt>
+              <dd class="min-w-0 break-all">
+                {{ connectionHost.credential_name || "未配置"
+                }}{{
+                  connectionHost.credential_username
+                    ? ` / ${connectionHost.credential_username}`
+                    : ""
+                }}
+              </dd>
+              <dt class="text-muted-foreground">系统版本</dt>
+              <dd class="min-w-0 break-words">
+                {{ connectionHost.version_info || "未采集" }}
+              </dd>
+              <dt class="text-muted-foreground">最近状态</dt>
+              <dd class="min-w-0 whitespace-pre-wrap break-all">
+                {{ connectionHost.last_message || "尚未检测" }}
+              </dd>
+              <template v-if="connectionHost.host_key_fingerprint"
+                ><dt class="text-muted-foreground">目标指纹</dt>
+                <dd class="min-w-0 break-all font-mono text-xs">
+                  {{ connectionHost.host_key_fingerprint }}
+                </dd></template
+              >
+              <dt class="text-muted-foreground">标签</dt>
+              <dd class="min-w-0 break-all">
+                {{ connectionHost.tags || "无标签" }}
+              </dd>
+            </dl>
+            <RdpConnectionStatus
+              v-if="connectionHost.host_type === 'rdp'"
+              :host="connectionHost"
+              :result="rdpChecks[connectionHost.id]"
+              :checking="checkingHosts.has(connectionHost.id)"
+              :can-manage="context.is_admin && connectionHost.can_manage"
+              @check="testHost(connectionHost)"
+              @edit="openHostEditor(connectionHost)"
+            />
+            <p
+              v-if="connectionHost.host_type === 'rdp'"
+              class="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"
+            >
+              若客户端快速断开，先重新校验证书，再查看审计记录。“平台认证通过”仅代表网关授权；只有“RDP
+              桌面已连接”才表示进入桌面。网关填写平台账号密码，Windows
+              密码由管理员在凭据库维护。
+            </p>
+          </TabsContent>
+        </Tabs>
+        </DialogContent
       ></Dialog
     ><Dialog
       v-if="dockerHost"
@@ -1368,6 +1380,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -1551,6 +1564,13 @@ const userSubjects = userList.items;
 const connectionInfo = computed(() =>
   connectionHost.value ? buildConnectionInfo(connectionHost.value) : {},
 );
+const canIssueConnectionTicket = computed(() => {
+  const host = connectionHost.value;
+  if (!host) return false;
+  if (host.host_type === "vnc") return Boolean(connectionInfo.value.publicVnc);
+  return host.host_type === "rdp" && gatewayInfo.value.rdp_gateway?.running &&
+    context.actor_type === "user" && host.is_active && host.permissions.includes("connect");
+});
 const aiHostPrompt = computed(() => {
   const type = aiPromptForm.host_type === "ssh" ? "SSH" : "Docker / Portainer";
   const name = aiPromptForm.name || "<请先向我确认主机名称>";

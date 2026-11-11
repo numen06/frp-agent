@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TablePagination from "@/components/TablePagination.vue";
 import TemporaryCredentialDetails from "@/components/TemporaryCredentialDetails.vue";
 
@@ -134,6 +135,7 @@ onUnmounted(() => {
         </div>
         <dl class="space-y-1 text-xs text-muted-foreground">
           <div><dt class="inline">有效至 </dt><dd class="inline">{{ formatCredentialExpiry(row.expires_at) }}</dd></div>
+          <div v-if="row.invalidated_at"><dt class="inline">失效于 </dt><dd class="inline">{{ formatCredentialExpiry(row.invalidated_at) }}</dd></div>
           <div><dt class="inline">使用 </dt><dd class="inline">{{ row.uses }} 次 · 最近 {{ formatDate(row.last_used_at) }}</dd></div>
         </dl>
         <div class="flex flex-wrap items-center gap-2">
@@ -145,14 +147,31 @@ onUnmounted(() => {
     </ul>
     <TablePagination :total="total" :page="page" :page-size="pageSize" @page-change="load" @page-size-change="(size) => { pageSize = size; load(1); }" />
     <Dialog :open="!!detail" @update:open="(open) => { if (!open) selected = null; }">
-      <DialogContent v-if="detail" class="sm:max-w-md" @close-auto-focus="restoreDetailFocus">
+      <DialogContent v-if="detail" class="sm:h-[min(34rem,85dvh)] sm:max-w-lg" @close-auto-focus="restoreDetailFocus">
         <DialogHeader>
           <DialogTitle>临时凭据</DialogTitle>
-          <DialogDescription>{{ detail.protocol.toUpperCase() }} · {{ detail.target }}</DialogDescription>
+          <DialogDescription class="break-words">{{ detail.protocol.toUpperCase() }} · {{ detail.target }}</DialogDescription>
         </DialogHeader>
-        <div data-slot="dialog-body" class="space-y-3">
-          <TemporaryCredentialDetails :credential="detail" @refresh="load()" />
-        </div>
+        <Tabs default-value="credential" :unmount-on-hide="true" class="min-h-0 flex-1 gap-0">
+          <div class="shrink-0 border-b px-4 sm:px-5">
+            <TabsList variant="line" aria-label="临时凭据详情" class="flex h-auto w-full justify-start p-0">
+              <TabsTrigger value="credential" class="flex-1 sm:flex-none">连接凭据</TabsTrigger>
+              <TabsTrigger value="usage" class="flex-1 sm:flex-none">使用记录</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="credential" data-slot="dialog-body" class="min-h-0 min-w-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <TemporaryCredentialDetails :credential="detail" @refresh="load()" />
+          </TabsContent>
+          <TabsContent value="usage" data-slot="dialog-body" class="min-h-0 min-w-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+              <dt class="text-muted-foreground">状态</dt><dd>{{ states[detail.status] }}</dd>
+              <dt class="text-muted-foreground">签发人</dt><dd class="break-all">{{ detail.owner }}</dd>
+              <dt class="text-muted-foreground">签发时间</dt><dd>{{ formatDate(detail.issued_at) }}</dd>
+              <dt class="text-muted-foreground">使用次数</dt><dd>{{ detail.uses }} 次</dd>
+              <dt class="text-muted-foreground">最近使用</dt><dd>{{ formatDate(detail.last_used_at) }}</dd>
+            </dl>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   </Card>

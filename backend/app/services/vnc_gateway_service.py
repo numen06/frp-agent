@@ -1,4 +1,7 @@
 """Authenticated public listener for the built-in macOS Screen Sharing client."""
+import hashlib
+import hmac
+import json
 import logging
 import os
 import secrets
@@ -20,7 +23,7 @@ from app.models import ManagedHost, User
 from app.services.host_access_service import add_audit_log
 from app.services.vnc_apple_protocol import EncryptedRecords, authenticate, verifier_for
 from app.services.vnc_service import active_vnc_host, open_vnc, snapshot
-from app.services.temporary_credentials import TemporaryCredentials
+from app.services.temporary_credentials import TemporaryCredentials, utc_iso
 
 logger = logging.getLogger(__name__)
 TICKET_AGE = 180
@@ -30,11 +33,9 @@ TICKET_AGE = 180
 class Ticket:
     user_id: int
     host_id: int
+    stamp: str
     salt: bytes
     verifier: int
-    expires: float
-    password_stamp: str
-    target_state: tuple
 
 
 class Listener(socketserver.ThreadingTCPServer):
@@ -121,8 +122,6 @@ class VncGatewayService:
             listener.shutdown()
             listener.server_close()
             self.thread.join(timeout=2)
-        with self.lock:
-            self.temporary_credentials.stop()
 
     def issue(self, db, user, host_id, address, client_ip):
         if not self.running:
@@ -130,40 +129,54 @@ class VncGatewayService:
         host = active_vnc_host(db, user, host_id)
         name = secrets.token_hex(12)
         password = secrets.token_hex(16)
-        salt = secrets.token_bytes(32)
-        now = time.monotonic()
         with self.lock:
-            ticket = Ticket(
-                user.id, host_id, salt, verifier_for(password.encode(), salt), now + TICKET_AGE,
-                user.password_hash, snapshot(db, host),
+            row = self.temporary_credentials.issue(
+                db, name, password, user, host, address, self._stamp(db, user, host), TICKET_AGE,
             )
-            row = self.temporary_credentials.issue(name, password, ticket, user.username, host.name, address, TICKET_AGE)
-            try:
-                add_audit_log(db, host, user, "vnc_ticket_issued", "success", client_ip, target=host.name)
-            except Exception:
-                row.revoke()
-                raise
+            expires_at = utc_iso(row.expires_at)
+            add_audit_log(db, host, user, "vnc_ticket_issued", "success", client_ip, target=host.name)
         return {"username": name, "password": password, "address": address, "expires_in": TICKET_AGE,
-                "expires_at": row.expires_at.isoformat()}
+                "expires_at": expires_at}
 
     def lookup(self, name):
-        with self.lock:
-            row = self.temporary_credentials.active(name.decode("ascii", errors="replace"))
-            return row.ticket if row else None
+        with self.lock, SessionLocal() as db:
+            row = self.temporary_credentials.active(db, name.decode("ascii", errors="replace"))
+            if row is None:
+                return None
+            try:
+                self.validate_temporary_credential(db, row)
+            except HTTPException:
+                self.temporary_credentials.revoke(db, row)
+                db.commit()
+                return None
+            try:
+                password = self.temporary_credentials.reveal(db, row)
+            except HTTPException:
+                return None
+            salt = secrets.token_bytes(32)
+            return Ticket(row.user_id, row.host_id, row.stamp, salt, verifier_for(password.encode(), salt))
 
     def consume(self, name, ticket):
-        with self.lock:
-            row = self.temporary_credentials.active(name.decode("ascii", errors="replace"))
-            if not row or row.ticket is not ticket:
+        with self.lock, SessionLocal() as db:
+            row = self.temporary_credentials.active(db, name.decode("ascii", errors="replace"))
+            if row is None or (row.user_id, row.host_id, row.stamp) != (ticket.user_id, ticket.host_id, ticket.stamp):
                 return False
-            row.use(consume=True)
-            return True
+            used = self.temporary_credentials.use(db, row, consume=True)
+            db.commit()
+            return used
+
+    @staticmethod
+    def _stamp(db, user, host):
+        return hashlib.sha256(json.dumps([user.password_hash, snapshot(db, host)]).encode()).hexdigest()
 
     def validate_temporary_credential(self, db, ticket):
         user = db.get(User, ticket.user_id)
-        if user is None or user.password_hash != ticket.password_stamp:
+        if user is None:
             raise HTTPException(403, "账号或密码已变更")
-        return user, active_vnc_host(db, user, ticket.host_id, ticket.target_state)
+        host = active_vnc_host(db, user, ticket.host_id)
+        if not hmac.compare_digest(ticket.stamp or "", self._stamp(db, user, host)):
+            raise HTTPException(403, "账号、主机或凭据已变更")
+        return user, host
 
     def handle(self, channel, ip):
         ticket = user = client = upstream = None
@@ -175,13 +188,12 @@ class VncGatewayService:
             ticket, wrap_key = authenticate(channel, self.key, self.lookup, self.consume)
             with SessionLocal() as db:
                 user, host = self.validate_temporary_credential(db, ticket)
-                state = ticket.target_state
                 client, upstream, initial = open_vnc(db, host)
             with SessionLocal() as db:
-                active_vnc_host(db, user, ticket.host_id, state)
+                self.validate_temporary_credential(db, ticket)
             records = EncryptedRecords(channel, initial, wrap_key)
             upstream.settimeout(5)
-            self.relay(records, upstream, ticket, user, state, traffic)
+            self.relay(records, upstream, ticket, traffic)
         except HTTPException as exc:
             error = exc.detail
         except (EOFError, OSError, ValueError):
@@ -204,7 +216,7 @@ class VncGatewayService:
                                       bytes_sent=traffic[0], bytes_received=traffic[1],
                                       duration_ms=int((time.monotonic() - started) * 1000))
 
-    def relay(self, records, upstream, ticket, user, state, traffic):
+    def relay(self, records, upstream, ticket, traffic):
         started = touched = time.monotonic()
         next_check = started + 5
         next_update = started
@@ -217,7 +229,7 @@ class VncGatewayService:
                 return
             if now >= next_check:
                 with SessionLocal() as db:
-                    active_vnc_host(db, user, ticket.host_id, state)
+                    self.validate_temporary_credential(db, ticket)
                 next_check = now + 5
             if automatic and update and not waiting and now >= next_update:
                 upstream.sendall(update)

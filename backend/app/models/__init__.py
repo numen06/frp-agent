@@ -15,6 +15,7 @@ from app.models.managed_host import ManagedHost, HostAccessGrant, HostAuditLog
 from app.models.host_machine import HostMachine
 from app.models.docker_credential import DockerCredential
 from app.models.builtin_frps import BuiltinFrpsConfig
+from app.models.temporary_credential import TemporaryCredential
 from app.models.runtime import RuntimeSample, ServerSyncState, ProxyProbe
 
 __all__ = [
@@ -38,5 +39,6 @@ __all__ = [
     "RuntimeSample",
     "ServerSyncState",
     "ProxyProbe",
+    "TemporaryCredential",
 ]
 

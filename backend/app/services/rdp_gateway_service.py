@@ -31,7 +31,7 @@ from app.models.api_key import ApiKey
 from app.models.user import User
 from app.services.host_access_service import add_audit_log, require_host_access
 from app.services.ssh_client import CommandResult
-from app.services.temporary_credentials import TemporaryCredentials
+from app.services.temporary_credentials import TemporaryCredentials, utc_iso, utcnow
 
 logger = logging.getLogger(__name__)
 SESSION_SECONDS = 8 * 60 * 60
@@ -191,15 +191,6 @@ class Relay:
     ticket_expires: float = float("inf")
 
 
-@dataclass(frozen=True)
-class RdpTicket:
-    user_id: int
-    host_id: int
-    verifier: str
-    stamp: str
-    expires: float
-
-
 class RDPGatewayService:
     def __init__(self):
         self.internal_secret = secrets.token_urlsafe(32)
@@ -293,34 +284,30 @@ class RDPGatewayService:
         username = f"rdp-{secrets.token_hex(12)}#"
         password = secrets.token_urlsafe(24)
         with self._lock:
-            ticket = RdpTicket(
-                user.id, host.id, nthash.hash(password), self._stamp(host, user.password_hash),
-                time.monotonic() + duration,
+            row = self.temporary_credentials.issue(
+                db, username, password, user, host, address, self._stamp(host, user.password_hash), duration,
             )
-            row = self.temporary_credentials.issue(username, password, ticket, user.username, host.name, address, duration)
-            try:
-                add_audit_log(db, host, user, "rdp_ticket_issued", "success", client_ip, target=rdp_target(host))
-            except Exception:
-                row.revoke()
-                raise
-        return {"username": username, "password": password, "address": address, "expires_at": row.expires_at.isoformat()}
+            expires_at = utc_iso(row.expires_at)
+            add_audit_log(db, host, user, "rdp_ticket_issued", "success", client_ip, target=rdp_target(host))
+        return {"username": username, "password": password, "address": address, "expires_at": expires_at}
 
     def _ticket_access(self, db, username):
-        row = self.temporary_credentials.active(username)
+        row = self.temporary_credentials.active(db, username)
         if row is None:
             raise HTTPException(status_code=403, detail="RDP 临时凭据无效或已过期")
         try:
-            user, host = self.validate_temporary_credential(db, row.ticket)
+            user, host = self.validate_temporary_credential(db, row)
         except HTTPException:
-            row.revoke()
+            self.temporary_credentials.revoke(db, row)
+            db.commit()
             raise
-        return row.ticket, user, host
+        return row, user, host
 
     def validate_temporary_credential(self, db, ticket):
         user, platform_stamp = self._principal(db, ticket.user_id)
         host = require_host_access(db, user, ticket.host_id, "connect")
         if (host.host_type != "rdp" or not host.is_active or not host.credential
-                or not hmac.compare_digest(ticket.stamp, self._stamp(host, platform_stamp))):
+                or not hmac.compare_digest(ticket.stamp or "", self._stamp(host, platform_stamp))):
             raise HTTPException(status_code=403, detail="RDP 连接或凭据已变更")
         return user, host
 
@@ -387,7 +374,7 @@ class RDPGatewayService:
                 relay.ntlm_requested = True
                 if is_temporary:
                     ticket, _, _ = self._ticket_access(db, ticket_login)
-                    verifier = ticket.verifier
+                    verifier = nthash.hash(self.temporary_credentials.reveal(db, ticket))
                 else:
                     mode, login_name, host_name = parse_gateway_username(username)
                     user = db.query(User).filter_by(username=login_name, is_active=True).first() if mode == "user" else None
@@ -400,7 +387,8 @@ class RDPGatewayService:
                 return {"ntlm_v2": hmac.new(bytes.fromhex(verifier), identity, "md5").hexdigest()}
             if is_temporary:
                 ticket, user, host = self._ticket_access(db, ticket_login)
-                if not hmac.compare_digest(ticket.verifier, nthash.hash(password)):
+                expected = self.temporary_credentials.reveal(db, ticket)
+                if not hmac.compare_digest(expected.encode(), password.encode()):
                     self._reject_login(relay, state)
                 platform_stamp = user.password_hash
             else:
@@ -410,17 +398,20 @@ class RDPGatewayService:
                 host = db.get(ManagedHost, context.host_id)
                 user, platform_stamp = self._principal(db, context.user.id)
             result = rdp_credential(host)
+            if is_temporary:
+                if not self.temporary_credentials.use(db, ticket):
+                    raise HTTPException(403, "RDP 临时凭据无效或已过期")
+                ticket_deadline = time.monotonic() + (ticket.expires_at - utcnow()).total_seconds()
+            add_audit_log(db, host, user, "rdp_gateway_authorized", "success", relay.ip, target=rdp_target(host))
             relay.uid, relay.hid = user.id, host.id
             if is_temporary:
                 relay.ticket_login = ticket_login
-                relay.ticket_expires = ticket.expires
-                self.temporary_credentials.rows[ticket_login].use()
+                relay.ticket_expires = ticket_deadline
             relay.stamp = self._stamp(host, platform_stamp)
             relay.actor_name, relay.target, relay.authorized = user.username, rdp_target(host), True
             self._metrics['authorized'] += 1
             if state:
                 state['failures'] = 0
-            add_audit_log(db, host, user, "rdp_gateway_authorized", "success", relay.ip, target=relay.target)
             return result
 
     def _reject_login(self, relay, state):
@@ -700,7 +691,6 @@ PrivateKeyFile={os.path.abspath(settings.rdp_gateway_tls_key_path)}
         if listener:
             listener.close()
         with self._lock:
-            self.temporary_credentials.stop()
             for relay in self._sessions.values():
                 relay.ended = True
                 for sock in relay.sockets:

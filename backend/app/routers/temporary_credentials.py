@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.models.temporary_credential import TemporaryCredential
 from app.services.host_access_service import add_audit_log, is_admin
 from app.services.login_guard import client_address
 from app.services.rdp_gateway_service import rdp_gateway_service
+from app.services.temporary_credentials import retained, utcnow
 from app.services.vnc_gateway_service import vnc_gateway_service
 
 router = APIRouter(prefix="/api/temporary-credentials", tags=["临时凭据"])
@@ -22,11 +24,13 @@ def platform_user(request: Request, user=Depends(get_current_user)):
 
 
 def revalidate(gateway, row, db):
-    if row.status == "active":
+    store = gateway.temporary_credentials
+    if store.status(row) == "active":
         try:
-            return gateway.validate_temporary_credential(db, row.ticket)
+            return gateway.validate_temporary_credential(db, row)
         except HTTPException:
-            row.revoke()
+            store.revoke(db, row)
+            db.commit()
     return None
 
 
@@ -40,28 +44,26 @@ def list_credentials(
     db=Depends(get_db),
 ):
     response.headers["Cache-Control"] = "no-store"
+    query = retained(db, utcnow())
+    if protocol:
+        query = query.filter_by(protocol=protocol)
+    if not is_admin(user):
+        query = query.filter_by(user_id=user.id)
+    total = query.count()
+    rows = query.with_entities(TemporaryCredential.protocol, TemporaryCredential.username).order_by(
+        TemporaryCredential.issued_at.desc(), TemporaryCredential.username,
+    ).offset((page - 1) * page_size).limit(page_size).all()
     items = []
-    for name, gateway in GATEWAYS.items():
-        if protocol and name != protocol:
-            continue
+    for name, username in rows:
+        gateway = GATEWAYS[name]
         store = gateway.temporary_credentials
         with store.lock:
-            items.extend(store.metadata(row, user.id) for row in store.rows.values()
-                         if row.ticket.user_id == user.id or is_admin(user))
-    items.sort(key=lambda item: item["issued_at"], reverse=True)
-    first = (page - 1) * page_size
-    selected = items[first:first + page_size]
-    for index, item in enumerate(selected):
-        gateway = GATEWAYS[item["protocol"]]
-        store = gateway.temporary_credentials
-        with store.lock:
-            row = store.rows.get(item["username"])
-            if row:
-                revalidate(gateway, row, db)
-                selected[index] = store.metadata(row, user.id)
-            else:
-                item.update(status="expired", can_copy=False)
-    return {"items": selected, "total": len(items), "page": page, "page_size": page_size}
+            row = store.get(db, username)
+            if row is None:
+                continue
+            revalidate(gateway, row, db)
+            items.append(store.metadata(row, user.id))
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/{protocol}/{username}/copy")
@@ -72,12 +74,12 @@ def copy_credential(
     gateway = GATEWAYS[protocol]
     store = gateway.temporary_credentials
     with store.lock:
-        row = store.rows.get(username)
-        if not row or row.ticket.user_id != user.id:
+        row = store.get(db, username)
+        if row is None or row.user_id != user.id:
             raise HTTPException(404, "临时凭据不存在")
         if revalidate(gateway, row, db) is None:
             raise HTTPException(410, "临时凭据已失效")
-        password = store.reveal(row)
+        password = store.reveal(db, row)
         data = store.metadata(row, user.id)
     response.headers["Cache-Control"] = "no-store"
     return {**data, "password": password}
@@ -91,13 +93,12 @@ def revoke_credential(
     gateway = GATEWAYS[protocol]
     store = gateway.temporary_credentials
     with store.lock:
-        row = store.rows.get(username)
-        if not row or (row.ticket.user_id != user.id and not is_admin(user)):
+        row = store.get(db, username)
+        if row is None or (row.user_id != user.id and not is_admin(user)):
             raise HTTPException(404, "临时凭据不存在")
         access = revalidate(gateway, row, db)
-        if access:
+        if access and store.revoke(db, row):
             _, host = access
-            row.revoke()
             add_audit_log(db, host, user, "temporary_credential_revoked", "success",
                           client_address(request), target=host.name)
     return Response(status_code=204, headers={"Cache-Control": "no-store"})

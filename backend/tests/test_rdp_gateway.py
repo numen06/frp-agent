@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 from app.auth import authenticate_user,get_current_user,get_password_hash
 from app.config import get_settings
@@ -16,6 +15,7 @@ from app.main import app
 from app.models.api_key import ApiKey
 from app.models.managed_host import HostAccessGrant,HostAuditLog,ManagedHost
 from app.models.ssh_credential import SshCredential
+from app.models.temporary_credential import TemporaryCredential
 from app.models.user import User
 from app.services.credential_encryption import encrypt_secret
 from app.services.rdp_gateway_service import RDPGatewayService,Relay,rdp_client_ip,require_secure_rdp_download,rdp_credential
@@ -23,12 +23,12 @@ from app.services import rdp_gateway_service as module
 from app.services.rdp_auth_service import ntlm_verifier
 
 @pytest.fixture
-def setup(monkeypatch):
+def setup(monkeypatch, tmp_path):
     settings=get_settings()
     monkeypatch.setattr(settings,'rdp_gateway_enabled',True)
     monkeypatch.setattr(settings,'rdp_gateway_public_address','rdp.example.test:13389')
     monkeypatch.setattr(settings,'rdp_gateway_trusted_proxies','')
-    engine=create_engine('sqlite://',connect_args={'check_same_thread':False},poolclass=StaticPool)
+    engine=create_engine(f"sqlite:///{tmp_path / 'gateway.db'}")
     Base.metadata.create_all(engine)
     with sessionmaker(bind=engine)() as db:
         credential=SshCredential(name='Windows login',username='WIN-TEST\\administrator',auth_type='password',password_encrypted=encrypt_secret('windows-test-password'))
@@ -329,30 +329,30 @@ def test_rdp_auto_enrollment_preserves_pin_on_updates_and_rejects_changed_certif
     finally:app.dependency_overrides.clear()
 
 
-def test_temporary_rdp_credentials_support_nla_and_reconnect_until_expiry(setup):
-    from dataclasses import replace
+def test_temporary_rdp_credentials_support_nla_and_reconnect_until_expiry(setup, monkeypatch):
     import hmac
     from passlib.hash import nthash
+    from app.services import temporary_credentials as store
 
     db, user, host, _, service = setup
     started = time.monotonic()
     credentials = service.issue_ticket(db, user, host.id, '198.51.100.10')
     username, password = credentials['username'], credentials['password']
     assert credentials['address'] == 'rdp.example.test:13389'
-    row = service.temporary_credentials.rows[username]
-    ticket = row.ticket
-    assert started + 12 * 3600 <= ticket.expires <= time.monotonic() + 12 * 3600
-    assert ticket.verifier == nthash.hash(password)
+    row = db.get(TemporaryCredential, ('rdp', username))
+    assert row.expires_at - row.issued_at == timedelta(hours=12)
+    assert password.encode() not in row.encrypted_password
     assert ntlm_verifier(user) is None
-    expected = hmac.new(bytes.fromhex(ticket.verifier), (username.upper() + 'DOMAIN').encode('utf-16-le'), 'md5')
+    expected = hmac.new(bytes.fromhex(nthash.hash(password)), (username.upper() + 'DOMAIN').encode('utf-16-le'), 'md5')
     assert service.authorize(db, 12345, username, '', 'ntlm', 'DOMAIN') == {'ntlm_v2': expected.hexdigest()}
     with pytest.raises(HTTPException):
         service.authorize(db, 12345, username, 'wrong')
     assert service.authorize(db, 12345, username, password)['username'] == 'administrator'
     service._sessions[12346] = Relay(ip='198.51.100.10', sockets=())
     assert service.authorize(db, 12346, username, password)['address'] == host.address
-    assert service._sessions[12346].ticket_expires == ticket.expires
-    row.ticket = replace(ticket, expires=time.monotonic() - 1)
+    assert started + 12 * 3600 - 1 <= service._sessions[12346].ticket_expires <= time.monotonic() + 12 * 3600
+    expiry = row.expires_at
+    monkeypatch.setattr(store, 'utcnow', lambda: expiry)
     with pytest.raises(HTTPException):
         service._validate(db, service._sessions[12346])
     service._sessions[12347] = Relay(ip='198.51.100.10', sockets=())
@@ -401,12 +401,15 @@ def test_rdp_ticket_api_enforces_permissions_and_download_has_no_password(setup,
 
 
 def test_unified_temporary_credentials_can_be_copied_and_revoked_without_exposing_other_users(setup, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
     from app.routers import temporary_credentials as router
-    from app.services.vnc_gateway_service import VncGatewayService
+    from app.services import vnc_gateway_service as native_vnc
 
     db, user, host, grant, rdp = setup
-    vnc = VncGatewayService()
+    monkeypatch.setattr(native_vnc, 'SessionLocal', sessionmaker(bind=db.get_bind()))
+    vnc = native_vnc.VncGatewayService()
     vnc.listener = Mock()
+    vnc.thread = Mock()
     vnc_credential = SshCredential(name='VNC test login', username='vnc', auth_type='password',
                                    password_encrypted=encrypt_secret('vnctest'))
     desktop = ManagedHost(name='test-mac', host_type='vnc', address='127.0.0.1', port=5900,
@@ -419,6 +422,12 @@ def test_unified_temporary_credentials_can_be_copied_and_revoked_without_exposin
     db.commit()
     issued_rdp = rdp.issue_ticket(db, user, host.id, '198.51.100.10')
     issued_vnc = vnc.issue(db, user, desktop.id, 'vnc://example.test:15901', '198.51.100.10')
+    # New gateway instances must be able to use the saved data without any process state.
+    rdp.stop()
+    vnc.stop()
+    rdp = RDPGatewayService()
+    rdp._sessions[12345] = Relay(ip='198.51.100.10', sockets=())
+    vnc = native_vnc.VncGatewayService()
     monkeypatch.setattr(router, 'GATEWAYS', {'rdp': rdp, 'vnc': vnc})
     monkeypatch.setitem(app.dependency_overrides, get_db, lambda: db)
     actor = [user]
@@ -439,7 +448,12 @@ def test_unified_temporary_credentials_can_be_copied_and_revoked_without_exposin
     assert client.post(vnc_path + '/copy').json()['password'] == issued_vnc['password']
     key = issued_vnc['username'].encode()
     ticket = vnc.lookup(key)
-    assert vnc.consume(key, ticket)
+    second_gateway = native_vnc.VncGatewayService()
+    second_ticket = second_gateway.lookup(key)
+    assert ticket is not None and second_ticket is not None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [pool.submit(vnc.consume, key, ticket), pool.submit(second_gateway.consume, key, second_ticket)]
+        assert sorted(attempt.result() for attempt in attempts) == [False, True]
     assert not vnc.consume(key, ticket)
     assert client.post(vnc_path + '/copy').status_code == 410
     consumed = client.get(base, params={'protocol': 'vnc'}).json()['items'][0]
@@ -457,3 +471,43 @@ def test_unified_temporary_credentials_can_be_copied_and_revoked_without_exposin
     actor[0] = user
     assert client.post(rdp_path + '/copy').status_code == 410
     assert client.get(base, params={'protocol': 'rdp'}).json()['items'][0]['status'] == 'revoked'
+
+
+def test_temporary_credential_history_is_scrubbed_and_deleted_seven_days_after_invalidation(setup, monkeypatch):
+    from app.services import temporary_credentials as store
+
+    db, user, host, _, service = setup
+    now = [datetime(2026, 1, 1)]
+    monkeypatch.setattr(store, 'utcnow', lambda: now[0])
+    credentials = service.temporary_credentials
+
+    def issue():
+        username = service.issue_ticket(db, user, host.id, '198.51.100.10')['username']
+        return credentials.get(db, username)
+
+    expired, revoked, used = issue(), issue(), issue()
+    assert store.key_path(db).stat().st_mode & 0o077 == 0
+    now[0] += timedelta(hours=1)
+    assert credentials.revoke(db, revoked)
+    db.commit()
+    now[0] += timedelta(hours=1)
+    assert credentials.use(db, used, consume=True)
+    db.commit()
+    now[0] = expired.expires_at
+    assert credentials.active(db, expired.username) is None
+    store.cleanup_temporary_credentials(db)
+    assert [credentials.status(row) for row in (expired, revoked, used)] == ['expired', 'revoked', 'used']
+    assert all(row.encrypted_password is None and row.stamp is None for row in (expired, revoked, used))
+    assert expired.invalidated_at == expired.expires_at
+
+    deadline = revoked.invalidated_at + timedelta(days=7)
+    now[0] = deadline - timedelta(seconds=1)
+    live = issue()
+    assert store.retained(db, now[0]).count() == 4
+    for row in (revoked, used, expired):
+        now[0] = row.invalidated_at + timedelta(days=7)
+        key = (row.protocol, row.username)
+        store.cleanup_temporary_credentials(db)
+        assert db.get(TemporaryCredential, key) is None
+    assert credentials.active(db, live.username) is not None
+    assert db.query(HostAuditLog).count() == 4

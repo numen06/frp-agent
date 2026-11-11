@@ -68,8 +68,8 @@ def main():
         page = context.new_page()
         page.set_default_timeout(5000)
         page.goto(f"{ORIGIN}/hosts")
-        for width in (1280, 390):
-            page.set_viewport_size(dict(width=width, height=900))
+        for width, height in ((1280, 900), (390, 600), (320, 520)):
+            page.set_viewport_size(dict(width=width, height=height))
             page.get_by_role("tab", name="临时凭据", exact=True).click()
             row = page.get_by_role("listitem").filter(has_text=RDP["target"])
             other = page.get_by_role("listitem").filter(has_text=OTHER["target"])
@@ -83,14 +83,21 @@ def main():
                 clipboard(page, value)
             dialog.get_by_role("button", name="显示密码").click()
             expect(dialog.get_by_text(PASSWORD, exact=True)).to_be_visible()
-            dialog.get_by_role("button", name="隐藏密码").click()
+            credential_tab = dialog.get_by_role("tab", name="连接凭据")
+            credential_tab.focus()
+            page.keyboard.press("ArrowRight")
+            expect(dialog.get_by_role("tab", name="使用记录")).to_have_attribute("aria-selected", "true")
+            expect(dialog.get_by_role("tabpanel").get_by_text("使用次数")).to_be_visible()
             expect(dialog.get_by_text(PASSWORD, exact=True)).to_have_count(0)
+            credential_tab.click()
+            expect(dialog.get_by_role("button", name="显示密码")).to_be_visible()
             expiry = page.evaluate("expiry => new Date(expiry).toLocaleString('zh-CN', {timeZoneName:'short'})", EXPIRY)
             dialog.get_by_role("button", name="一键复制（含有效期）").click()
             expected_rdp = (f"连接类型：RDP（Windows 远程桌面）\n连接名称：{RDP['target']}\n"
                             f"地址：{RDP['address']}\n账号：{RDP['username']}\n密码：{PASSWORD}\n有效至：{expiry}")
             clipboard(page, expected_rdp)
             assert dialog.evaluate("node => node.scrollWidth <= node.clientWidth")
+            assert dialog.get_by_role("tablist").evaluate("node => node.scrollWidth <= node.clientWidth")
             page.keyboard.press("Escape")
             expect(dialog).to_have_count(0)
             expect(row.get_by_role("button", name="连接详情")).to_be_focused()
@@ -120,6 +127,10 @@ def main():
         state["admin"] = False
         page.goto(f"{ORIGIN}/hosts")
         page.get_by_role("article").filter(has_text="office-windows").get_by_role("button", name="连接详情").click()
+        expect(dialog.get_by_role("tab", name="连接方式")).to_have_attribute("aria-selected", "true")
+        dialog.get_by_role("tab", name="主机信息").click()
+        expect(dialog.get_by_role("tabpanel").get_by_text("系统版本")).to_be_visible()
+        dialog.get_by_role("tab", name="临时凭据").click()
         dialog.get_by_role("button", name="生成临时凭据", exact=True).click()
         expect(dialog.get_by_text(RDP["address"], exact=True)).to_be_visible()
         expect(dialog.get_by_text(PASSWORD, exact=True)).to_have_count(0)
@@ -129,7 +140,7 @@ def main():
         expect(page.get_by_text(OTHER["target"], exact=True)).to_have_count(0)
         page.get_by_role("listitem").filter(has_text=RDP["target"]).get_by_role("button", name="一键复制（含有效期）").click()
         clipboard(page, expected_rdp)
-        assert state["copies"] == 8
+        assert state["copies"] == 11
         browser.close()
     print("Temporary credential details: desktop/mobile, SPA monitor, clipboard, RDP certificate/download and permissions passed")
 

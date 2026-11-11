@@ -1,49 +1,89 @@
-"""Bounded, process-local catalog for native gateway temporary credentials."""
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+"""Database-backed credentials shared by the native gateways."""
+import json
+import os
 import secrets
-import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import HTTPException
+from sqlalchemy import and_, or_
+
+from app.config import get_settings
+from app.database import SessionLocal
+from app.models.temporary_credential import TemporaryCredential
+
+RETENTION = timedelta(days=7)
 
 
-@dataclass
-class Credential:
-    username: str
-    ticket: object
-    owner: str
-    target: str
-    address: str
-    issued_at: datetime
-    expires_at: datetime
-    encrypted_password: bytes
-    revoked: bool = False
-    consumed: bool = False
-    uses: int = 0
-    last_used_at: datetime | None = None
+def utcnow():
+    # The application stores SQL timestamps as naive UTC.
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
-    @property
-    def status(self):
-        if self.revoked:
-            return "revoked"
-        if self.consumed:
-            return "used"
-        if self.ticket.expires <= time.monotonic():
-            self.encrypted_password = b""
-            return "expired"
-        return "active"
 
-    def use(self, *, consume=False):
-        self.uses += 1
-        self.last_used_at = datetime.now(timezone.utc)
-        if consume:
-            self.consumed = True
-            self.encrypted_password = b""
+def utc_iso(value):
+    return value.replace(tzinfo=timezone.utc).isoformat() if value is not None else None
 
-    def revoke(self):
-        self.revoked = True
-        self.encrypted_password = b""
+
+def key_path(db):
+    configured = get_settings().temporary_credential_key_path
+    if configured:
+        return Path(configured)
+    url = db.get_bind().url
+    if url.get_backend_name() == "sqlite" and url.database not in (None, "", ":memory:"):
+        return Path(url.database).with_name(Path(url.database).name + ".temporary-credentials.key")
+    return Path("data/temporary_credentials.key")
+
+
+def cipher(db, *, create=False):
+    path = key_path(db)
+    if create and not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Publish a complete owner-only key atomically, including on concurrent startup.
+        with NamedTemporaryFile(dir=path.parent) as candidate:
+            candidate.write(AESGCM.generate_key(bit_length=256))
+            candidate.flush()
+            try:
+                os.link(candidate.name, path)
+            except FileExistsError:
+                pass
+    return AESGCM(path.read_bytes())
+
+
+def binding(row):
+    return json.dumps([row.protocol, row.username, row.user_id, row.host_id, row.stamp,
+                       utc_iso(row.expires_at)], separators=(",", ":")).encode()
+
+
+def retained(db, now):
+    cutoff = now - RETENTION
+    row = TemporaryCredential
+    return db.query(row).filter(or_(
+        row.invalidated_at > cutoff,
+        and_(row.invalidated_at.is_(None), row.expires_at > cutoff),
+    ))
+
+
+def cleanup_temporary_credentials(db=None):
+    if db is None:
+        with SessionLocal() as session:
+            cleanup_temporary_credentials(session)
+        return
+    now = utcnow()
+    row = TemporaryCredential
+    db.query(row).filter(
+        or_(row.invalidated_at <= now - RETENTION,
+            and_(row.invalidated_at.is_(None), row.expires_at <= now - RETENTION)),
+    ).delete(synchronize_session=False)
+    db.query(row).filter(row.invalidated_at.is_(None), row.expires_at <= now).update({
+        row.invalidated_at: row.expires_at,
+        row.invalidated_status: "expired",
+        row.encrypted_password: None,
+        row.stamp: None,
+    }, synchronize_session=False)
+    db.commit()
 
 
 class TemporaryCredentials:
@@ -52,50 +92,76 @@ class TemporaryCredentials:
         self.capacity = capacity
         self.per_user = per_user
         self.lock = lock
-        self.rows = {}
-        self.cipher = AESGCM(AESGCM.generate_key(bit_length=256))
 
-    def issue(self, username, password, ticket, owner, target, address, duration):
-        # Callers hold their gateway lock. Evict old history before adding a row,
-        # while keeping every active credential available for authentication.
-        active = [row for row in self.rows.values() if row.status == "active"]
-        if len(active) >= self.capacity or sum(row.ticket.user_id == ticket.user_id for row in active) >= self.per_user:
+    def _active(self, query, now):
+        row = TemporaryCredential
+        return query.filter(row.protocol == self.protocol, row.invalidated_at.is_(None),
+                            row.expires_at > now)
+
+    def issue(self, db, username, password, user, host, address, stamp, duration):
+        now = utcnow()
+        active = self._active(db.query(TemporaryCredential), now)
+        if active.count() >= self.capacity or active.filter_by(user_id=user.id).count() >= self.per_user:
             raise HTTPException(429, "有效的临时凭据过多，请撤销不再使用的凭据或等其到期")
-        history_limit = self.capacity * 2
-        for key, row in list(self.rows.items()):
-            if len(self.rows) < history_limit:
-                break
-            if row.status != "active":
-                del self.rows[key]
-        now = datetime.now(timezone.utc)
+        row = TemporaryCredential(
+            protocol=self.protocol, username=username, user_id=user.id, host_id=host.id,
+            owner=user.username, target=host.name, address=address, stamp=stamp,
+            issued_at=now, expires_at=now + timedelta(seconds=duration),
+        )
         nonce = secrets.token_bytes(12)
-        encrypted = nonce + self.cipher.encrypt(nonce, password.encode(), username.encode())
-        row = Credential(username, ticket, owner, target, address, now,
-                         now + timedelta(seconds=duration), encrypted)
-        self.rows[username] = row
+        row.encrypted_password = nonce + cipher(db, create=True).encrypt(nonce, password.encode(), binding(row))
+        db.add(row)
         return row
 
-    def active(self, username):
-        row = self.rows.get(username)
-        return row if row is not None and row.status == "active" else None
+    def get(self, db, username):
+        return retained(db, utcnow()).filter_by(protocol=self.protocol, username=username).populate_existing().one_or_none()
 
-    def reveal(self, row):
-        if row.status != "active":
+    def active(self, db, username):
+        return self._active(db.query(TemporaryCredential), utcnow()).filter_by(
+            username=username,
+        ).populate_existing().one_or_none()
+
+    def reveal(self, db, row):
+        if self.status(row) != "active":
             raise HTTPException(410, "临时凭据已失效")
         encrypted = row.encrypted_password
-        return self.cipher.decrypt(encrypted[:12], encrypted[12:], row.username.encode()).decode()
+        try:
+            return cipher(db).decrypt(encrypted[:12], encrypted[12:], binding(row)).decode()
+        except (FileNotFoundError, InvalidTag, ValueError, TypeError):
+            self.revoke(db, row)
+            db.commit()
+            raise HTTPException(410, "临时凭据已失效") from None
+
+    def use(self, db, row, *, consume=False):
+        now = utcnow()
+        model = TemporaryCredential
+        values = {model.uses: model.uses + 1, model.last_used_at: now}
+        if consume:
+            values.update({model.invalidated_at: now, model.invalidated_status: "used",
+                           model.encrypted_password: None, model.stamp: None})
+        return self._active(db.query(model), now).filter_by(username=row.username).update(
+            values, synchronize_session=False,
+        ) == 1
+
+    def revoke(self, db, row):
+        now = utcnow()
+        model = TemporaryCredential
+        return self._active(db.query(model), now).filter_by(username=row.username).update({
+            model.invalidated_at: now, model.invalidated_status: "revoked",
+            model.encrypted_password: None, model.stamp: None,
+        }, synchronize_session=False) == 1
+
+    @staticmethod
+    def status(row):
+        return row.invalidated_status or ("expired" if row.expires_at <= utcnow() else "active")
 
     def metadata(self, row, user_id):
-        status = row.status
+        status = self.status(row)
         return {
             "protocol": self.protocol, "username": row.username, "owner": row.owner,
-            "host_id": row.ticket.host_id, "target": row.target, "address": row.address,
-            "issued_at": row.issued_at, "expires_at": row.expires_at, "status": status,
-            "uses": row.uses, "last_used_at": row.last_used_at,
-            "can_copy": status == "active" and row.ticket.user_id == user_id,
+            "host_id": row.host_id, "target": row.target, "address": row.address,
+            "issued_at": utc_iso(row.issued_at), "expires_at": utc_iso(row.expires_at),
+            "status": status, "uses": row.uses, "last_used_at": utc_iso(row.last_used_at),
+            "invalidated_at": utc_iso(row.invalidated_at or (row.expires_at if status == "expired" else None)),
+            "can_copy": status == "active" and row.user_id == user_id,
         }
-
-    def stop(self):
-        for row in self.rows.values():
-            if row.status == "active":
-                row.revoke()

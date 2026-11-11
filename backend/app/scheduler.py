@@ -16,6 +16,7 @@ from app.frps_client import FrpsClient
 from app.services.port_service import PortService
 from app.services.frp_version_service import refresh_server_version, apply_proxy_version
 from app.services.monitoring_service import collect_proxy_snapshot, sample_runtime, probe_connections
+from app.services.temporary_credentials import cleanup_temporary_credentials
 from app.services.runtime_service import resource_sampler
 
 logger = logging.getLogger(__name__)
@@ -218,6 +219,9 @@ async def start_scheduler():
     scheduler.add_job(probe_connections, 'interval', seconds=300, id='ssh_probes', max_instances=1,
                       coalesce=True, next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10))
     await asyncio.to_thread(resource_sampler.sample)
+    scheduler.add_job(cleanup_temporary_credentials, "interval", minutes=1,
+                      id="cleanup_temporary_credentials", coalesce=True, max_instances=1,
+                      next_run_time=datetime.now(timezone.utc))
     
     # 添加定时同步任务
     scheduler.add_job(
