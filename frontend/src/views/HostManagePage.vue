@@ -1021,19 +1021,19 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
           >
             <h3 class="font-medium">Mac 屏幕共享地址</h3>
-            <template v-if="connectionHost.vnc_native_url">
-              <code class="block break-all text-xs">{{ connectionHost.vnc_native_url }}</code>
+            <template v-if="connectionInfo.nativeUrl">
+              <code class="block break-all text-xs">{{ connectionInfo.nativeUrl }}</code>
               <Button
                 type="button"
                 variant="outline"
-                @click="copyCredentialValue(connectionHost.vnc_native_url, $event.currentTarget)"
+                @click="copyCredentialValue(connectionInfo.nativeUrl, $event.currentTarget)"
               >复制 Mac 屏幕共享地址</Button>
               <p class="text-xs text-muted-foreground">
                 在 Mac 的访达按 ⌘K 后粘贴。原生连接由目标 Mac 认证。
               </p>
             </template>
             <p v-else class="text-xs text-muted-foreground">
-              当前连接没有可供 Mac 屏幕共享直连的地址，可使用下方网页入口。
+              当前平台没有为这条连接提供原生 VNC 端口，可使用下方网页入口。
             </p>
           </section>
           <dl
@@ -1822,6 +1822,7 @@ function buildConnectionInfo(host) {
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
   if (host.host_type === "vnc")
     return {
+      nativeUrl: host.vnc_platform_port ? `vnc://${gatewayHost}:${host.vnc_platform_port}` : "",
       command: new URL(`/hosts/${host.id}?tab=desktop`, window.location.origin)
         .href,
     };

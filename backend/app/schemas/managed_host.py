@@ -97,7 +97,7 @@ class ManagedHostResponse(BaseModel):
     port: int
     host_type: str
     vnc_ssh_host_id: Optional[int] = None
-    vnc_native_url: Optional[str] = None
+    vnc_platform_port: Optional[int] = None
     credential_id: Optional[int]
     docker_credential_id: Optional[int]
     credential_name: str

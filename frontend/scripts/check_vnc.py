@@ -46,7 +46,7 @@ def demo_frame(page):
 
 def main():
     state=dict(allowed=True,fail=False,native=False)
-    native_url='vnc://frp.example.com:6022'
+    native_url='vnc://vnc.test:6022'
     host={**demo.HOSTS[0], 'id':7,'name':'mac-vnc','host_type':'vnc','address':'127.0.0.1','port':5900,'vnc_ssh_host_id':1,'credential_id':2}
     errors=[]
     def intercept(route):
@@ -59,7 +59,7 @@ def main():
         if url.path=='/api/managed-hosts':
             h={**host,'permissions':['connect'] if state['allowed'] else [],'can_manage':state['allowed']}
             if state['allowed'] and state['native']:
-                h.update(vnc_ssh_host_id=None, port=6022, vnc_native_url=native_url)
+                h.update(vnc_ssh_host_id=None, port=6022, vnc_platform_port=6022)
             if parse_qs(url.query).get('host_id')==['1']: h=demo.HOSTS[0]
             data=demo.paginated([h])
         if url.path=='/api/managed-hosts/context': data=dict(is_admin=state['allowed'],actor_type='user',actor_name='demo')

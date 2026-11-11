@@ -4,7 +4,6 @@ import struct
 import time
 import socket
 import ipaddress
-import re
 from fastapi import HTTPException
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
 try:
@@ -24,31 +23,15 @@ TRUSTED_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
     '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10', '::1/128', 'fc00::/7'))
 
 
-def native_vnc_url(db, host):
-    if not host.is_active or host.vnc_ssh_host_id:
+def platform_vnc_port(db, host):
+    if (not host.is_active or host.vnc_ssh_host_id
+            or host.address.strip().lower().rstrip('.') not in {'127.0.0.1', '::1', 'localhost'}):
         return None
-    address = host.address.strip()
-    if address.lower().rstrip('.') in {'127.0.0.1', '::1', 'localhost'}:
-        # Platform loopback is meaningful to the client only through a known FRP mapping.
-        matches = (db.query(FrpsServer.server_addr).join(Proxy, Proxy.frps_server_id == FrpsServer.id)
-                   .filter(FrpsServer.is_builtin.is_(True), FrpsServer.is_active.is_(True),
-                           Proxy.proxy_type == 'tcp', Proxy.remote_port == host.port)
-                   .distinct().all())
-        if len(matches) != 1:
-            return None
-        address = matches[0][0].strip()
-    try:
-        ip = ipaddress.ip_address(address)
-    except ValueError:
-        if address.lower().rstrip('.') == 'localhost' or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', address):
-            return None
-    else:
-        checked_ip = getattr(ip, 'ipv4_mapped', None) or ip
-        if checked_ip.is_loopback or checked_ip.is_unspecified or '%' in address:
-            return None
-        if ip.version == 6:
-            address = f'[{ip}]'
-    return f'vnc://{address}:{host.port}'
+    mapping = (db.query(Proxy.remote_port).join(FrpsServer, Proxy.frps_server_id == FrpsServer.id)
+               .filter(FrpsServer.is_builtin.is_(True), FrpsServer.is_active.is_(True),
+                       Proxy.proxy_type == 'tcp', Proxy.remote_port == host.port)
+               .first())
+    return mapping.remote_port if mapping else None
 
 
 def trusted_ip(value):
