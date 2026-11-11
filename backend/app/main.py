@@ -193,6 +193,8 @@ app.include_router(runtime.router)
 app.include_router(webssh.router)
 from app.routers.webvnc import router as webvnc_router
 app.include_router(webvnc_router)
+from app.routers.temporary_credentials import router as temporary_credentials_router
+app.include_router(temporary_credentials_router)
 
 
 @app.exception_handler(FrpsCollectionError)

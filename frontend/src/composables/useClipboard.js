@@ -64,3 +64,25 @@ export async function copyText(text, trigger) {
   notify("复制失败，请选中文字后手动复制", "error");
   return false;
 }
+
+export function formatTemporaryCredential(credential) {
+  return `地址：${credential.address}\n账号：${credential.username}\n密码：${credential.password}`;
+}
+
+export async function copyDeferredText(load, trigger) {
+  const value = load();
+  if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+    try {
+      // Safari requires starting the clipboard write inside the click handler.
+      const item = new ClipboardItem({
+        "text/plain": value.then((text) => new Blob([text], { type: "text/plain" })),
+      });
+      await navigator.clipboard.write([item]);
+      notify("已复制", "success");
+      return true;
+    } catch {
+      // Try the normal clipboard fallbacks or propagate the API error.
+    }
+  }
+  return copyText(await value, trigger);
+}

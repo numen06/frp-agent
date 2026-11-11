@@ -8,6 +8,7 @@ from contextlib import suppress
 from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from app.auth import get_current_user
+from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.services.vnc_gateway_service import vnc_gateway_service
 from app.services.host_access_service import actor_identity, require_host_access, add_audit_log
@@ -32,9 +33,13 @@ def native_ticket(host_id: int, request: Request, response: Response,
         raise HTTPException(403, "请通过 HTTPS 使用平台账号登录")
     if user.id <= 0:
         raise HTTPException(403, "请使用平台账号签发连接凭据")
-    active_vnc_host(db, user, host_id)
+    settings = get_settings()
+    hostname = request.url.hostname
+    if hostname and ":" in hostname:
+        hostname = f"[{hostname}]"
+    address = settings.vnc_gateway_public_address or f"{hostname}:{settings.vnc_gateway_port}"
     response.headers["Cache-Control"] = "no-store"
-    return vnc_gateway_service.issue(user.id, host_id)
+    return vnc_gateway_service.issue(db, user, host_id, f"vnc://{address}", client_address(request))
 
 
 def authenticate(ws, packet, host_id):

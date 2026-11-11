@@ -724,6 +724,7 @@
             </div>
           </div>
         </section>
+        <TemporaryCredentialsPanel v-else-if="tab === 'temporary'" />
         <HostAuditPanel
           v-else-if="tab === 'audit'"
           ref="auditPanel"
@@ -1036,15 +1037,16 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                 <Button v-if="vncTicket" as-child variant="outline">
                   <a :href="connectionInfo.publicVnc">打开屏幕共享</a>
                 </Button>
+                <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
               </div>
               <div v-if="vncTicket" class="grid gap-2">
+                <Button type="button" variant="outline" class="justify-self-start" @click="copyTemporary('vnc', vncTicket, $event.currentTarget)">复制地址、账号和密码</Button>
                 <div class="flex flex-wrap items-center gap-2">
                   <span>用户名</span><code class="break-all">{{ vncTicket.username }}</code>
                   <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(vncTicket.username, $event.currentTarget)">复制用户名</Button>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <span>临时密码</span><code class="break-all">{{ vncTicket.password }}</code>
-                  <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(vncTicket.password, $event.currentTarget)">复制临时密码</Button>
+                  <Button type="button" size="sm" variant="outline" @click="copyTemporary('vnc', vncTicket, $event.currentTarget, 'password')">复制临时密码</Button>
                 </div>
               </div>
             </template>
@@ -1210,16 +1212,17 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
                 :disabled="operating"
                 @click="downloadRdpFile(connectionHost, rdpTicket.username)"
               >下载临时连接文件</Button>
+              <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
             </div>
             <template v-if="rdpTicket">
               <p class="text-xs text-muted-foreground">有效至 {{ formatDate(rdpTicket.expires_at) }}，期间可重复登录此连接。</p>
+              <Button type="button" variant="outline" @click="copyTemporary('rdp', rdpTicket, $event.currentTarget)">复制地址、账号和密码</Button>
               <div class="flex flex-wrap items-center gap-2">
                 <span>用户名</span><code class="break-all">{{ rdpTicket.username }}</code>
                 <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(rdpTicket.username, $event.currentTarget)">复制用户名</Button>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <span>临时密码</span><code class="break-all">{{ rdpTicket.password }}</code>
-                <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(rdpTicket.password, $event.currentTarget)">复制临时密码</Button>
+                <Button type="button" size="sm" variant="outline" @click="copyTemporary('rdp', rdpTicket, $event.currentTarget, 'password')">复制临时密码</Button>
               </div>
             </template>
           </section>
@@ -1417,14 +1420,15 @@ import { Button } from "@/components/ui/button";
 import { notify, confirmAction, promptText } from "@/composables/useFeedback";
 import PageHeader from "@/components/PageHeader.vue";
 import HostAuditPanel from "@/components/HostAuditPanel.vue";
+import TemporaryCredentialsPanel from "@/components/TemporaryCredentialsPanel.vue";
 import HostCredentialPanel from "@/components/HostCredentialPanel.vue";
 import ResourceCombobox from "@/components/ResourceCombobox.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { usePagedList } from "@/composables/usePagedList";
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { machinesApi, managedHostsApi } from "@/api/managedHosts";
+import { machinesApi, managedHostsApi, temporaryCredentialsApi } from "@/api/managedHosts";
 import RdpConnectionStatus from "@/components/RdpConnectionStatus.vue";
-import { copyText } from "@/composables/useClipboard";
+import { copyText, copyDeferredText, formatTemporaryCredential } from "@/composables/useClipboard";
 import { useRouter, useRoute } from "vue-router";
 
 const router = useRouter(),
@@ -1559,6 +1563,7 @@ const origin = window.location.origin;
 
 const tabs = computed(() => [
   { key: "hosts", label: "连接服务" },
+  ...(context.actor_type === "user" ? [{ key: "temporary", label: "临时凭据" }] : []),
   ...(context.is_admin
     ? [
         { key: "credentials", label: "凭证管理" },
@@ -1966,13 +1971,28 @@ function hostDetailsLocation(host, tab = "overview") {
 function openConnectionDetails(host) {
   connectionHost.value = host;
 }
+function openTemporaryCredentials() {
+  connectionHost.value = null;
+  tab.value = "temporary";
+}
+async function copyTemporary(protocol, ticket, trigger, field) {
+  try {
+    await copyDeferredText(
+      () => temporaryCredentialsApi.copy({ protocol, username: ticket.username })
+        .then((data) => field ? data[field] : formatTemporaryCredential(data)),
+      trigger,
+    );
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
 async function issueRdpTicket() {
   const host = connectionHost.value;
   rdpTicketLoading.value = true;
   rdpTicket.value = null;
   try {
-    const ticket = await managedHostsApi.rdpTicket(host.id);
-    if (host === connectionHost.value) rdpTicket.value = ticket;
+    const { username, expires_at } = await managedHostsApi.rdpTicket(host.id);
+    if (host === connectionHost.value) rdpTicket.value = { username, expires_at };
   } catch (error) {
     notify(error.message || "生成临时凭据失败", "error");
   } finally {
@@ -1984,8 +2004,8 @@ async function issueVncTicket() {
   vncTicketLoading.value = true;
   vncTicket.value = null;
   try {
-    const ticket = await managedHostsApi.vncTicket(host.id);
-    if (host === connectionHost.value) vncTicket.value = ticket;
+    const { username } = await managedHostsApi.vncTicket(host.id);
+    if (host === connectionHost.value) vncTicket.value = { username };
   } catch (error) {
     notify(error.message || "生成连接凭据失败", "error");
   } finally {

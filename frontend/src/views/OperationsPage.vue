@@ -353,6 +353,9 @@
           <TabsContent v-if="activeTab === 'vnc'" value="vnc">
             <VncProtectionPanel :snapshot="data?.vnc" />
           </TabsContent>
+          <TabsContent v-if="activeTab === 'temporary'" value="temporary">
+            <TemporaryCredentialsPanel />
+          </TabsContent>
           <TabsContent v-if="activeTab === 'ssh'" value="ssh"
             ><SshProtectionPanel
           /></TabsContent></div
@@ -366,6 +369,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import SshProtectionPanel from "@/components/SshProtectionPanel.vue";
 import VncProtectionPanel from "@/components/VncProtectionPanel.vue";
+import TemporaryCredentialsPanel from "@/components/TemporaryCredentialsPanel.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import api from "@/api";
@@ -382,6 +386,7 @@ const tabs = [
   { key: "rdp", label: "RDP 防护" },
   { key: "ssh", label: "SSH 防护" },
   { key: "vnc", label: "VNC 防护" },
+  { key: "temporary", label: "临时凭据" },
 ];
 const activeTab = computed({
   get: () =>

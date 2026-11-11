@@ -6,26 +6,29 @@ const api = axios.create({
   timeout: 30000,
 });
 
+const isCredentialRequest = (config) =>
+  /\/temporary-credentials(?:\/|$)|\/(?:rdp|vnc)-ticket(?:\?|$)/.test(config?.url || "");
+
 // 开发环境启用请求日志
 if (import.meta.env.DEV) {
   api.interceptors.request.use(
     (config) => {
-      logRequest(config);
+      if (!isCredentialRequest(config)) logRequest(config);
       return config;
     },
     (error) => {
-      logError(error);
+      if (!isCredentialRequest(error.config)) logError(error);
       return Promise.reject(error);
     },
   );
 
   api.interceptors.response.use(
     (response) => {
-      logResponse(response);
+      if (!isCredentialRequest(response.config)) logResponse(response);
       return response;
     },
     (error) => {
-      logError(error);
+      if (!isCredentialRequest(error.config)) logError(error);
       return Promise.reject(error);
     },
   );

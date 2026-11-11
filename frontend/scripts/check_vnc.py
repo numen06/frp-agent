@@ -56,6 +56,9 @@ def main():
         if url.path == '/api/managed-hosts/7/vnc-ticket' and route.request.method == 'POST':
             route.fulfill(json=dict(username='test-ticket', password='test-only-password', expires_in=180))
             return
+        if url.path == '/api/temporary-credentials/vnc/test-ticket/copy' and route.request.method == 'POST':
+            route.fulfill(json=dict(username='test-ticket', password='test-only-password', address=native_url))
+            return
         if route.request.method!='GET':
             errors.append('Unexpected write '+url.path); route.abort(); return
         data=demo.demo_response(url)
@@ -124,7 +127,7 @@ def main():
             page.get_by_role('button',name='生成连接凭据',exact=True).click()
             expect(page.get_by_role('link',name='打开屏幕共享',exact=True)).to_have_attribute('href', native_url)
             page.get_by_role('button',name='复制临时密码',exact=True).click()
-            assert page.evaluate('navigator.clipboard.readText()') == 'test-only-password'
+            page.wait_for_function("navigator.clipboard.readText().then(text => text === 'test-only-password')")
             page.get_by_role('button',name='复制代理地址',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == native_url
             page.get_by_role('button',name='复制网页链接',exact=True).click()

@@ -20,6 +20,7 @@ from app.models import ManagedHost, User
 from app.services.host_access_service import add_audit_log
 from app.services.vnc_apple_protocol import EncryptedRecords, authenticate, verifier_for
 from app.services.vnc_service import active_vnc_host, open_vnc, snapshot
+from app.services.temporary_credentials import TemporaryCredentials
 
 logger = logging.getLogger(__name__)
 TICKET_AGE = 180
@@ -32,6 +33,8 @@ class Ticket:
     salt: bytes
     verifier: int
     expires: float
+    password_stamp: str
+    target_state: tuple
 
 
 class Listener(socketserver.ThreadingTCPServer):
@@ -87,7 +90,7 @@ class VncGatewayService:
         self.thread = None
         self.key = None
         self.lock = threading.Lock()
-        self.tickets = {}
+        self.temporary_credentials = TemporaryCredentials("vnc", 128, 4, self.lock)
 
     @property
     def running(self):
@@ -119,35 +122,48 @@ class VncGatewayService:
             listener.server_close()
             self.thread.join(timeout=2)
         with self.lock:
-            self.tickets.clear()
+            self.temporary_credentials.stop()
 
-    def issue(self, user_id, host_id):
+    def issue(self, db, user, host_id, address, client_ip):
         if not self.running:
             raise HTTPException(503, "原生 VNC 网关尚未启用")
+        host = active_vnc_host(db, user, host_id)
         name = secrets.token_hex(12)
         password = secrets.token_hex(16)
         salt = secrets.token_bytes(32)
         now = time.monotonic()
         with self.lock:
-            self.tickets = {key: ticket for key, ticket in self.tickets.items() if ticket.expires > now}
-            if len(self.tickets) >= 128 or sum(t.user_id == user_id for t in self.tickets.values()) >= 4:
-                raise HTTPException(429, "待使用的连接凭据过多，请稍后重试")
-            self.tickets[name.encode()] = Ticket(
-                user_id, host_id, salt, verifier_for(password.encode(), salt), now + TICKET_AGE
+            ticket = Ticket(
+                user.id, host_id, salt, verifier_for(password.encode(), salt), now + TICKET_AGE,
+                user.password_hash, snapshot(db, host),
             )
-        return {"username": name, "password": password, "expires_in": TICKET_AGE}
+            row = self.temporary_credentials.issue(name, password, ticket, user.username, host.name, address, TICKET_AGE)
+            try:
+                add_audit_log(db, host, user, "vnc_ticket_issued", "success", client_ip, target=host.name)
+            except Exception:
+                row.revoke()
+                raise
+        return {"username": name, "password": password, "address": address, "expires_in": TICKET_AGE,
+                "expires_at": row.expires_at.isoformat()}
 
     def lookup(self, name):
         with self.lock:
-            ticket = self.tickets.get(name)
-            return ticket if ticket and ticket.expires > time.monotonic() else None
+            row = self.temporary_credentials.active(name.decode("ascii", errors="replace"))
+            return row.ticket if row else None
 
     def consume(self, name, ticket):
         with self.lock:
-            if self.tickets.get(name) is not ticket or ticket.expires <= time.monotonic():
+            row = self.temporary_credentials.active(name.decode("ascii", errors="replace"))
+            if not row or row.ticket is not ticket:
                 return False
-            del self.tickets[name]
+            row.use(consume=True)
             return True
+
+    def validate_temporary_credential(self, db, ticket):
+        user = db.get(User, ticket.user_id)
+        if user is None or user.password_hash != ticket.password_stamp:
+            raise HTTPException(403, "账号或密码已变更")
+        return user, active_vnc_host(db, user, ticket.host_id, ticket.target_state)
 
     def handle(self, channel, ip):
         ticket = user = client = upstream = None
@@ -158,11 +174,8 @@ class VncGatewayService:
             channel.settimeout(5)
             ticket, wrap_key = authenticate(channel, self.key, self.lookup, self.consume)
             with SessionLocal() as db:
-                user = db.get(User, ticket.user_id)
-                if user is None:
-                    raise HTTPException(403, "账号已停用")
-                host = active_vnc_host(db, user, ticket.host_id)
-                state = snapshot(db, host)
+                user, host = self.validate_temporary_credential(db, ticket)
+                state = ticket.target_state
                 client, upstream, initial = open_vnc(db, host)
             with SessionLocal() as db:
                 active_vnc_host(db, user, ticket.host_id, state)

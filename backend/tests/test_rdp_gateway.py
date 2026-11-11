@@ -339,7 +339,8 @@ def test_temporary_rdp_credentials_support_nla_and_reconnect_until_expiry(setup)
     credentials = service.issue_ticket(db, user, host.id, '198.51.100.10')
     username, password = credentials['username'], credentials['password']
     assert credentials['address'] == 'rdp.example.test:13389'
-    ticket = service._tickets[username]
+    row = service.temporary_credentials.rows[username]
+    ticket = row.ticket
     assert started + 12 * 3600 <= ticket.expires <= time.monotonic() + 12 * 3600
     assert ticket.verifier == nthash.hash(password)
     assert ntlm_verifier(user) is None
@@ -351,7 +352,7 @@ def test_temporary_rdp_credentials_support_nla_and_reconnect_until_expiry(setup)
     service._sessions[12346] = Relay(ip='198.51.100.10', sockets=())
     assert service.authorize(db, 12346, username, password)['address'] == host.address
     assert service._sessions[12346].ticket_expires == ticket.expires
-    service._tickets[username] = replace(ticket, expires=time.monotonic() - 1)
+    row.ticket = replace(ticket, expires=time.monotonic() - 1)
     with pytest.raises(HTTPException):
         service._validate(db, service._sessions[12346])
     service._sessions[12347] = Relay(ip='198.51.100.10', sockets=())
@@ -397,3 +398,62 @@ def test_rdp_ticket_api_enforces_permissions_and_download_has_no_password(setup,
     assert client.post(ticket_url).status_code == 403
     with pytest.raises(HTTPException):
         service._validate(db, service._sessions[12345])
+
+
+def test_unified_temporary_credentials_can_be_copied_and_revoked_without_exposing_other_users(setup, monkeypatch):
+    from app.routers import temporary_credentials as router
+    from app.services.vnc_gateway_service import VncGatewayService
+
+    db, user, host, grant, rdp = setup
+    vnc = VncGatewayService()
+    vnc.listener = Mock()
+    vnc_credential = SshCredential(name='VNC test login', username='vnc', auth_type='password',
+                                   password_encrypted=encrypt_secret('vnctest'))
+    desktop = ManagedHost(name='test-mac', host_type='vnc', address='127.0.0.1', port=5900,
+                          credential=vnc_credential)
+    admin = User(username='other-admin', password_hash='isolated', is_active=True, role='admin')
+    other_user = User(username='other-user', password_hash='isolated', is_active=True, role='user')
+    db.add_all([desktop, admin, other_user])
+    db.flush()
+    db.add(HostAccessGrant(host_id=desktop.id, subject_type='user', subject_id=user.id, can_connect=True))
+    db.commit()
+    issued_rdp = rdp.issue_ticket(db, user, host.id, '198.51.100.10')
+    issued_vnc = vnc.issue(db, user, desktop.id, 'vnc://example.test:15901', '198.51.100.10')
+    monkeypatch.setattr(router, 'GATEWAYS', {'rdp': rdp, 'vnc': vnc})
+    monkeypatch.setitem(app.dependency_overrides, get_db, lambda: db)
+    actor = [user]
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: actor[0])
+    client = TestClient(app, base_url='https://portal.test')
+    base = '/api/temporary-credentials'
+    rdp_path = f"{base}/rdp/{issued_rdp['username'].replace('#', '%23')}"
+    vnc_path = f"{base}/vnc/{issued_vnc['username']}"
+    response = client.get(base)
+    assert response.headers['cache-control'] == 'no-store'
+    assert {row['protocol'] for row in response.json()['items']} == {'rdp', 'vnc'}
+    assert all('password' not in row for row in response.json()['items'])
+    assert client.get(base, params={'protocol': 'rdp'}).json()['total'] == 1
+    for _ in range(2):
+        copy = client.post(rdp_path + '/copy')
+        assert copy.headers['cache-control'] == 'no-store'
+        assert copy.json()['password'] == issued_rdp['password']
+    assert client.post(vnc_path + '/copy').json()['password'] == issued_vnc['password']
+    key = issued_vnc['username'].encode()
+    ticket = vnc.lookup(key)
+    assert vnc.consume(key, ticket)
+    assert not vnc.consume(key, ticket)
+    assert client.post(vnc_path + '/copy').status_code == 410
+    consumed = client.get(base, params={'protocol': 'vnc'}).json()['items'][0]
+    assert (consumed['status'], consumed['uses'], consumed['can_copy']) == ('used', 1, False)
+    rdp.authorize(db, 12345, issued_rdp['username'], issued_rdp['password'])
+    actor[0] = other_user
+    assert client.get(base).json()['total'] == 0
+    assert client.delete(rdp_path).status_code == 404
+    actor[0] = admin
+    assert client.get(base).json()['total'] == 2
+    assert client.post(rdp_path + '/copy').status_code == 404
+    assert client.delete(rdp_path).status_code == 204
+    with pytest.raises(HTTPException):
+        rdp._validate(db, rdp._sessions[12345])
+    actor[0] = user
+    assert client.post(rdp_path + '/copy').status_code == 410
+    assert client.get(base, params={'protocol': 'rdp'}).json()['items'][0]['status'] == 'revoked'

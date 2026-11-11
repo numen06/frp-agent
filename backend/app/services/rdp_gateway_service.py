@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 import threading
 import time
 from collections import OrderedDict, Counter
-from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
@@ -32,6 +31,7 @@ from app.models.api_key import ApiKey
 from app.models.user import User
 from app.services.host_access_service import add_audit_log, require_host_access
 from app.services.ssh_client import CommandResult
+from app.services.temporary_credentials import TemporaryCredentials
 
 logger = logging.getLogger(__name__)
 SESSION_SECONDS = 8 * 60 * 60
@@ -208,7 +208,7 @@ class RDPGatewayService:
         self._config_dir = None
         self._lock = threading.RLock()
         self._sessions = {}
-        self._tickets = {}
+        self.temporary_credentials = TemporaryCredentials("rdp", 512, 16, self._lock)
         self._ips = OrderedDict()
         self._active = 0
         self._tls_server = None
@@ -289,32 +289,40 @@ class RDPGatewayService:
             raise HTTPException(status_code=403, detail="请使用平台账号生成 RDP 临时凭据")
         host = self._connection_host(db, user, host_id)
         address = self.public_address()
-        duration = timedelta(hours=get_settings().rdp_gateway_ticket_hours)
-        expires_at = datetime.now(timezone.utc) + duration
+        duration = get_settings().rdp_gateway_ticket_hours * 3600
         username = f"rdp-{secrets.token_hex(12)}#"
         password = secrets.token_urlsafe(24)
         with self._lock:
-            now = time.monotonic()
-            self._tickets = {name: ticket for name, ticket in self._tickets.items() if ticket.expires > now}
-            if len(self._tickets) >= 512 or sum(t.user_id == user.id for t in self._tickets.values()) >= 16:
-                raise HTTPException(status_code=429, detail="有效的 RDP 临时凭据过多，请在已有凭据到期后重试")
-            add_audit_log(db, host, user, "rdp_ticket_issued", "success", client_ip, target=rdp_target(host))
-            self._tickets[username] = RdpTicket(
+            ticket = RdpTicket(
                 user.id, host.id, nthash.hash(password), self._stamp(host, user.password_hash),
-                now + duration.total_seconds(),
+                time.monotonic() + duration,
             )
-        return {"username": username, "password": password, "address": address, "expires_at": expires_at.isoformat()}
+            row = self.temporary_credentials.issue(username, password, ticket, user.username, host.name, address, duration)
+            try:
+                add_audit_log(db, host, user, "rdp_ticket_issued", "success", client_ip, target=rdp_target(host))
+            except Exception:
+                row.revoke()
+                raise
+        return {"username": username, "password": password, "address": address, "expires_at": row.expires_at.isoformat()}
 
     def _ticket_access(self, db, username):
-        ticket = self._tickets.get(username)
-        if ticket is None or ticket.expires <= time.monotonic():
+        row = self.temporary_credentials.active(username)
+        if row is None:
             raise HTTPException(status_code=403, detail="RDP 临时凭据无效或已过期")
+        try:
+            user, host = self.validate_temporary_credential(db, row.ticket)
+        except HTTPException:
+            row.revoke()
+            raise
+        return row.ticket, user, host
+
+    def validate_temporary_credential(self, db, ticket):
         user, platform_stamp = self._principal(db, ticket.user_id)
         host = require_host_access(db, user, ticket.host_id, "connect")
         if (host.host_type != "rdp" or not host.is_active or not host.credential
                 or not hmac.compare_digest(ticket.stamp, self._stamp(host, platform_stamp))):
             raise HTTPException(status_code=403, detail="RDP 连接或凭据已变更")
-        return ticket, user, host
+        return user, host
 
     def issue_file(self, db, user, host, client_ip, ticket_username=None):
         host = self._connection_host(db, user, host.id)
@@ -406,6 +414,7 @@ class RDPGatewayService:
             if is_temporary:
                 relay.ticket_login = ticket_login
                 relay.ticket_expires = ticket.expires
+                self.temporary_credentials.rows[ticket_login].use()
             relay.stamp = self._stamp(host, platform_stamp)
             relay.actor_name, relay.target, relay.authorized = user.username, rdp_target(host), True
             self._metrics['authorized'] += 1
@@ -691,7 +700,7 @@ PrivateKeyFile={os.path.abspath(settings.rdp_gateway_tls_key_path)}
         if listener:
             listener.close()
         with self._lock:
-            self._tickets.clear()
+            self.temporary_credentials.stop()
             for relay in self._sessions.values():
                 relay.ended = True
                 for sock in relay.sockets:

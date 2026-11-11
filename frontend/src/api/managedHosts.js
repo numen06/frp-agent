@@ -1,5 +1,13 @@
 import api from "./index";
 
+export const temporaryCredentialsApi = {
+  list: (params) => api.get("/temporary-credentials", { params }),
+  copy: ({ protocol, username }) =>
+    api.post(`/temporary-credentials/${protocol}/${encodeURIComponent(username)}/copy`),
+  revoke: ({ protocol, username }) =>
+    api.delete(`/temporary-credentials/${protocol}/${encodeURIComponent(username)}`),
+};
+
 export const machinesApi = {
   list: (params = {}) => api.get("/host-machines", { params }),
   get: (id) => api.get(`/host-machines/${id}`),
