@@ -534,6 +534,7 @@ const actions = {
   docker_stop: "停止容器",
   docker_restart: "重启容器",
   rdp_file_downloaded: "下载 RDP 连接",
+  rdp_ticket_issued: "签发 RDP 临时凭据",
   rdp_desktop_connected: "RDP 桌面已连接",
   rdp_gateway_authorized: "RDP 平台认证通过（尚未进入桌面）",
   rdp_gateway_closed: "RDP 会话结束（不代表桌面成功）",

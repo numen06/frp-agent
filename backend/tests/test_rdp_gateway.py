@@ -327,3 +327,73 @@ def test_rdp_auto_enrollment_preserves_pin_on_updates_and_rejects_changed_certif
         assert client.post('/api/managed-hosts',json=payload).status_code==502
         assert not db.query(ManagedHost).filter_by(name='unreachable-win').first()
     finally:app.dependency_overrides.clear()
+
+
+def test_temporary_rdp_credentials_support_nla_and_reconnect_until_expiry(setup):
+    from dataclasses import replace
+    import hmac
+    from passlib.hash import nthash
+
+    db, user, host, _, service = setup
+    started = time.monotonic()
+    credentials = service.issue_ticket(db, user, host.id, '198.51.100.10')
+    username, password = credentials['username'], credentials['password']
+    assert credentials['address'] == 'rdp.example.test:13389'
+    ticket = service._tickets[username]
+    assert started + 12 * 3600 <= ticket.expires <= time.monotonic() + 12 * 3600
+    assert ticket.verifier == nthash.hash(password)
+    assert ntlm_verifier(user) is None
+    expected = hmac.new(bytes.fromhex(ticket.verifier), (username.upper() + 'DOMAIN').encode('utf-16-le'), 'md5')
+    assert service.authorize(db, 12345, username, '', 'ntlm', 'DOMAIN') == {'ntlm_v2': expected.hexdigest()}
+    with pytest.raises(HTTPException):
+        service.authorize(db, 12345, username, 'wrong')
+    assert service.authorize(db, 12345, username, password)['username'] == 'administrator'
+    service._sessions[12346] = Relay(ip='198.51.100.10', sockets=())
+    assert service.authorize(db, 12346, username, password)['address'] == host.address
+    assert service._sessions[12346].ticket_expires == ticket.expires
+    service._tickets[username] = replace(ticket, expires=time.monotonic() - 1)
+    with pytest.raises(HTTPException):
+        service._validate(db, service._sessions[12346])
+    service._sessions[12347] = Relay(ip='198.51.100.10', sockets=())
+    with pytest.raises(HTTPException):
+        service.authorize(db, 12347, username, '', 'ntlm')
+
+
+def test_rdp_ticket_api_enforces_permissions_and_download_has_no_password(setup, monkeypatch):
+    from app.routers import managed_host as router
+
+    db, user, host, grant, service = setup
+    monkeypatch.setattr(router, 'rdp_gateway_service', service)
+    monkeypatch.setattr(router, 'rdp_client_ip', lambda _: '198.51.100.10')
+    monkeypatch.setitem(app.dependency_overrides, get_db, lambda: db)
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: user)
+    ticket_url = f'/api/managed-hosts/{host.id}/rdp-ticket'
+    assert TestClient(app).post(ticket_url).status_code == 400
+    client = TestClient(app, base_url='https://portal.test')
+    response = client.post(ticket_url)
+    assert response.status_code == 201
+    assert response.headers['cache-control'] == 'no-store'
+    ticket = response.json()
+    file_url = f'/api/managed-hosts/{host.id}/rdp-file'
+    file_response = client.post(file_url, json={'ticket_username': ticket['username']})
+    assert file_response.status_code == 200
+    content = file_response.content.decode('utf-16')
+    assert f"username:s:{ticket['username']}\r\n" in content
+    assert 'enablecredsspsupport:i:1' in content
+    assert ticket['password'] not in content
+    assert 'username:s:rdp-user#win-1' in client.post(file_url).content.decode('utf-16')
+    assert ticket['password'] not in str([log.command for log in db.query(HostAuditLog)])
+    other = ManagedHost(name='win-2', host_type='rdp', address='other.internal', port=3389,
+                        credential=host.credential, host_key_fingerprint=host.host_key_fingerprint)
+    db.add(other)
+    db.flush()
+    db.add(HostAccessGrant(host_id=other.id, subject_type='user', subject_id=user.id, can_connect=True))
+    db.commit()
+    assert client.post(f'/api/managed-hosts/{other.id}/rdp-file',
+                       json={'ticket_username': ticket['username']}).status_code == 403
+    assert service.authorize(db, 12345, ticket['username'], ticket['password'])['address'] == host.address
+    grant.is_active = False
+    db.commit()
+    assert client.post(ticket_url).status_code == 403
+    with pytest.raises(HTTPException):
+        service._validate(db, service._sessions[12345])

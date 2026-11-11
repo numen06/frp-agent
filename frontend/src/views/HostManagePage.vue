@@ -1194,6 +1194,35 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               }}
             </p>
           </section>
+          <section
+            v-if="connectionHost.host_type === 'rdp' && gatewayInfo.rdp_gateway?.running && context.actor_type === 'user' && connectionHost.is_active && connectionHost.permissions.includes('connect')"
+            class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
+          >
+            <h3 class="font-medium">RDP 临时凭据</h3>
+            <div class="flex flex-wrap gap-2">
+              <Button type="button" :disabled="rdpTicketLoading" @click="issueRdpTicket">
+                {{ rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
+              </Button>
+              <Button
+                v-if="rdpTicket"
+                type="button"
+                variant="outline"
+                :disabled="operating"
+                @click="downloadRdpFile(connectionHost, rdpTicket.username)"
+              >下载临时连接文件</Button>
+            </div>
+            <template v-if="rdpTicket">
+              <p class="text-xs text-muted-foreground">有效至 {{ formatDate(rdpTicket.expires_at) }}，期间可重复登录此连接。</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <span>用户名</span><code class="break-all">{{ rdpTicket.username }}</code>
+                <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(rdpTicket.username, $event.currentTarget)">复制用户名</Button>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span>临时密码</span><code class="break-all">{{ rdpTicket.password }}</code>
+                <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(rdpTicket.password, $event.currentTarget)">复制临时密码</Button>
+              </div>
+            </template>
+          </section>
           <RdpConnectionStatus
             v-if="connectionHost.host_type === 'rdp'"
             :host="connectionHost"
@@ -1512,7 +1541,12 @@ const discoveryOpen = ref(false);
 const connectionHost = ref(null);
 const vncTicket = ref(null);
 const vncTicketLoading = ref(false);
-watch(connectionHost, () => { vncTicket.value = null; });
+const rdpTicket = ref(null);
+const rdpTicketLoading = ref(false);
+watch(connectionHost, () => {
+  vncTicket.value = null;
+  rdpTicket.value = null;
+});
 const rdpProblemHost = ref(null);
 const rdpChecks = reactive({});
 const checkingHosts = reactive(new Set());
@@ -1709,12 +1743,12 @@ async function testHost(host) {
     checkingHosts.delete(host.id);
   }
 }
-async function downloadRdpFile(host) {
+async function downloadRdpFile(host, ticketUsername) {
   if (operating.value || checkingHosts.has(host.id)) return;
   operating.value = true;
   try {
     if (!(await testHost(host))) return;
-    const blob = await managedHostsApi.rdpFile(host.id);
+    const blob = await managedHostsApi.rdpFile(host.id, ticketUsername);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1931,6 +1965,19 @@ function hostDetailsLocation(host, tab = "overview") {
 }
 function openConnectionDetails(host) {
   connectionHost.value = host;
+}
+async function issueRdpTicket() {
+  const host = connectionHost.value;
+  rdpTicketLoading.value = true;
+  rdpTicket.value = null;
+  try {
+    const ticket = await managedHostsApi.rdpTicket(host.id);
+    if (host === connectionHost.value) rdpTicket.value = ticket;
+  } catch (error) {
+    notify(error.message || "生成临时凭据失败", "error");
+  } finally {
+    rdpTicketLoading.value = false;
+  }
 }
 async function issueVncTicket() {
   const host = connectionHost.value;

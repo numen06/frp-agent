@@ -3,6 +3,7 @@
 import os
 from functools import lru_cache
 from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -70,6 +71,7 @@ class Settings(BaseSettings):
     rdp_gateway_tls_key_path: str = "data/rdp_gateway_key.pem"
     # 只有来自这些 CIDR 的请求才读取 X-Forwarded-For；空值不信任代理头。
     rdp_gateway_trusted_proxies: str = ""
+    rdp_gateway_ticket_hours: int = Field(default=12, ge=1, le=24)
 
     vnc_gateway_enabled: bool = False
     vnc_gateway_host: str = "0.0.0.0"

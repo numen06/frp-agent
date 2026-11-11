@@ -16,9 +16,11 @@ from dataclasses import dataclass, field
 import threading
 import time
 from collections import OrderedDict, Counter
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
+from passlib.hash import nthash
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -33,6 +35,7 @@ from app.services.ssh_client import CommandResult
 
 logger = logging.getLogger(__name__)
 SESSION_SECONDS = 8 * 60 * 60
+TICKET_LOGIN = re.compile(r"rdp-[0-9a-f]{24}#")
 
 
 def normalize_ip(value):
@@ -184,6 +187,17 @@ class Relay:
     ended: bool = False
     ntlm_requested: bool = False
     failure_recorded: bool = False
+    ticket_login: str = ""
+    ticket_expires: float = float("inf")
+
+
+@dataclass(frozen=True)
+class RdpTicket:
+    user_id: int
+    host_id: int
+    verifier: str
+    stamp: str
+    expires: float
 
 
 class RDPGatewayService:
@@ -194,6 +208,7 @@ class RDPGatewayService:
         self._config_dir = None
         self._lock = threading.RLock()
         self._sessions = {}
+        self._tickets = {}
         self._ips = OrderedDict()
         self._active = 0
         self._tls_server = None
@@ -260,15 +275,57 @@ class RDPGatewayService:
             raise HTTPException(status_code=503, detail="请配置 RDP_GATEWAY_PUBLIC_ADDRESS（域名:端口）")
         return value
 
-    def issue_file(self, db, user, host, client_ip):
+    def _connection_host(self, db, user, host_id):
         if not get_settings().rdp_gateway_enabled or not self.running:
             raise HTTPException(status_code=503, detail="RDP 网关未运行")
-        host = require_host_access(db, user, host.id, "connect")
+        host = require_host_access(db, user, host_id, "connect")
         if host.host_type != "rdp" or not host.is_active:
             raise HTTPException(status_code=403, detail="RDP 主机不存在或已禁用")
         rdp_credential(host)
+        return host
+
+    def issue_ticket(self, db, user, host_id, client_ip):
+        if user.id <= 0:
+            raise HTTPException(status_code=403, detail="请使用平台账号生成 RDP 临时凭据")
+        host = self._connection_host(db, user, host_id)
+        address = self.public_address()
+        duration = timedelta(hours=get_settings().rdp_gateway_ticket_hours)
+        expires_at = datetime.now(timezone.utc) + duration
+        username = f"rdp-{secrets.token_hex(12)}#"
+        password = secrets.token_urlsafe(24)
+        with self._lock:
+            now = time.monotonic()
+            self._tickets = {name: ticket for name, ticket in self._tickets.items() if ticket.expires > now}
+            if len(self._tickets) >= 512 or sum(t.user_id == user.id for t in self._tickets.values()) >= 16:
+                raise HTTPException(status_code=429, detail="有效的 RDP 临时凭据过多，请在已有凭据到期后重试")
+            add_audit_log(db, host, user, "rdp_ticket_issued", "success", client_ip, target=rdp_target(host))
+            self._tickets[username] = RdpTicket(
+                user.id, host.id, nthash.hash(password), self._stamp(host, user.password_hash),
+                now + duration.total_seconds(),
+            )
+        return {"username": username, "password": password, "address": address, "expires_at": expires_at.isoformat()}
+
+    def _ticket_access(self, db, username):
+        ticket = self._tickets.get(username)
+        if ticket is None or ticket.expires <= time.monotonic():
+            raise HTTPException(status_code=403, detail="RDP 临时凭据无效或已过期")
+        user, platform_stamp = self._principal(db, ticket.user_id)
+        host = require_host_access(db, user, ticket.host_id, "connect")
+        if (host.host_type != "rdp" or not host.is_active or not host.credential
+                or not hmac.compare_digest(ticket.stamp, self._stamp(host, platform_stamp))):
+            raise HTTPException(status_code=403, detail="RDP 连接或凭据已变更")
+        return ticket, user, host
+
+    def issue_file(self, db, user, host, client_ip, ticket_username=None):
+        host = self._connection_host(db, user, host.id)
         # Host names and usernames cannot inject extra .rdp lines.
         login = f"{user.username}#{host.name}" if user.id > 0 else host.name
+        if ticket_username is not None:
+            with self._lock:
+                ticket, _, _ = self._ticket_access(db, ticket_username)
+                if ticket.user_id != user.id or ticket.host_id != host.id:
+                    raise HTTPException(status_code=403, detail="RDP 临时凭据不属于此连接")
+            login = ticket_username
         if any(c in login for c in "\r\n\x00"):
             raise HTTPException(status_code=400, detail="用户名或主机名包含无效字符")
         lines = [f"full address:s:{self.public_address()}", f"username:s:{login}",
@@ -316,26 +373,39 @@ class RDPGatewayService:
             state = self._ips.get(relay.ip)
             if state and state["blocked"] > time.monotonic():
                 raise HTTPException(status_code=403, detail="RDP 认证暂时受限")
+            ticket_login = username.lower()
+            is_temporary = TICKET_LOGIN.fullmatch(ticket_login) is not None
             if phase == "ntlm":
                 relay.ntlm_requested = True
-                mode, login_name, host_name = parse_gateway_username(username)
-                user = db.query(User).filter_by(username=login_name, is_active=True).first() if mode == "user" else None
-                if (not user or not _authorize_gateway_identity(db, user, host_name, mode=mode,
-                        host_type="rdp", permission="connect") or not ntlm_verifier(user)):
-                    raise HTTPException(status_code=403, detail="NLA 凭据不可用，请先使用平台密码登录网页")
+                if is_temporary:
+                    ticket, _, _ = self._ticket_access(db, ticket_login)
+                    verifier = ticket.verifier
+                else:
+                    mode, login_name, host_name = parse_gateway_username(username)
+                    user = db.query(User).filter_by(username=login_name, is_active=True).first() if mode == "user" else None
+                    verifier = ntlm_verifier(user) if user else None
+                    if not verifier or not _authorize_gateway_identity(db, user, host_name, mode=mode,
+                            host_type="rdp", permission="connect"):
+                        raise HTTPException(status_code=403, detail="NLA 凭据不可用，请先使用平台密码登录网页")
                 # Return only the identity-specific NTLMv2 key to the local FreeRDP callback.
                 identity = (username.upper() + domain).encode("utf-16-le")
-                return {"ntlm_v2": hmac.new(bytes.fromhex(ntlm_verifier(user)), identity, "md5").hexdigest()}
-            context = authenticate_gateway_resource(db, username, password, host_type="rdp", permission="connect")
-            if not context:
-                if state and not relay.ntlm_requested:
-                    self._record_failure(relay.ip, 'auth_failures')
-                    relay.failure_recorded = True
-                raise HTTPException(status_code=403, detail="平台认证或主机授权失败")
-            host = db.get(ManagedHost, context.host_id)
+                return {"ntlm_v2": hmac.new(bytes.fromhex(verifier), identity, "md5").hexdigest()}
+            if is_temporary:
+                ticket, user, host = self._ticket_access(db, ticket_login)
+                if not hmac.compare_digest(ticket.verifier, nthash.hash(password)):
+                    self._reject_login(relay, state)
+                platform_stamp = user.password_hash
+            else:
+                context = authenticate_gateway_resource(db, username, password, host_type="rdp", permission="connect")
+                if not context:
+                    self._reject_login(relay, state)
+                host = db.get(ManagedHost, context.host_id)
+                user, platform_stamp = self._principal(db, context.user.id)
             result = rdp_credential(host)
-            user, platform_stamp = self._principal(db, context.user.id)
             relay.uid, relay.hid = user.id, host.id
+            if is_temporary:
+                relay.ticket_login = ticket_login
+                relay.ticket_expires = ticket.expires
             relay.stamp = self._stamp(host, platform_stamp)
             relay.actor_name, relay.target, relay.authorized = user.username, rdp_target(host), True
             self._metrics['authorized'] += 1
@@ -344,7 +414,17 @@ class RDPGatewayService:
             add_audit_log(db, host, user, "rdp_gateway_authorized", "success", relay.ip, target=relay.target)
             return result
 
+    def _reject_login(self, relay, state):
+        if state and not relay.ntlm_requested:
+            self._record_failure(relay.ip, 'auth_failures')
+            relay.failure_recorded = True
+        raise HTTPException(status_code=403, detail="平台认证或主机授权失败")
+
     def _validate(self, db, relay):
+        if relay.ticket_login:
+            with self._lock:
+                _, user, host = self._ticket_access(db, relay.ticket_login)
+            return user, host
         user, platform_stamp = self._principal(db, relay.uid)
         host = require_host_access(db, user, relay.hid, "connect")
         if (host.host_type != "rdp" or not host.is_active or not host.credential
@@ -453,7 +533,7 @@ class RDPGatewayService:
             check_at = time.monotonic()
             while not relay.ended and self.running:
                 now = time.monotonic()
-                if now - relay.created >= (SESSION_SECONDS if relay.authorized else 20):
+                if now >= relay.ticket_expires or now - relay.created >= (SESSION_SECONDS if relay.authorized else 20):
                     break
                 if relay.authorized and now >= check_at:
                     with SessionLocal() as db:
@@ -611,6 +691,7 @@ PrivateKeyFile={os.path.abspath(settings.rdp_gateway_tls_key_path)}
         if listener:
             listener.close()
         with self._lock:
+            self._tickets.clear()
             for relay in self._sessions.values():
                 relay.ended = True
                 for sock in relay.sockets:

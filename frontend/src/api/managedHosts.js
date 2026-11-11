@@ -32,8 +32,10 @@ export const managedHostsApi = {
   update: (id, data) => api.put(`/managed-hosts/${id}`, data),
   remove: (id) => api.delete(`/managed-hosts/${id}`),
   test: (id) => api.post(`/managed-hosts/${id}/test`),
-  rdpFile: (id) =>
-    api.post(`/managed-hosts/${id}/rdp-file`, null, { responseType: "blob" }),
+  rdpTicket: (id) => api.post(`/managed-hosts/${id}/rdp-ticket`),
+  rdpFile: (id, ticketUsername) =>
+    api.post(`/managed-hosts/${id}/rdp-file`,
+      ticketUsername ? { ticket_username: ticketUsername } : null, { responseType: "blob" }),
   rdpFingerprint: (data) => api.post("/managed-hosts/rdp/fingerprint", data),
   execute: (id, data) => api.post(`/managed-hosts/${id}/commands`, data),
   containers: (id, params = {}) =>

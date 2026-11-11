@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import hmac
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response, status
 import os
 import json
 import re
@@ -320,16 +320,30 @@ def download_rdp_file(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    ticket_username: str | None = Body(default=None, embed=True, max_length=32),
 ):
     host = require_host_access(db, current_user, host_id, "connect")
     require_secure_rdp_download(request)
     from app.services.host_discovery import check_upstream
     check_upstream(db, host)
-    content = rdp_gateway_service.issue_file(db, current_user, host, rdp_client_ip(request))
+    content = rdp_gateway_service.issue_file(db, current_user, host, rdp_client_ip(request), ticket_username)
     return Response(content, media_type="application/x-rdp", headers={
         "Content-Disposition": f'attachment; filename="frp-agent-rdp-{host.id}.rdp"',
         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
     })
+
+
+@router.post("/{host_id}/rdp-ticket", status_code=201)
+def issue_rdp_ticket(
+    host_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_secure_rdp_download(request)
+    ticket = rdp_gateway_service.issue_ticket(db, current_user, host_id, rdp_client_ip(request))
+    return Response(json.dumps(ticket), status_code=201, media_type="application/json",
+                    headers={"Cache-Control": "no-store"})
 
 
 @router.get("/gateway/docker-ca")
