@@ -1020,20 +1020,31 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             v-if="connectionHost.host_type === 'vnc'"
             class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
           >
-            <h3 class="font-medium">Mac 屏幕共享地址</h3>
-            <template v-if="connectionInfo.nativeUrl">
-              <code class="block break-all text-xs">{{ connectionInfo.nativeUrl }}</code>
-              <Button
-                type="button"
-                variant="outline"
-                @click="copyCredentialValue(connectionInfo.nativeUrl, $event.currentTarget)"
-              >复制 Mac 屏幕共享地址</Button>
+            <h3 class="font-medium">Mac 屏幕共享 · 平台网关</h3>
+            <template v-if="connectionInfo.nativeCommand">
               <p class="text-xs text-muted-foreground">
-                在 Mac 的访达按 ⌘K 后粘贴。原生连接由目标 Mac 认证。
+                在 Mac 的终端运行命令，用平台账号登录。保持终端开启，在访达按 ⌘K，粘贴屏幕共享地址，并输入终端显示的临时验证码。
               </p>
+              <code class="block break-all text-xs">{{ connectionInfo.nativeCommand }}</code>
+              <p v-if="gatewayInfo.host_key_fingerprint" class="break-all text-xs text-muted-foreground">
+                首次连接请核对网关指纹 {{ gatewayInfo.host_key_fingerprint }}。
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  @click="copyCredentialValue(connectionInfo.nativeCommand, $event.currentTarget)"
+                >复制网关连接命令</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  @click="copyCredentialValue(connectionInfo.nativeUrl, $event.currentTarget)"
+                >复制 Mac 屏幕共享地址</Button>
+              </div>
+              <code class="block break-all text-xs">{{ connectionInfo.nativeUrl }}</code>
             </template>
             <p v-else class="text-xs text-muted-foreground">
-              当前平台没有为这条连接提供原生 VNC 端口，可使用下方网页入口。
+              请使用具备连接权限的平台账号，并确认平台 SSH 网关已启用。
             </p>
           </section>
           <dl
@@ -1822,7 +1833,11 @@ function buildConnectionInfo(host) {
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
   if (host.host_type === "vnc")
     return {
-      nativeUrl: host.vnc_platform_port ? `vnc://${gatewayHost}:${host.vnc_platform_port}` : "",
+      nativeUrl: "vnc://127.0.0.1:15900",
+      nativeCommand:
+        context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.running
+          ? `ssh -T -S none -o ExitOnForwardFailure=yes -p ${gatewayInfo.value.port || 2222} -L 127.0.0.1:15900:frp-vnc:5900 -l ${shellQuote(loginName)} ${shellQuote(gatewayHost)} vnc`
+          : "",
       command: new URL(`/hosts/${host.id}?tab=desktop`, window.location.origin)
         .href,
     };

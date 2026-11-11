@@ -5,6 +5,7 @@ import logging
 import ipaddress
 import json
 import os
+import secrets
 import socket
 import tempfile
 import threading
@@ -93,6 +94,7 @@ class GatewayAuthContext:
     host_id: int
     host_name: str
     mode: str  # user | api_key | public_key
+    host_type: str = "ssh"
 
 
 @dataclass
@@ -134,6 +136,10 @@ def parse_gateway_username(username: str) -> Tuple[str, Optional[str], str]:
 def authenticate_gateway_login(
     db: Session, gateway_username: str, password: str
 ) -> Optional[GatewayAuthContext]:
+    if _is_vnc_login(db, gateway_username):
+        return authenticate_gateway_resource(
+            db, gateway_username, password, host_type="vnc", permission="connect"
+        )
     return authenticate_gateway_resource(
         db, gateway_username, password, host_type="ssh", permission="execute"
     )
@@ -200,12 +206,19 @@ def _authorize_gateway_identity(
     if not is_admin(user) and not active_grant(db, user, host.id, permission):
         return None
     return GatewayAuthContext(
-        user=user, host_id=host.id, host_name=host.name, mode=mode
+        user=user, host_id=host.id, host_name=host.name, mode=mode, host_type=host_type
     )
 
 
+def _is_vnc_login(db: Session, username: str) -> bool:
+    mode, _, host_name = parse_gateway_username(username)
+    return mode == "user" and db.query(ManagedHost.id).filter_by(
+        name=host_name, host_type="vnc"
+    ).first() is not None
+
+
 def authenticate_gateway_public_key(
-    db: Session, gateway_username: str, key: paramiko.PKey
+    db: Session, gateway_username: str, key: paramiko.PKey,
 ) -> Optional[GatewayAuthContext]:
     mode, login_name, host_name = parse_gateway_username(gateway_username)
     if mode != "user" or not login_name or not host_name:
@@ -222,13 +235,14 @@ def authenticate_gateway_public_key(
     )
     if not user:
         return None
+    host_type, permission = ("vnc", "connect") if _is_vnc_login(db, gateway_username) else ("ssh", "execute")
     return _authorize_gateway_identity(
         db,
         user,
         host_name,
         mode="public_key",
-        host_type="ssh",
-        permission="execute",
+        host_type=host_type,
+        permission=permission,
     )
 
 
@@ -244,6 +258,19 @@ class GatewayServerInterface(paramiko.ServerInterface):
         self._on_auth_success = on_auth_success
         self._channel_requests: Dict[int, GatewayChannelRequest] = {}
         self._channel_lock = threading.Lock()
+        self.vnc_code: Optional[str] = None
+        self.vnc_relay_lock = threading.Lock()
+        self._vnc_failures = 0
+
+    @property
+    def is_vnc(self) -> bool:
+        return self.auth_context is not None and self.auth_context.host_type == "vnc"
+
+    def record_vnc_failure(self):
+        with self._channel_lock:
+            self._vnc_failures += 1
+            if self._vnc_failures >= 3:
+                self.vnc_code = None
 
     def _auth_result(self, context: Optional[GatewayAuthContext]):
         self.auth_context = context
@@ -323,12 +350,32 @@ class GatewayServerInterface(paramiko.ServerInterface):
     def check_channel_request(self, kind, chanid):
         if kind != "session":
             return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+        if self.is_vnc:
+            with self._channel_lock:
+                if self._channel_requests:
+                    return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+                self._channel_requests[int(chanid)] = GatewayChannelRequest()
+            return paramiko.OPEN_SUCCEEDED
         self._get_or_create_request(int(chanid))
+        return paramiko.OPEN_SUCCEEDED
+
+    def check_channel_direct_tcpip_request(self, chanid, origin, destination):
+        if not self.is_vnc or destination != ("frp-vnc", 5900):
+            return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+        with self._channel_lock:
+            # Screen Sharing may probe more than one socket before authenticating.
+            if not self.vnc_code or len(self._channel_requests) >= 5:
+                return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+            request = GatewayChannelRequest(request_type="vnc_forward")
+            request.event.set()
+            self._channel_requests[int(chanid)] = request
         return paramiko.OPEN_SUCCEEDED
 
     def check_channel_pty_request(
         self, channel, term, width, height, pixelwidth, pixelheight, modes
     ):
+        if self.is_vnc:
+            return False
         request = self._get_or_create_request(self._channel_id(channel))
         request.pty_term = (
             term.decode("utf-8", errors="replace")
@@ -341,6 +388,8 @@ class GatewayServerInterface(paramiko.ServerInterface):
         return True
 
     def check_channel_shell_request(self, channel):
+        if self.is_vnc:
+            return False
         request = self._get_or_create_request(self._channel_id(channel))
         request.request_type = "shell"
         request.event.set()
@@ -348,6 +397,12 @@ class GatewayServerInterface(paramiko.ServerInterface):
 
     def check_channel_exec_request(self, channel, command):
         request = self._get_or_create_request(self._channel_id(channel))
+        if self.is_vnc:
+            if command != b"vnc" or request.request_type is not None:
+                return False
+            request.request_type = "vnc_setup"
+            request.event.set()
+            return True
         request.request_type = "exec"
         request.exec_command = (
             command.decode("utf-8", errors="replace")
@@ -358,6 +413,8 @@ class GatewayServerInterface(paramiko.ServerInterface):
         return True
 
     def check_channel_subsystem_request(self, channel, name):
+        if self.is_vnc:
+            return False
         request = self._get_or_create_request(self._channel_id(channel))
         subsystem_name = (
             name.decode("utf-8", errors="replace")
@@ -696,6 +753,47 @@ class SSHGatewayService:
                 client.close()
                 logger.exception("启动 SSH 网关会话失败")
 
+    def _handle_vnc_channel(self, inbound, server, request, ip):
+        from app.services.vnc_service import active_vnc_host
+        from app.services.vnc_ssh_gateway import serve_screen_sharing
+
+        context = server.auth_context
+        try:
+            if not request.event.wait(HANDSHAKE_TIMEOUT_SECONDS):
+                return
+            if request.request_type == "vnc_setup":
+                with SessionLocal() as db:
+                    active_vnc_host(db, context.user, context.host_id)
+                server.vnc_code = secrets.token_hex(4)
+                inbound.settimeout(5)
+                inbound.sendall((
+                    f"Mac 屏幕共享验证码：{server.vnc_code}\n"
+                    "打开 vnc://127.0.0.1:15900 并输入该验证码。保持此终端连接，结束时按 Ctrl+C。\n"
+                ).encode())
+                while not inbound.closed and server.vnc_code and not self._stop_event.wait(1):
+                    pass
+                inbound.send_exit_status(0)
+            elif request.request_type == "vnc_forward" and server.vnc_code:
+                code = server.vnc_code
+                serve_screen_sharing(
+                    inbound, context.user, context.host_id, code, ip,
+                    enabled=lambda: server.vnc_code == code and not self._stop_event.is_set(),
+                    record_failure=server.record_vnc_failure,
+                    relay_lock=server.vnc_relay_lock,
+                )
+        except Exception:
+            if request.request_type == "vnc_setup" and not inbound.closed:
+                try:
+                    inbound.sendall("无法建立 VNC 网关会话，请检查连接权限。\n".encode())
+                    inbound.send_exit_status(1)
+                except OSError:
+                    pass
+        finally:
+            if request.request_type == "vnc_setup":
+                server.vnc_code = None
+            inbound.close()
+            server.discard_channel_request(inbound.get_id())
+
     def _handle_channel(
         self,
         inbound: paramiko.Channel,
@@ -704,6 +802,9 @@ class SSHGatewayService:
     ) -> None:
         channel_id = inbound.get_id()
         request = server.get_channel_request(channel_id)
+        if server.is_vnc:
+            self._handle_vnc_channel(inbound, server, request, address[0])
+            return
         upstream_client = None
         upstream = None
         started = time.monotonic()
@@ -863,7 +964,10 @@ class SSHGatewayService:
             transport.add_server_key(self._host_key)
             transport.start_server(server=server)
             auth_deadline = time.monotonic() + AUTH_DEADLINE_SECONDS
+            vnc_deadline = time.monotonic() + 3600
             while transport.is_active() and not self._stop_event.is_set():
+                if server.is_vnc and time.monotonic() >= vnc_deadline:
+                    break
                 if not server.auth_context and self._is_ip_blocked(ip):
                     raise PermissionError("SSH 网关来源已临时封禁")
                 if not server.auth_context:

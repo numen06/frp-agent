@@ -45,8 +45,8 @@ def demo_frame(page):
     return b'\0\0\0\1' + struct.pack('!HHHHi',0,0,WIDTH,HEIGHT,0) + rgba
 
 def main():
-    state=dict(allowed=True,fail=False,native=False)
-    native_url='vnc://vnc.test:6022'
+    state=dict(allowed=True,fail=False)
+    native_url='vnc://127.0.0.1:15900'
     host={**demo.HOSTS[0], 'id':7,'name':'mac-vnc','host_type':'vnc','address':'127.0.0.1','port':5900,'vnc_ssh_host_id':1,'credential_id':2}
     errors=[]
     def intercept(route):
@@ -58,8 +58,6 @@ def main():
         data=demo.demo_response(url)
         if url.path=='/api/managed-hosts':
             h={**host,'permissions':['connect'] if state['allowed'] else [],'can_manage':state['allowed']}
-            if state['allowed'] and state['native']:
-                h.update(vnc_ssh_host_id=None, port=6022, vnc_platform_port=6022)
             if parse_qs(url.query).get('host_id')==['1']: h=demo.HOSTS[0]
             data=demo.paginated([h])
         if url.path=='/api/managed-hosts/context': data=dict(is_admin=state['allowed'],actor_type='user',actor_name='demo')
@@ -112,13 +110,16 @@ def main():
         page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
         frame=demo_frame(page)
         for width in [1280,390,320]:
-            state['native']=True
             page.set_viewport_size(dict(width=width,height=900))
             page.goto('https://vnc.test/dashboard')
             if width < 768: page.get_by_role('button',name='切换导航菜单',exact=True).click()
             page.get_by_role('link',name='主机资源',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
             expect(page.get_by_role('dialog')).to_contain_text(native_url)
+            page.get_by_role('button',name='复制网关连接命令',exact=True).click()
+            command = page.evaluate('navigator.clipboard.readText()')
+            assert "-L 127.0.0.1:15900:frp-vnc:5900" in command
+            assert "-l 'demo#mac-vnc' 'vnc.test' vnc" in command
             page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == native_url
             page.get_by_role('button',name='复制网页链接',exact=True).click()
@@ -128,7 +129,6 @@ def main():
             page.screenshot(path=str(output/f'vnc-details-{width}.png'))
             page.get_by_role('button',name='关闭',exact=True).click()
             expect(page.get_by_role('dialog')).to_have_count(0)
-            state['native']=False
             assert not errors,errors
             page.get_by_role('button',name='远程桌面',exact=True).click()
             page.get_by_role('button',name='连接桌面',exact=True).click()

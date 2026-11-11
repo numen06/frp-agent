@@ -2,7 +2,7 @@
 
 用一个 Web 控制台管理多台 frps、代理分组和客户端配置，也可以远程访问 SSH、Docker / Portainer、Windows RDP 和 macOS VNC。
 
-**当前版本 1.4.5** · [发行说明](release-notes/1.4.5.md) · [完整截图](docs/screenshots/README.md) · [MIT 许可证](LICENSE)
+**当前版本 1.4.6** · [发行说明](release-notes/1.4.6.md) · [完整截图](docs/screenshots/README.md) · [MIT 许可证](LICENSE)
 
 ## 快速部署
 
@@ -41,7 +41,7 @@ curl -fsSLo frp-agent-install.sh https://gitee.com/numen06/frp-agent/raw/master/
 | SSH | **Web SSH** 打开交互式终端。也可通过原生 SSH 网关访问。 | [Web SSH 终端](docs/screenshots/webssh.png) |
 | Docker / Portainer | **容器管理** 查看、启动、停止或重启容器。 | [容器列表](docs/screenshots/host-docker.png) |
 | RDP | 校验目标证书后下载 `.rdp`，用 Windows 远程桌面客户端打开。 | [RDP 连接和证书](docs/screenshots/host-rdp.png) |
-| macOS VNC | 先在 Mac 开启屏幕共享和 VNC 密码控制。添加 VNC 连接后，点 **远程桌面 → 连接桌面**。 | [添加 VNC](docs/screenshots/vnc-add.png) |
+| macOS VNC | 先在 Mac 开启屏幕共享和 VNC 密码控制。添加 VNC 连接后，可在浏览器打开远程桌面，或用平台账号登录网关后，通过 Mac 自带的「屏幕共享」连接。 | [添加 VNC](docs/screenshots/vnc-add.png) |
 
 ![连接服务：按主机和分组筛选，直接测试或连接](docs/screenshots/hosts.png)
 
@@ -66,7 +66,7 @@ docker stop frp-agent && docker rm frp-agent
 **已经使用 Compose 的实例**，先备份数据和部署配置，再在原部署的 `.env` 中设置以下镜像：
 
 ```dotenv
-FRP_AGENT_IMAGE=registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.5
+FRP_AGENT_IMAGE=registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.6
 ```
 
 ```bash

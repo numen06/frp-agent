@@ -10,6 +10,7 @@ from contextlib import suppress
 import ipaddress
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import select
@@ -17,6 +18,7 @@ import socket
 import ssl
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -173,6 +175,70 @@ def certificate(folder):
     (folder/'key.pem').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
 
 
+def check_native_gateway(port, key, password, fixture, revoke):
+    from app.services.vnc_service import challenge_response
+
+    def client_for(username):
+        client = paramiko.SSHClient()
+        client.get_host_keys().add(f'[127.0.0.1]:{port}', key.get_name(), key)
+        try:
+            client.connect('127.0.0.1', port=port, username=f'{username}#test-vnc',
+                           password=password, allow_agent=False, look_for_keys=False, timeout=5)
+        except BaseException:
+            client.close()
+            raise
+        return client
+
+    def open_forward(transport, destination):
+        return transport.open_channel('direct-tcpip', destination, ('127.0.0.1', 0), timeout=5)
+
+    try:
+        client_for('vnc-viewer')
+    except paramiko.AuthenticationException:
+        pass
+    else:
+        raise AssertionError('An ungranted account authenticated to native VNC')
+
+    def screen_session(client):
+        transport = client.get_transport()
+        setup = transport.open_session(timeout=5)
+        setup.settimeout(5)
+        setup.exec_command('vnc')
+        code = re.search(rb'[0-9a-f]{8}', setup.makefile('rb').readline())[0].decode()
+        try:
+            open_forward(transport, ('127.0.0.1', 5900))
+        except paramiko.ChannelException:
+            pass
+        else:
+            raise AssertionError('Arbitrary SSH forwarding was accepted')
+        vnc = open_forward(transport, ('frp-vnc', 5900))
+        vnc.settimeout(12)
+        assert read(vnc, 12) == b'RFB 003.008\n'
+        vnc.sendall(b'RFB 003.003\n')  # macOS Screen Sharing negotiates this version.
+        assert read(vnc, 4) == b'\0\0\0\x02'
+        return code, vnc, read(vnc, 16)
+
+    before = fixture.authenticated
+    with client_for('vnc-operator') as client:
+        code, vnc, challenge = screen_session(client)
+        invalid = '00000000' if code != '00000000' else 'ffffffff'
+        vnc.sendall(challenge_response(invalid, challenge))
+        assert read(vnc, 4) == b'\0\0\0\x01'
+    assert fixture.authenticated == before
+
+    with client_for('vnc-operator') as client:
+        code, vnc, challenge = screen_session(client)
+        vnc.sendall(challenge_response(code, challenge))
+        assert read(vnc, 4) == b'\0'*4
+        vnc.sendall(b'\x01')
+        assert read(vnc, len(fixture.initial)) == fixture.initial
+        vnc.sendall(b'\x03\0'+struct.pack('!HHHH',0,0,16,16))
+        assert read(vnc, len(fixture.frame)) == fixture.frame
+        revoke()
+        assert vnc.recv(1) == b'', 'Revoked native session remained connected'
+    print('Native SSH gateway: platform login, local VNC code, desktop frame and revocation passed',flush=True)
+
+
 def main():
     if os.environ.get('VNC_DISPOSABLE_TEST') != '1':
         raise RuntimeError('Requires an explicitly disposable test environment')
@@ -190,10 +256,14 @@ def main():
     with tempfile.TemporaryDirectory(prefix='vnc-live-') as temporary:
         folder = Path(temporary); certificate(folder)
         port_socket = listen(); port = port_socket.getsockname()[1]; port_socket.close()
+        ssh_socket = listen(); ssh_port = ssh_socket.getsockname()[1]; ssh_socket.close()
+        fixture.key.write_private_key_file(str(folder/'gateway_key'))
         base = f'https://127.0.0.1:{port}'
         log = (folder/'server.log').open('w')
-        server = subprocess.Popen(['python','-m','uvicorn','app.main:app','--host','127.0.0.1','--port',str(port),
-                                   '--ssl-keyfile',str(folder/'key.pem'),'--ssl-certfile',str(folder/'cert.pem')],stdout=log,stderr=log)
+        server = subprocess.Popen([sys.executable,'-m','uvicorn','app.main:app','--host','127.0.0.1','--port',str(port),
+                                   '--ssl-keyfile',str(folder/'key.pem'),'--ssl-certfile',str(folder/'cert.pem')],stdout=log,stderr=log,
+                                  env={**os.environ, 'SSH_GATEWAY_ENABLED':'true', 'SSH_GATEWAY_HOST':'127.0.0.1',
+                                       'SSH_GATEWAY_PORT':str(ssh_port), 'SSH_GATEWAY_HOST_KEY_PATH':str(folder/'gateway_key')})
         try:
             client = httpx.Client(base_url=base,auth=(os.environ['AUTH_USERNAME'],os.environ['AUTH_PASSWORD']),
                                   verify=str(folder/'cert.pem'),timeout=15,trust_env=False)
@@ -201,7 +271,8 @@ def main():
                 try:
                     if client.get('/api/public/version').status_code == 200: break
                 except httpx.HTTPError: pass
-                if server.poll() is not None: raise RuntimeError('Application exited during startup')
+                if server.poll() is not None:
+                    raise RuntimeError((folder/'server.log').read_text())
                 time.sleep(.25)
             else: raise RuntimeError('HTTPS application readiness timeout')
             if os.environ.get('EXPECTED_APP_VERSION'):
@@ -254,6 +325,9 @@ def main():
                     else: raise AssertionError('Revoked session remained connected')
                 print('Real WSS -> direct VNC framebuffer, Origin/query rejection, permissions and live grant revocation: passed',flush=True)
             asyncio.run(live())
+            api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=True))
+            check_native_gateway(ssh_port, fixture.key, operator_password, fixture,
+                lambda: api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=False)))
             logs = api('GET','managed-hosts/audit/logs',params=dict(page=1,page_size=100))
             rows = logs['items'] if isinstance(logs,dict) else logs
             assert {'vnc_connected','vnc_session'}.issubset({x['action'] for x in rows})
@@ -268,7 +342,7 @@ def main():
             denied = client.post(f"/api/managed-hosts/{host['id']}/test")
             assert denied.status_code == 502 and '密码认证失败' in denied.text
             print('Audit records without target passwords; wrong SSH fingerprint and wrong VNC password block connection: passed',flush=True)
-            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + direct VNC + optional SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
+            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + native SSH gateway + direct VNC + optional SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
         finally:
             server.terminate()
             try: server.wait(timeout=10)

@@ -178,10 +178,6 @@ def _host_response(
     credential = host.credential if host.host_type in {"ssh", "rdp", "vnc"} else host.docker_credential
     source = db.get(HostProxySource, host.id)
     permissions = permissions_for(db, current_user, host.id)
-    vnc_port = None
-    if host.host_type == "vnc" and "connect" in permissions:
-        from app.services.vnc_service import platform_vnc_port
-        vnc_port = platform_vnc_port(db, host)
     return ManagedHostResponse(
         activation_pending=bool(source and source.activation_pending),
         source_proxy_id=source.proxy_id if source else None,
@@ -193,7 +189,6 @@ def _host_response(
         port=host.port,
         host_type=host.host_type,
         vnc_ssh_host_id=host.vnc_ssh_host_id,
-        vnc_platform_port=vnc_port,
         credential_id=host.credential_id,
         docker_credential_id=host.docker_credential_id,
         credential_name=credential.name if credential else "未配置凭据",

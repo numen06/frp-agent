@@ -11,11 +11,11 @@ try:
 except ImportError:
     from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
 from app.models.managed_host import ManagedHost
-from app.models.frps_server import FrpsServer
-from app.models.proxy import Proxy
+from app.models.api_key import ApiKey
 from app.models.ssh_credential import SshCredential
+from app.models.user import User
 from app.services.credential_encryption import decrypt_secret
-from app.services.host_access_service import build_host_client
+from app.services.host_access_service import build_host_client, require_host_access
 from app.services.ssh_client import CommandResult
 
 
@@ -23,15 +23,26 @@ TRUSTED_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
     '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10', '::1/128', 'fc00::/7'))
 
 
-def platform_vnc_port(db, host):
-    if (not host.is_active or host.vnc_ssh_host_id
-            or host.address.strip().lower().rstrip('.') not in {'127.0.0.1', '::1', 'localhost'}):
-        return None
-    mapping = (db.query(Proxy.remote_port).join(FrpsServer, Proxy.frps_server_id == FrpsServer.id)
-               .filter(FrpsServer.is_builtin.is_(True), FrpsServer.is_active.is_(True),
-                       Proxy.proxy_type == 'tcp', Proxy.remote_port == host.port)
-               .first())
-    return mapping.remote_port if mapping else None
+def validate_host(host):
+    if host.host_type != 'vnc' or not host.is_active:
+        raise HTTPException(403, '仅可连接已启用的 VNC 主机')
+
+
+def active_vnc_host(db, user, host_id, state=None):
+    current = user
+    if user.id > 0:
+        current = db.get(User, user.id)
+        if not current or not current.is_active:
+            raise HTTPException(403, '账号已停用')
+    elif user.id < 0:
+        key = db.get(ApiKey, -user.id)
+        if not key or not key.is_active or key.is_expired():
+            raise HTTPException(403, 'API Key 已失效')
+    host = require_host_access(db, current, host_id, 'connect')
+    validate_host(host)
+    if state is not None and snapshot(db, host) != state:
+        raise HTTPException(403, '主机或凭据已变化，请重新连接')
+    return host
 
 
 def trusted_ip(value):
@@ -109,9 +120,9 @@ def snapshot(db, host):
             ssh.host_key_fingerprint, cred(ssh.credential))
 
 
-def read_exact(channel, size):
+def read_exact(channel, size, timeout=10):
     data = bytearray()
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + timeout
     while len(data) < size:
         channel.settimeout(max(.01, deadline - time.monotonic()))
         chunk = channel.recv(size-len(data))

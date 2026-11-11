@@ -674,7 +674,7 @@ def test_gateway_accepts_multiple_channels_on_one_transport(monkeypatch):
             pass
 
         def start_server(self, server):
-            server.auth_context = SimpleNamespace(host_id=1)
+            server.auth_context = SimpleNamespace(host_id=1, host_type="ssh")
 
         def is_active(self):
             return self.active

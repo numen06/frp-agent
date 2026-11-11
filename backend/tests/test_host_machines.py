@@ -10,7 +10,6 @@ from app.models.host_machine import HostMachine
 from app.models.managed_host import ManagedHost, HostAccessGrant
 from app.models.frps_server import FrpsServer
 from app.models.group import Group
-from app.models.proxy import Proxy
 from app.models.ssh_credential import SshCredential
 from app.models.user import User
 from app.services.credential_encryption import encrypt_secret
@@ -37,15 +36,6 @@ def test_hierarchy_move_and_group_changes_never_expand_service_permissions(db):
         assert ssh.status_code == vnc.status_code == 201
         ssh, vnc = ssh.json(), vnc.json()
         assert not vnc['vnc_ssh_host_id'] and not vnc['host_key_fingerprint']
-        assert vnc['vnc_platform_port'] is None
-        db.add(Proxy(frps_server_id=server.id, name='mac_vnc', proxy_type='tcp',
-                     local_ip='127.0.0.1', local_port=5900, remote_port=5900))
-        db.commit()
-        vnc_query = dict(page=1, host_id=vnc['id'])
-        assert client.get('/api/managed-hosts',params=vnc_query).json()['items'][0]['vnc_platform_port'] is None
-        server.is_builtin = True
-        db.commit()
-        assert client.get('/api/managed-hosts',params=vnc_query).json()['items'][0]['vnc_platform_port']==5900
         assert client.get(f"/api/host-machines/{machine['id']}").json()['service_count']==2
         assert len(client.get('/api/host-machines/groups',params=dict(page=1)).json()['items'])==1
         assert client.delete(f"/api/host-machines/{machine['id']}").status_code==409
@@ -61,7 +51,6 @@ def test_hierarchy_move_and_group_changes_never_expand_service_permissions(db):
         assert client.get(f"/api/host-machines/{machine['id']}").json()['service_count']==1
         visible = client.get('/api/managed-hosts',params=dict(page=1,machine_id=machine['id'])).json()['items']
         assert [row['id'] for row in visible]==[vnc['id']]
-        assert visible[0]['vnc_platform_port']==5900
         groups = client.get('/api/host-machines/groups',params=dict(page=1)).json()['items']
         assert [group['id'] for group in groups]==[f'{server.id}:lab']
         assert client.get('/api/managed-hosts',params=dict(page=1,group_key=groups[0]['id'],host_type='ssh')).json()['total']==0
@@ -105,19 +94,6 @@ def test_inventory_migration_is_idempotent_and_does_not_merge_connections(monkey
 @pytest.mark.parametrize('address',['8.8.8.8','169.254.169.254','0.0.0.0','::','::ffff:8.8.8.8','https://host'])
 def test_direct_vnc_rejects_untrusted_or_invalid_addresses(address):
     with pytest.raises(HTTPException): vnc_service.direct_address(address)
-
-
-def test_platform_vnc_port_excludes_direct_targets_and_ssh_tunnels(db):
-    from types import SimpleNamespace
-
-    host = SimpleNamespace(address='fd00::42', port=5900, is_active=True, vnc_ssh_host_id=None)
-    assert vnc_service.platform_vnc_port(db, host) is None
-    host.address = '127.0.0.1'
-    host.vnc_ssh_host_id = 5
-    assert vnc_service.platform_vnc_port(db, host) is None
-    host.vnc_ssh_host_id = None
-    host.address = '127.0.0.2'
-    assert vnc_service.platform_vnc_port(db, host) is None
 
 
 def test_vnc_dns_rebinding_and_mixed_answers_never_open_a_socket(monkeypatch):

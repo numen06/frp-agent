@@ -9,11 +9,9 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from app.auth import get_current_user
 from app.database import SessionLocal
-from app.models.user import User
-from app.models.api_key import ApiKey
 from app.services.host_access_service import actor_identity, require_host_access, add_audit_log
 from app.services.login_guard import client_address
-from app.services.vnc_service import open_vnc, snapshot
+from app.services.vnc_service import active_vnc_host, open_vnc, snapshot, validate_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -24,11 +22,6 @@ MAX_PER_USER = 2
 CHECK_INTERVAL = 5
 MAX_AGE = 3600
 IDLE_TIMEOUT = 900
-
-
-def validate_host(host):
-    if host.host_type != 'vnc' or not host.is_active:
-        raise HTTPException(403, '仅可连接已启用的 VNC 主机')
 
 
 def authenticate(ws, packet, host_id):
@@ -59,21 +52,7 @@ def connect_upstream(user, host, state):
 
 def still_allowed(user, host, state):
     with SessionLocal() as db:
-        if user.id > 0:
-            current = db.get(User, user.id)
-            if not current or not current.is_active:
-                raise HTTPException(403, '账号已停用')
-        elif user.id < 0:
-            key = db.get(ApiKey, -user.id)
-            if not key or not key.is_active or key.is_expired():
-                raise HTTPException(403, 'API Key 已失效')
-            current = user
-        else:
-            current = user
-        latest = require_host_access(db, current, host.id, 'connect')
-        validate_host(latest)
-        if snapshot(db, latest) != state:
-            raise HTTPException(403, '主机或凭据已变化，请重新连接')
+        active_vnc_host(db, user, host.id, state)
 
 
 def audit(user, host, action, status, ip, started, traffic, error=None):
