@@ -80,7 +80,7 @@ RUN apt-get update && apt-get -o Acquire::Retries=3 install -y --no-install-reco
 
 # 维护者信息
 LABEL maintainer="frp-agent"
-ARG APP_VERSION=1.4.6
+ARG APP_VERSION=1.4.7
 ARG VCS_REF=unknown
 LABEL version="${APP_VERSION}" \
       org.opencontainers.image.version="${APP_VERSION}" \
@@ -113,7 +113,7 @@ COPY --from=rdp-builder /src/proxy-frpagent-plugin.so /usr/lib/x86_64-linux-gnu/
 RUN mkdir -p /app/data /app/logs
 
 # 暴露端口
-EXPOSE 8000 2222 23750 13389 7000 6000-6099/tcp 6000-6099/udp
+EXPOSE 8000 2222 23750 13389 15901 7000 6000-6099/tcp 6000-6099/udp
 
 # 应用环境变量
 ENV APP_HOST=0.0.0.0 \

@@ -17,11 +17,13 @@
 
 ## 使用 Mac 自带的屏幕共享
 
-1. 在 VNC 连接的详情中点「复制网关连接命令」，粘贴到本机 Mac 的终端运行。首次连接时，核对页面显示的网关指纹。
-2. 用平台账号密码或已登记的 SSH 公钥登录。平台确认该账号有此 VNC 的连接权限后，终端会显示临时验证码。保持终端开启。
-3. 点「复制 Mac 屏幕共享地址」。在访达按 `⌘K`，粘贴 `vnc://127.0.0.1:15900`。系统弹出密码框时，输入终端中的临时验证码。结束后在终端按 `Ctrl+C`。
+1. 登录平台，打开 VNC 的「连接详情」，点「生成连接凭据」。
+2. 点「打开屏幕共享」，或在访达按 `⌘K` 后粘贴 VNC 代理地址。
+3. 在屏幕共享的登录窗口输入平台生成的用户名和临时密码。凭据绑定当前连接，3 分钟有效，成功使用一次即失效。
 
-屏幕共享地址指向本机，桌面流量由 SSH 加密转发到平台。平台使用保存的 VNC 凭据连接目标 Mac。此入口需要启用平台的 SSH 网关，VNC 连接本身可以独立添加。
+部署时设置 `VNC_GATEWAY_ENABLED=true`，将 TCP 端口 `15901` 发布给客户端。端口可用 `VNC_GATEWAY_PORT` 修改，并通过 `VNC_GATEWAY_PUBLIC_ADDRESS` 设置客户端可达的域名和端口。平台 HTTPS API 与原生监听器运行在同一进程。RSA 主机密钥默认保存在 `data/vnc_gateway_host_key.pem`，部署时保留数据卷。入口使用 Apple RSA-SRP 与加密桌面记录，平台账号密码仅用于 HTTPS 登录。
+
+网页远程桌面可用「最大化」放大，在工具栏点「还原窗口」或按 Esc 退出。
 
 ## 可选 SSH 隧道
 
@@ -66,7 +68,7 @@ docker -H tcp://192.168.8.119:2375 run --rm --network none \
   -e SSH_CREDENTIAL_SECRET=isolated-test-key-only \
   -e SSH_GATEWAY_ENABLED=false -e DOCKER_GATEWAY_ENABLED=false -e RDP_GATEWAY_ENABLED=false \
   -e PYTHONPATH=/app/backend --entrypoint python \
-  registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.6 /app/backend/scripts/check_vnc_live.py
+  registry.cn-shanghai.aliyuncs.com/numen/frp-agent:1.4.7 /app/backend/scripts/check_vnc_live.py
 ```
 
 该命令不挂载宿主数据、不发布端口，全部服务在容器回环地址通信；不要将测试数据库指向真实部署。

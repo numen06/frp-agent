@@ -20,6 +20,7 @@ export const managedHostsApi = {
     ),
   context: () => api.get("/managed-hosts/context"),
   gatewayInfo: () => api.get("/managed-hosts/gateway/info"),
+  vncTicket: (id) => api.post(`/managed-hosts/${id}/vnc-ticket`),
   dockerGatewayCa: () =>
     api.get("/managed-hosts/gateway/docker-ca", { responseType: "blob" }),
   dockerClientCert: (id) =>

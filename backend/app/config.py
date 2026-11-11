@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     # 只有来自这些 CIDR 的请求才读取 X-Forwarded-For；空值不信任代理头。
     rdp_gateway_trusted_proxies: str = ""
 
+    vnc_gateway_enabled: bool = False
+    vnc_gateway_host: str = "0.0.0.0"
+    vnc_gateway_port: int = 15901
+    vnc_gateway_public_address: str = ""
+    vnc_gateway_key_path: str = "data/vnc_gateway_host_key.pem"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

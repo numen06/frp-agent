@@ -65,6 +65,7 @@ from app.services.docker_gateway_service import (
     issue_docker_client_certificate,
 )
 from app.config import get_settings
+from app.services.vnc_gateway_service import vnc_gateway_service
 from app.services.rdp_gateway_service import (
     rdp_gateway_service, rdp_client_ip, validate_rdp_address, test_rdp_connection,
     require_secure_rdp_download,
@@ -254,6 +255,11 @@ def get_gateway_info(current_user: User = Depends(get_current_user)):
         "user_login_format": "<系统用户>#<SSH主机名>",
         "user_auth_methods": ["password", "publickey"],
         "api_key_login_format": "<SSH主机名>",
+        "vnc_gateway": {
+            "running": vnc_gateway_service.running,
+            "port": settings.vnc_gateway_port,
+            "public_address": settings.vnc_gateway_public_address,
+        },
         "rdp_gateway": {
             "enabled": settings.rdp_gateway_enabled,
             "running": rdp_gateway_service.running,

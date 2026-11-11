@@ -239,6 +239,100 @@ def check_native_gateway(port, key, password, fixture, revoke):
     print('Native SSH gateway: platform login, local VNC code, desktop frame and revocation passed',flush=True)
 
 
+def check_apple_gateway(port, client, host, password, fixture, revoke):
+    """Drive the RSA-SRP proof and RFB records through the production listener."""
+    import hashlib
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.serialization import load_der_public_key
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from app.services.vnc_apple_protocol import GENERATOR, GROUP, MODULUS, digest, field, number
+
+    ticket_url = f"/api/managed-hosts/{host['id']}/vnc-ticket"
+    assert client.post(ticket_url, auth=None).status_code == 401
+    assert client.post(ticket_url, auth=('vnc-viewer', password)).status_code == 403
+    response = client.post(ticket_url, auth=('vnc-operator', password))
+    assert response.headers['cache-control'] == 'no-store'
+    ticket = response.raise_for_status().json()
+
+    def packet(sock):
+        return read(sock, int.from_bytes(read(sock, 4), 'big'))
+
+    def envelope(payload, op):
+        return field(b'\x01\x00RSA1' + number(op, 2) + field(payload, 2), 4)
+
+    def handshake(sock, credential, valid):
+        version = read(sock, 12)
+        assert version == b'RFB 003.889\n'
+        sock.sendall(version)
+        assert read(sock, 3) == b'\x02\x21\x24'
+        sock.sendall(b'\x21' + envelope(b'', 0))
+        reply = packet(sock)
+        der_size = int.from_bytes(reply[2:6], 'big')
+        key = load_der_public_key(reply[6:6 + der_size])
+        username = field(ticket['username'].encode(), 4) + bytes(3)
+        sock.sendall(envelope(key.encrypt(field(username, 4), padding.PKCS1v15()), 2))
+        challenge = packet(sock)
+        assert challenge[13:525] == GROUP
+        salt = challenge[529:561]
+        server_public = challenge[563:1075]
+        iterations = int.from_bytes(challenge[1075:1083], 'big')
+        options = challenge[1085:]
+        exponent = int.from_bytes(digest(salt + digest(
+            b':' + hashlib.pbkdf2_hmac('sha512', credential.encode(), salt, iterations, 128)
+        )), 'big')
+        a = secrets.randbits(512)
+        public = number(pow(GENERATOR, a, MODULUS), 512)
+        g = number(GENERATOR, 512)
+        k = int.from_bytes(digest(GROUP + g), 'big')
+        u = int.from_bytes(digest(public + server_public), 'big')
+        shared = pow((int.from_bytes(server_public, 'big') - k * pow(GENERATOR, exponent, MODULUS)) % MODULUS,
+                     a + u * exponent, MODULUS)
+        key = digest(number(shared, 512))
+        proof = digest(bytes(a ^ b for a, b in zip(digest(GROUP), digest(g))) + digest(b'')
+                       + salt + public + server_public + key)
+        inner = field(public, 2) + field(proof, 1) + field(options, 2) + field(secrets.token_bytes(16), 1)
+        sock.sendall(envelope(bytes(2) + field(inner, 2), 2))
+        if not valid:
+            assert sock.recv(1) == b'', 'Rejected credential received data'
+            return
+        server_proof = packet(sock)
+        assert server_proof[11:75] == digest(public + proof + key)
+        assert read(sock, 4) == bytes(4)
+        sock.sendall(b'\xc1')
+        initial = read(sock, 24)
+        assert initial[:20] == fixture.initial[:20]
+        assert read(sock, int.from_bytes(initial[20:24], 'big')) == bytes(22) + fixture.initial[24:]
+        rekey = read(sock, 52)
+        wrap = Cipher(algorithms.AES(hashlib.sha256(key).digest()[:16]), modes.ECB()).decryptor()
+        material = wrap.update(rekey[20:]) + wrap.finalize()
+        cipher = Cipher(algorithms.AES(material[:16]), modes.CBC(material[16:]))
+        return cipher.encryptor(), cipher.decryptor()
+
+    def connection():
+        return socket.create_connection(('127.0.0.1', port), timeout=12)
+
+    before = fixture.authenticated
+    with connection() as sock:
+        handshake(sock, 'incorrect', valid=False)
+    assert fixture.authenticated == before
+    with connection() as sock:
+        encrypt, decrypt = handshake(sock, ticket['password'], valid=True)
+        request = field(b'\x03\0' + struct.pack('!HHHH', 0, 0, 16, 16), 2)
+        request += bytes((-(len(request) + 20)) % 16)
+        request += hashlib.sha1(bytes(4) + request).digest()
+        sock.sendall(field(encrypt.update(request), 2))
+        plain = decrypt.update(read(sock, int.from_bytes(read(sock, 2), 'big')))
+        assert plain[-20:] == hashlib.sha1(bytes(4) + plain[:-20]).digest()
+        assert plain[2:2 + int.from_bytes(plain[:2], 'big')] == fixture.frame
+        revoke()
+        assert sock.recv(1) == b'', 'Revoked native VNC remained connected'
+    with connection() as sock:
+        handshake(sock, ticket['password'], valid=False)
+    assert fixture.authenticated == before + 1
+    print('Apple VNC gateway: encrypted frame, ACL, wrong password, revocation and replay passed', flush=True)
+    return ticket['password']
+
+
 def main():
     if os.environ.get('VNC_DISPOSABLE_TEST') != '1':
         raise RuntimeError('Requires an explicitly disposable test environment')
@@ -257,13 +351,16 @@ def main():
         folder = Path(temporary); certificate(folder)
         port_socket = listen(); port = port_socket.getsockname()[1]; port_socket.close()
         ssh_socket = listen(); ssh_port = ssh_socket.getsockname()[1]; ssh_socket.close()
+        apple_socket = listen(); apple_port = apple_socket.getsockname()[1]; apple_socket.close()
         fixture.key.write_private_key_file(str(folder/'gateway_key'))
         base = f'https://127.0.0.1:{port}'
         log = (folder/'server.log').open('w')
         server = subprocess.Popen([sys.executable,'-m','uvicorn','app.main:app','--host','127.0.0.1','--port',str(port),
                                    '--ssl-keyfile',str(folder/'key.pem'),'--ssl-certfile',str(folder/'cert.pem')],stdout=log,stderr=log,
                                   env={**os.environ, 'SSH_GATEWAY_ENABLED':'true', 'SSH_GATEWAY_HOST':'127.0.0.1',
-                                       'SSH_GATEWAY_PORT':str(ssh_port), 'SSH_GATEWAY_HOST_KEY_PATH':str(folder/'gateway_key')})
+                                       'SSH_GATEWAY_PORT':str(ssh_port), 'SSH_GATEWAY_HOST_KEY_PATH':str(folder/'gateway_key'),
+                                       'VNC_GATEWAY_ENABLED':'true', 'VNC_GATEWAY_HOST':'127.0.0.1',
+                                       'VNC_GATEWAY_PORT':str(apple_port), 'VNC_GATEWAY_KEY_PATH':str(folder/'apple.pem')})
         try:
             client = httpx.Client(base_url=base,auth=(os.environ['AUTH_USERNAME'],os.environ['AUTH_PASSWORD']),
                                   verify=str(folder/'cert.pem'),timeout=15,trust_env=False)
@@ -328,10 +425,14 @@ def main():
             api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=True))
             check_native_gateway(ssh_port, fixture.key, operator_password, fixture,
                 lambda: api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=False)))
+            api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=True))
+            ticket_password = check_apple_gateway(apple_port, client, host, operator_password, fixture,
+                lambda: api('PUT',f"managed-hosts/access/grants/{grant['id']}",json=dict(is_active=False)))
             logs = api('GET','managed-hosts/audit/logs',params=dict(page=1,page_size=100))
             rows = logs['items'] if isinstance(logs,dict) else logs
             assert {'vnc_connected','vnc_session'}.issubset({x['action'] for x in rows})
             assert fixture.password not in json.dumps(rows) and fixture.ssh_password not in json.dumps(rows)
+            assert ticket_password not in json.dumps(rows)
             api('PUT',f"managed-hosts/{host['id']}",json=dict(vnc_ssh_host_id=ssh_host['id']))
             assert api('POST',f"managed-hosts/{host['id']}/test")['success']
             api('PUT',f"managed-hosts/{ssh_host['id']}",json=dict(host_key_fingerprint='SHA256:wrong'))
@@ -342,7 +443,7 @@ def main():
             denied = client.post(f"/api/managed-hosts/{host['id']}/test")
             assert denied.status_code == 502 and '密码认证失败' in denied.text
             print('Audit records without target passwords; wrong SSH fingerprint and wrong VNC password block connection: passed',flush=True)
-            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + native SSH gateway + direct VNC + optional SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
+            print(json.dumps(dict(status='passed',transport='HTTPS/WSS + Apple RSA-SRP + native SSH gateway + direct VNC + optional SSH',vnc_fixture_authenticated=fixture.authenticated,frame_requests=fixture.frame_requests,real_mac=False)),flush=True)
         finally:
             server.terminate()
             try: server.wait(timeout=10)

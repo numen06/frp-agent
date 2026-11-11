@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
+import { Maximize2, Minimize2 } from "@lucide/vue";
 import RFB from "@novnc/novnc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +10,26 @@ import { confirmAction } from "@/composables/useFeedback";
 const props = defineProps({ host: { type: Object, required: true } });
 const screen = ref(null), status = ref("未连接"), error = ref("");
 const keyboardText = ref("");
+const maximized = ref(false);
+let previousOverflow;
 let socket, rfb;
+
+watch(maximized, (active) => {
+  if (active) {
+    previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  } else if (previousOverflow !== undefined) {
+    document.body.style.overflow = previousOverflow;
+    previousOverflow = undefined;
+  }
+});
+function handleEscape(event) {
+  if (maximized.value && event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    maximized.value = false;
+  }
+}
 
 function sendKeyboardText() {
   if (!rfb || status.value !== "已连接" || !keyboardText.value) return;
@@ -96,17 +116,30 @@ function beforeUnload(event) {
 }
 onBeforeRouteLeave(canLeave);
 onBeforeRouteUpdate((to, from) => (to.path === from.path && to.query.tab === from.query.tab) || canLeave());
-onMounted(() => window.addEventListener("beforeunload", beforeUnload));
+onMounted(() => {
+  window.addEventListener("beforeunload", beforeUnload);
+  window.addEventListener("keydown", handleEscape, true);
+});
 onBeforeUnmount(() => {
   window.removeEventListener("beforeunload", beforeUnload);
+  window.removeEventListener("keydown", handleEscape, true);
+  if (previousOverflow !== undefined) document.body.style.overflow = previousOverflow;
   disconnect();
 });
 </script>
 <template>
-  <Card class="min-w-0 gap-3 p-3">
+  <Card
+    class="min-w-0 gap-3 p-3"
+    :class="{ 'fixed inset-0 z-[65] h-dvh overflow-auto rounded-none': maximized }"
+  >
     <div class="flex flex-wrap items-center gap-2">
       <span role="status" class="mr-auto text-sm">{{ status }}</span>
       <Button :disabled="status === '已连接' || status === '连接中…'" @click="connect">连接桌面</Button>
+      <Button type="button" variant="outline" :aria-pressed="maximized" @click="maximized = !maximized">
+        <Minimize2 v-if="maximized" aria-hidden="true" />
+        <Maximize2 v-else aria-hidden="true" />
+        {{ maximized ? "还原窗口" : "最大化" }}
+      </Button>
       <Button variant="outline" :disabled="!socket" @click="disconnect">断开</Button>
     </div>
     <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
@@ -142,6 +175,11 @@ onBeforeUnmount(() => {
       </p>
     </form>
     <p class="text-xs text-muted-foreground">{{ host.vnc_ssh_host_id ? '通过已核验指纹的 SSH 隧道连接。' : '通过配置的可信网络入口直连 VNC。' }}会话最长 1 小时，授权撤销后自动断开。关闭页面会结束连接。</p>
-    <div ref="screen" class="h-[65vh] min-h-64 w-full min-w-0 overflow-hidden rounded-md bg-black" aria-label="VNC 远程桌面" />
+    <div
+      ref="screen"
+      class="w-full min-w-0 overflow-hidden rounded-md bg-black"
+      :class="maximized ? 'min-h-32 flex-1' : 'h-[65vh] min-h-64'"
+      aria-label="VNC 远程桌面"
+    />
   </Card>
 </template>

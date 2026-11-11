@@ -46,13 +46,16 @@ def demo_frame(page):
 
 def main():
     state=dict(allowed=True,fail=False)
-    native_url='vnc://127.0.0.1:15900'
+    native_url='vnc://vnc.test:15901'
     host={**demo.HOSTS[0], 'id':7,'name':'mac-vnc','host_type':'vnc','address':'127.0.0.1','port':5900,'vnc_ssh_host_id':1,'credential_id':2}
     errors=[]
     def intercept(route):
         url=urlparse(route.request.url)
         if not url.path.startswith('/api/'):
             route.continue_(); return
+        if url.path == '/api/managed-hosts/7/vnc-ticket' and route.request.method == 'POST':
+            route.fulfill(json=dict(username='test-ticket', password='test-only-password', expires_in=180))
+            return
         if route.request.method!='GET':
             errors.append('Unexpected write '+url.path); route.abort(); return
         data=demo.demo_response(url)
@@ -60,6 +63,8 @@ def main():
             h={**host,'permissions':['connect'] if state['allowed'] else [],'can_manage':state['allowed']}
             if parse_qs(url.query).get('host_id')==['1']: h=demo.HOSTS[0]
             data=demo.paginated([h])
+        if url.path == '/api/managed-hosts/gateway/info':
+            data['vnc_gateway'] = dict(running=True, port=15901)
         if url.path=='/api/managed-hosts/context': data=dict(is_admin=state['allowed'],actor_type='user',actor_name='demo')
         route.fulfill(json=data or {})
     def websocket(ws):
@@ -116,11 +121,11 @@ def main():
             page.get_by_role('link',name='主机资源',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
             expect(page.get_by_role('dialog')).to_contain_text(native_url)
-            page.get_by_role('button',name='复制网关连接命令',exact=True).click()
-            command = page.evaluate('navigator.clipboard.readText()')
-            assert "-L 127.0.0.1:15900:frp-vnc:5900" in command
-            assert "-l 'demo#mac-vnc' 'vnc.test' vnc" in command
-            page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True).click()
+            page.get_by_role('button',name='生成连接凭据',exact=True).click()
+            expect(page.get_by_role('link',name='打开屏幕共享',exact=True)).to_have_attribute('href', native_url)
+            page.get_by_role('button',name='复制临时密码',exact=True).click()
+            assert page.evaluate('navigator.clipboard.readText()') == 'test-only-password'
+            page.get_by_role('button',name='复制代理地址',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == native_url
             page.get_by_role('button',name='复制网页链接',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == 'https://vnc.test/hosts/7?tab=desktop'
@@ -135,6 +140,16 @@ def main():
             expect(page.get_by_text('已连接',exact=True)).to_be_visible()
             expect(page.get_by_role('button',name='连接桌面',exact=True)).to_be_disabled()
             expect(page.get_by_role('button',name='断开',exact=True)).to_be_enabled()
+            screen = page.get_by_label('VNC 远程桌面')
+            original_height = screen.bounding_box()['height']
+            page.get_by_role('button',name='最大化',exact=True).click()
+            expect(page.get_by_role('button',name='还原窗口',exact=True)).to_have_attribute('aria-pressed', 'true')
+            assert screen.bounding_box()['height'] > original_height
+            expect(page.get_by_label('远程键盘输入')).to_be_visible()
+            page.keyboard.press('Escape')
+            expect(page.get_by_role('button',name='最大化',exact=True)).to_have_attribute('aria-pressed', 'false')
+            assert screen.bounding_box()['height'] == original_height
+            expect(page.get_by_text('已连接',exact=True)).to_be_visible()
             assert page.evaluate("(() => { const e=new Event('beforeunload',{cancelable:true}); window.dispatchEvent(e); return e.defaultPrevented; })()")
             assert page.locator('canvas').count()==1
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')

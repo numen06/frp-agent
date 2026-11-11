@@ -1021,7 +1021,34 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
           >
             <h3 class="font-medium">Mac 屏幕共享 · 平台网关</h3>
-            <template v-if="connectionInfo.nativeCommand">
+            <template v-if="connectionInfo.publicVnc">
+              <p class="text-xs text-muted-foreground">
+                生成一次性凭据，再打开 Mac「屏幕共享」。凭据 3 分钟内有效。
+              </p>
+              <code class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
+              <div class="flex flex-wrap gap-2">
+                <Button type="button" :disabled="vncTicketLoading" @click="issueVncTicket">
+                  {{ vncTicketLoading ? "正在生成…" : "生成连接凭据" }}
+                </Button>
+                <Button type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
+                  复制代理地址
+                </Button>
+                <Button v-if="vncTicket" as-child variant="outline">
+                  <a :href="connectionInfo.publicVnc">打开屏幕共享</a>
+                </Button>
+              </div>
+              <div v-if="vncTicket" class="grid gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span>用户名</span><code class="break-all">{{ vncTicket.username }}</code>
+                  <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(vncTicket.username, $event.currentTarget)">复制用户名</Button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span>临时密码</span><code class="break-all">{{ vncTicket.password }}</code>
+                  <Button type="button" size="sm" variant="outline" @click="copyCredentialValue(vncTicket.password, $event.currentTarget)">复制临时密码</Button>
+                </div>
+              </div>
+            </template>
+            <template v-else-if="connectionInfo.nativeCommand">
               <p class="text-xs text-muted-foreground">
                 在 Mac 的终端运行命令，用平台账号登录。保持终端开启，在访达按 ⌘K，粘贴屏幕共享地址，并输入终端显示的临时验证码。
               </p>
@@ -1483,6 +1510,9 @@ const tab = ref("hosts");
 const aiPromptOpen = ref(false);
 const discoveryOpen = ref(false);
 const connectionHost = ref(null);
+const vncTicket = ref(null);
+const vncTicketLoading = ref(false);
+watch(connectionHost, () => { vncTicket.value = null; });
 const rdpProblemHost = ref(null);
 const rdpChecks = reactive({});
 const checkingHosts = reactive(new Set());
@@ -1833,6 +1863,10 @@ function buildConnectionInfo(host) {
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
   if (host.host_type === "vnc")
     return {
+      publicVnc:
+        context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.vnc_gateway?.running
+          ? `vnc://${gatewayInfo.value.vnc_gateway.public_address || `${gatewayHost}:${gatewayInfo.value.vnc_gateway.port}`}`
+          : "",
       nativeUrl: "vnc://127.0.0.1:15900",
       nativeCommand:
         context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.running
@@ -1897,6 +1931,19 @@ function hostDetailsLocation(host, tab = "overview") {
 }
 function openConnectionDetails(host) {
   connectionHost.value = host;
+}
+async function issueVncTicket() {
+  const host = connectionHost.value;
+  vncTicketLoading.value = true;
+  vncTicket.value = null;
+  try {
+    const ticket = await managedHostsApi.vncTicket(host.id);
+    if (host === connectionHost.value) vncTicket.value = ticket;
+  } catch (error) {
+    notify(error.message || "生成连接凭据失败", "error");
+  } finally {
+    vncTicketLoading.value = false;
+  }
 }
 async function copyCredentialValue(value, trigger) {
   await copyText(value, trigger);

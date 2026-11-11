@@ -38,6 +38,7 @@ from app.scheduler import start_scheduler, shutdown_scheduler
 from app.services.ssh_gateway_service import ssh_gateway_service
 from app.services.docker_gateway_service import docker_gateway_service
 from app.services.rdp_gateway_service import rdp_gateway_service
+from app.services.vnc_gateway_service import vnc_gateway_service
 from app.services.builtin_frps_service import builtin_frps_service
 from app.services.monitoring_service import sample_runtime
 from app.init_db import create_default_api_key, create_default_user
@@ -121,6 +122,10 @@ async def lifespan(app: FastAPI):
         rdp_gateway_service.start()
     except Exception as e:
         logger.error("RDP 网关启动失败: %s", e)
+    try:
+        vnc_gateway_service.start()
+    except Exception as e:
+        logger.error("VNC 网关启动失败: %s", e)
 
     await asyncio.to_thread(sample_runtime)
     
@@ -128,6 +133,7 @@ async def lifespan(app: FastAPI):
     
     # 关闭时清理资源
     logger.info("关闭定时任务...")
+    vnc_gateway_service.stop()
     rdp_gateway_service.stop()
     docker_gateway_service.stop()
     ssh_gateway_service.stop()
