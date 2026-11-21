@@ -82,6 +82,14 @@ function downloadRdp() {
 <template>
   <div class="min-w-0 space-y-3">
     <dl class="divide-y rounded-md border px-3 text-sm">
+      <div class="space-y-1 py-2">
+        <dt class="text-muted-foreground">连接类型</dt>
+        <dd>{{ credential.protocol === "vnc" ? "VNC（Mac 屏幕共享）" : "RDP（Windows 远程桌面）" }}</dd>
+      </div>
+      <div class="space-y-1 py-2">
+        <dt class="text-muted-foreground">连接名称</dt>
+        <dd class="break-all">{{ credential.target }}</dd>
+      </div>
       <div v-for="[field, label] in [['address', '地址'], ['username', '账号']]" :key="field" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-2">
         <dt class="text-muted-foreground">{{ label }}</dt>
         <dd class="col-start-1 row-start-2 break-all font-mono">{{ credential[field] }}</dd>

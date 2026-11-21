@@ -128,9 +128,19 @@ def main():
             page.get_by_role('link',name='主机资源',exact=True).click()
             page.get_by_role('button',name='连接详情',exact=True).click()
             dialog=page.get_by_role('dialog')
+            connection_panel=dialog.get_by_role('tabpanel')
+            expect(connection_panel.get_by_text('VNC（Mac 屏幕共享）',exact=True)).to_be_visible()
+            expect(connection_panel.get_by_text('mac-vnc',exact=True)).to_be_visible()
+            expect(connection_panel.get_by_text(native_url,exact=True)).to_be_visible()
+            expect(dialog.get_by_role('button',name='复制登录用户名',exact=True)).to_be_disabled()
+            dialog.get_by_role('button',name='复制网关地址',exact=True).click()
+            assert page.evaluate('navigator.clipboard.readText()') == native_url
+            dialog.get_by_role('button',name='生成临时凭据',exact=True).click()
+            expect(dialog.get_by_role('tab',name='临时凭据',exact=True)).to_have_attribute('aria-selected','true')
             dialog.get_by_role('tab',name='临时凭据',exact=True).click()
-            expect(page.get_by_role('dialog')).to_contain_text(native_url)
-            page.get_by_role('button',name='生成连接凭据',exact=True).click()
+            page.get_by_role('button',name='生成临时凭据',exact=True).click()
+            expect(dialog.get_by_text('连接类型',exact=True)).to_be_visible()
+            expect(dialog.get_by_text('连接名称',exact=True)).to_be_visible()
             expect(page.get_by_role('link',name='打开屏幕共享',exact=True)).to_have_attribute('href', native_url)
             page.get_by_role('button',name='复制密码',exact=True).click()
             page.wait_for_function("navigator.clipboard.readText().then(text => text === 'test-only-password')")
@@ -138,6 +148,11 @@ def main():
             assert page.evaluate('navigator.clipboard.readText()') == native_url
             page.screenshot(path=str(output/f'vnc-details-{width}.png'))
             dialog.get_by_role('tab',name='连接方式',exact=True).click()
+            expect(dialog.get_by_text('test-ticket',exact=True)).to_be_visible()
+            expect(dialog.get_by_role('button',name='复制登录用户名',exact=True)).to_be_enabled()
+            dialog.get_by_role('button',name='复制登录用户名',exact=True).click()
+            assert page.evaluate('navigator.clipboard.readText()') == 'test-ticket'
+            page.screenshot(path=str(output/f'vnc-connection-{width}.png'))
             page.get_by_role('button',name='复制网页链接',exact=True).click()
             assert page.evaluate('navigator.clipboard.readText()') == 'https://vnc.test/hosts/7?tab=desktop'
             expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_enabled()
@@ -216,6 +231,7 @@ def main():
         expect(page.get_by_role('dialog').get_by_role('tab',name='临时凭据')).to_have_count(0)
         expect(page.get_by_role('button',name='打开网页远程桌面',exact=True)).to_be_disabled()
         expect(page.get_by_role('button',name='复制 Mac 屏幕共享地址',exact=True)).to_have_count(0)
+        expect(page.get_by_role('button',name='复制网关地址',exact=True)).to_have_count(0)
         assert not errors,errors
         browser.close()
     print('VNC failure and ordinary-user permissions passed',flush=True)

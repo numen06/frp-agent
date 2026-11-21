@@ -980,7 +980,7 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             </DialogDescription>
           </div></DialogHeader
         >
-        <Tabs default-value="connection" :unmount-on-hide="true" class="min-h-0 flex-1 gap-0">
+        <Tabs v-model="connectionTab" :unmount-on-hide="true" class="min-h-0 flex-1 gap-0">
           <div class="shrink-0 border-b px-4 sm:px-5">
             <TabsList variant="line" aria-label="连接详情" class="flex h-auto w-full justify-start p-0">
               <TabsTrigger value="connection" class="min-w-0 flex-1 px-1 sm:flex-none sm:px-4">连接方式</TabsTrigger>
@@ -1021,9 +1021,13 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               </p>
             </section>
             <dl
-              v-if="connectionHost.host_type !== 'vnc'"
+              v-if="connectionHost.host_type !== 'vnc' || connectionInfo.publicVnc"
               class="grid gap-2 rounded-xl border bg-muted/30 p-3 text-sm sm:grid-cols-[7rem_1fr]"
             >
+              <dt class="text-muted-foreground">连接类型</dt>
+              <dd>{{ { vnc: "VNC（Mac 屏幕共享）", rdp: "RDP（Windows 远程桌面）", ssh: "SSH", docker: "Docker / Portainer" }[connectionHost.host_type] }}</dd>
+              <dt class="text-muted-foreground">连接名称</dt>
+              <dd class="min-w-0 break-all">{{ connectionHost.name }}</dd>
               <dt class="text-muted-foreground">网关地址</dt>
               <dd class="flex min-w-0 items-center gap-2">
                 <code class="min-w-0 flex-1 break-all text-xs text-foreground">{{
@@ -1058,12 +1062,13 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               <dt class="text-muted-foreground">登录用户名</dt>
               <dd class="flex min-w-0 items-center gap-2">
                 <code class="min-w-0 flex-1 break-all text-xs text-foreground">{{
-                  connectionInfo.loginName
+                  connectionInfo.loginName || "生成临时凭据后显示"
                 }}</code
                 ><Button
                   class="touch-manipulation"
                   aria-label="复制登录用户名"
                   title="复制登录用户名"
+                  :disabled="!connectionInfo.loginName"
                   @click="
                     copyCredentialValue(
                       connectionInfo.loginName,
@@ -1088,6 +1093,10 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               </dd>
               <dt class="text-muted-foreground">认证</dt>
               <dd class="text-foreground">{{ connectionInfo.passwordHint }}</dd>
+              <template v-if="connectionHost.host_type === 'vnc'">
+                <dt class="text-muted-foreground">有效至</dt>
+                <dd>{{ vncTicket ? formatCredentialExpiry(vncTicket.expires_at) + "（仅可连接一次）" : "凭据生成后 3 分钟内有效，仅可连接一次" }}</dd>
+              </template>
               <template
                 v-if="
                   connectionHost.host_type === 'ssh' &&
@@ -1157,6 +1166,12 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
               <code>frp-agent-docker-gateway-ca.pem</code>。
             </p>
             <div class="flex flex-wrap items-center gap-2">
+            <Button v-if="canIssueConnectionTicket" type="button" variant="outline" @click="connectionTab = 'credential'">
+              {{ connectionHost.host_type === 'vnc' && !vncTicket ? '生成临时凭据' : '查看临时凭据' }}
+            </Button>
+            <Button v-if="connectionInfo.publicVnc && vncTicket" as-child variant="outline">
+              <a :href="connectionInfo.publicVnc">打开屏幕共享</a>
+            </Button>
             <Button
               v-if="connectionHost.host_type === 'vnc'"
               :disabled="!connectionHost.is_active || !connectionHost.permissions.includes('connect')"
@@ -1193,35 +1208,20 @@ curl -X POST -H "Authorization: Bearer &lt;API_KEY&gt;" \
             </div>
           </TabsContent>
           <TabsContent v-if="canIssueConnectionTicket" value="credential" data-slot="dialog-body" class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
-            <section v-if="connectionHost.host_type === 'vnc'" class="space-y-3">
-              <h3 class="font-medium">Mac 屏幕共享</h3>
-                <p class="text-xs text-muted-foreground">
-                  生成一次性凭据，再打开 Mac「屏幕共享」。凭据 3 分钟内有效。
-                </p>
-                <code v-if="!vncTicket" class="block break-all text-xs">{{ connectionInfo.publicVnc }}</code>
-                <div class="flex flex-wrap gap-2">
-                  <Button type="button" :disabled="vncTicketLoading" @click="issueVncTicket">
-                    {{ vncTicketLoading ? "正在生成…" : "生成连接凭据" }}
-                  </Button>
-                  <Button v-if="!vncTicket" type="button" variant="outline" @click="copyCredentialValue(connectionInfo.publicVnc, $event.currentTarget)">
-                    复制代理地址
-                  </Button>
-                  <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
-                </div>
-                <TemporaryCredentialDetails v-if="vncTicket" :key="vncTicket.username" :credential="vncTicket" />
-            </section>
-            <section
-              v-if="connectionHost.host_type === 'rdp'"
-              class="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm"
-            >
-              <h3 class="font-medium">RDP 临时凭据</h3>
+            <section class="space-y-3">
+              <h3 class="font-medium">{{ connectionHost.host_type === 'vnc' ? 'VNC' : 'RDP' }} 临时凭据</h3>
+              <p class="text-xs text-muted-foreground">
+                {{ connectionHost.host_type === 'vnc'
+                  ? '使用临时账号和密码打开 Mac「屏幕共享」，凭据 3 分钟内有效，仅可连接一次。'
+                  : '使用临时账号和密码连接，有效期内可重复连接同一目标。' }}
+              </p>
               <div class="flex flex-wrap gap-2">
-                <Button type="button" :disabled="rdpTicketLoading" @click="issueRdpTicket">
-                  {{ rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
+                <Button type="button" :disabled="vncTicketLoading || rdpTicketLoading" @click="connectionHost.host_type === 'vnc' ? issueVncTicket() : issueRdpTicket()">
+                  {{ vncTicketLoading || rdpTicketLoading ? "正在生成…" : "生成临时凭据" }}
                 </Button>
                 <Button type="button" variant="ghost" @click="openTemporaryCredentials">管理临时凭据</Button>
               </div>
-              <TemporaryCredentialDetails v-if="rdpTicket" :key="rdpTicket.username" :credential="rdpTicket" />
+              <TemporaryCredentialDetails v-if="connectionTicket" :key="connectionTicket.username" :credential="connectionTicket" />
             </section>
           </TabsContent>
           <TabsContent value="host" data-slot="dialog-body" class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
@@ -1413,7 +1413,7 @@ import { usePagedList } from "@/composables/usePagedList";
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { machinesApi, managedHostsApi } from "@/api/managedHosts";
 import RdpConnectionStatus from "@/components/RdpConnectionStatus.vue";
-import { copyText } from "@/composables/useClipboard";
+import { copyText, formatCredentialExpiry } from "@/composables/useClipboard";
 import { saveDownload } from "@/utils/saveDownload";
 import { useRouter, useRoute } from "vue-router";
 
@@ -1529,14 +1529,19 @@ const tab = ref("hosts");
 const aiPromptOpen = ref(false);
 const discoveryOpen = ref(false);
 const connectionHost = ref(null);
+const connectionTab = ref("connection");
 const vncTicket = ref(null);
 const vncTicketLoading = ref(false);
 const rdpTicket = ref(null);
 const rdpTicketLoading = ref(false);
 watch(connectionHost, () => {
+  connectionTab.value = "connection";
   vncTicket.value = null;
   rdpTicket.value = null;
 });
+const connectionTicket = computed(() =>
+  connectionHost.value?.host_type === "vnc" ? vncTicket.value : rdpTicket.value,
+);
 const rdpProblemHost = ref(null);
 const rdpChecks = reactive({});
 const checkingHosts = reactive(new Set());
@@ -1885,12 +1890,16 @@ function buildConnectionInfo(host) {
   const gatewayHost = window.location.hostname || "平台地址";
   const isApiKey = context.actor_type === "api_key";
   const loginName = isApiKey ? host.name : `${context.actor_name}#${host.name}`;
-  if (host.host_type === "vnc")
+  if (host.host_type === "vnc") {
+    const publicVnc =
+      context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.vnc_gateway?.running
+        ? `vnc://${gatewayInfo.value.vnc_gateway.public_address || `${gatewayHost}:${gatewayInfo.value.vnc_gateway.port || 15901}`}`
+        : "";
     return {
-      publicVnc:
-        context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.vnc_gateway?.running
-          ? `vnc://${gatewayInfo.value.vnc_gateway.public_address || `${gatewayHost}:${gatewayInfo.value.vnc_gateway.port}`}`
-          : "",
+      publicVnc,
+      gateway: publicVnc,
+      loginName: vncTicket.value?.username || "",
+      passwordHint: "在「临时凭据」中生成并复制登录密码",
       nativeUrl: "vnc://127.0.0.1:15900",
       nativeCommand:
         context.actor_type === "user" && host.is_active && host.permissions.includes("connect") && gatewayInfo.value.running
@@ -1899,6 +1908,7 @@ function buildConnectionInfo(host) {
       command: new URL(`/hosts/${host.id}?tab=desktop`, window.location.origin)
         .href,
     };
+  }
   if (host.host_type === "rdp") {
     const gateway =
       gatewayInfo.value.rdp_gateway?.public_address ||
@@ -1966,7 +1976,7 @@ async function issueRdpTicket() {
   rdpTicket.value = null;
   try {
     const { address, username, expires_at } = await managedHostsApi.rdpTicket(host.id);
-    if (host === connectionHost.value) rdpTicket.value = { protocol: "rdp", host_id: host.id, address, username, expires_at };
+    if (host === connectionHost.value) rdpTicket.value = { protocol: "rdp", host_id: host.id, target: host.name, address, username, expires_at };
   } catch (error) {
     notify(error.message || "生成临时凭据失败", "error");
   } finally {
@@ -1979,7 +1989,7 @@ async function issueVncTicket() {
   vncTicket.value = null;
   try {
     const { address, username, expires_at } = await managedHostsApi.vncTicket(host.id);
-    if (host === connectionHost.value) vncTicket.value = { protocol: "vnc", host_id: host.id, address, username, expires_at };
+    if (host === connectionHost.value) vncTicket.value = { protocol: "vnc", host_id: host.id, target: host.name, address, username, expires_at };
   } catch (error) {
     notify(error.message || "生成连接凭据失败", "error");
   } finally {
